@@ -24,8 +24,9 @@ export async function notifyNewOrder(order:CateringOrder, trackingLink:string) {
 }
 
 export async function notifyOrderDecision(order:CateringOrder, trackingLink:string) {
-  const msg = order.status === 'approved' ? 'Din förfrågan är godkänd.' : order.status === 'rejected' ? 'Vi kan tyvärr inte ta emot din förfrågan.' : 'Vi behöver ändra något i din beställning.';
-  const payment = order.status === 'approved' && order.payment_preference === 'cash' ? '<p>Du betalar kontant vid överenskommen hämtning. Din order är fortfarande obetald.</p>' : order.status === 'approved' && order.checkout_url ? `<p><a href="${escapeHtml(order.checkout_url)}">Betala säkert här</a>. Beställningen registreras som betald först efter bekräftelse från betalningstjänsten.</p>` : '';
+  const accepted = order.status === 'approved' || order.status === 'ready';
+  const msg = accepted ? 'Din förfrågan är godkänd.' : order.status === 'rejected' ? 'Vi kan tyvärr inte ta emot din förfrågan.' : 'Vi behöver ändra något i din beställning.';
+  const payment = accepted && order.payment_preference === 'cash' ? '<p>Du betalar kontant vid överenskommen hämtning. Din order är fortfarande obetald.</p>' : accepted && order.checkout_url ? `<p><a href="${escapeHtml(order.checkout_url)}">Betala säkert här</a>. Beställningen registreras som betald först efter bekräftelse från betalningstjänsten.</p>` : '';
   await send(order.email, `Uppdatering om catering #${order.code}`, `<p><b>${msg}</b></p><p>${escapeHtml(order.admin_note || '')}</p>${payment}<p><a href="${escapeHtml(trackingLink)}">Visa orderstatus</a></p>`);
 }
 
