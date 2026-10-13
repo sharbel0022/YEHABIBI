@@ -1,0 +1,39 @@
+{
+  "name": "cedar-mezze-catering",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test tests/*.test.mjs",
+    "verify": "npm run syntax && npm run typecheck && npm run test && npm run build",
+    "syntax": "node scripts/check-source.cjs"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "next": "16.2.10",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "@supabase/supabase-js": "2.57.0",
+    "@supabase/ssr": "0.12.7",
+    "stripe": "19.0.0",
+    "resend": "6.0.0",
+    "qrcode": "1.5.4",
+    "zod": "4.0.0",
+    "lucide-react": "0.468.0"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "@types/node": "22.0.0",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "@types/qrcode": "1.5.5",
+    "tailwindcss": "4.0.0",
+    "@tailwindcss/postcss": "4.0.0"
+  },
+  "type": "module"
+}

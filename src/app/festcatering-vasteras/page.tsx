@@ -1,0 +1,4 @@
+import type { Metadata } from 'next';
+import { Cta } from '@/components/Cta';
+export const metadata: Metadata = { title:'Festcatering i Västerås – libanesiska bufféer', description:'Libanesisk festcatering i Västerås till födelsedagar, bröllop och familjesammankomster. Välj meny och skicka förfrågan.' };
+export default function EventCatering(){return <section className="shell section inner-page"><span className="eyebrow">FESTCATERING VÄSTERÅS</span><h1>En fest att minnas.</h1><div className="simple-two"><div><p className="intro">Libanesisk catering till bröllop, födelsedagar och andra festliga tillfällen. Dela maten med dem du tycker om.</p><p>Välj cateringmeny, ange hur många ni blir och när ni vill samlas. Vi bekräftar din förfrågan innan betalning.</p><Cta href="/bestall?typ=fest">Beställ till fest</Cta></div><img src="/images/fest.webp" alt="Libanesisk buffé för fest"/></div></section>}
