@@ -28,3 +28,12 @@ export async function notifyOrderDecision(order:CateringOrder, trackingLink:stri
   const payment = order.status === 'approved' && order.payment_preference === 'cash' ? '<p>Du betalar kontant vid överenskommen hämtning. Din order är fortfarande obetald.</p>' : order.status === 'approved' && order.checkout_url ? `<p><a href="${escapeHtml(order.checkout_url)}">Betala säkert här</a>. Beställningen registreras som betald först efter bekräftelse från betalningstjänsten.</p>` : '';
   await send(order.email, `Uppdatering om catering #${order.code}`, `<p><b>${msg}</b></p><p>${escapeHtml(order.admin_note || '')}</p>${payment}<p><a href="${escapeHtml(trackingLink)}">Visa orderstatus</a></p>`);
 }
+
+/** Ask every completed customer for an honest review: no ratings or rewards are implied. */
+export async function notifyCompletedOrder(order: CateringOrder, officialGoogleReviewUrl: string | null) {
+  const link = officialGoogleReviewUrl
+    ? `<p>Vill du dela din upplevelse? <a href="${escapeHtml(officialGoogleReviewUrl)}">Lämna ett ärligt omdöme på Google</a>. Alla åsikter är välkomna.</p>`
+    : '';
+  await send(order.email, `Tack för din cateringbeställning #${order.code}`,
+    `<p>Tack för att du valde oss!</p><p>Beställning <b>${escapeHtml(order.code)}</b> är nu markerad som slutförd.</p>${link}`);
+}

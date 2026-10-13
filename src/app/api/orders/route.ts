@@ -28,10 +28,15 @@ export async function POST(request: Request) {
   if (!secret || secret.length < 32) return jsonError('Beställningsskyddet är inte aktiverat.',503);
   // Use only deployment-trusted forwarding headers; the platform sets x-forwarded-for.
   const ip = (request.headers.get('x-forwarded-for') || 'unknown').split(',')[0].trim().slice(0,80);
-  const key = createHmac('sha256',secret).update(`${ip}:${input.email.toLowerCase()}`).digest('hex');
+  // Separate limits per network and customer email make spam harder.
+  const ipKey = createHmac('sha256',secret).update(`ip:${ip}`).digest('hex');
+  const emailKey = createHmac('sha256',secret).update(`email:${input.email.toLowerCase()}`).digest('hex');
   const db = adminDb();
-  const { data:allowed, error:limitError } = await db.rpc('consume_order_limit',{p_key_hash:key});
-  if (limitError || !allowed) return jsonError('För många förfrågningar. Försök igen senare.',429);
+  const ipLimit = await db.rpc('consume_order_limit',{p_key_hash:ipKey});
+  const emailLimit = await db.rpc('consume_order_limit',{p_key_hash:emailKey});
+  if (ipLimit.error || !ipLimit.data || emailLimit.error || !emailLimit.data) {
+    return jsonError('För många förfrågningar. Försök igen senare.',429);
+  }
 
   const settings = await getSettings();
   const {data:menu,error:menuError} = await db.from('menus').select('*').eq('id',input.menu_id).eq('active',true).maybeSingle();

@@ -4,7 +4,9 @@ import { adminActionSchema } from '@/lib/validators';
 import { canTransition } from '@/lib/domain';
 import { createCheckout, stripeClient } from '@/lib/payments';
 import { trackingLink } from '@/lib/tracking';
-import { notifyOrderDecision } from '@/lib/mailer';
+import { notifyCompletedOrder, notifyOrderDecision } from '@/lib/mailer';
+import { getSettings } from '@/lib/data';
+import { safeExternalUrl } from '@/lib/domain';
 import type { CateringOrder } from '@/types/domain';
 
 export const dynamic='force-dynamic';
@@ -56,6 +58,10 @@ export async function PATCH(request: Request,{params}:{params:Promise<{id:string
   // Check old status in UPDATE to prevent two administrators from overwriting changes.
   const {data:saved,error:updateError}=await db.from('orders').update(changes).eq('id',id).eq('status',order.status).eq('payment_status',order.payment_status).select('*').maybeSingle();
   if(updateError||!saved)return jsonError('Ordern ändrades av någon annan. Ladda om sidan.',409);
-  if(['approve','reject','request_changes'].includes(action))await notifyOrderDecision(saved as CateringOrder,trackingLink(order));
+  if(['approve','reject','request_changes'].includes(action)) await notifyOrderDecision(saved as CateringOrder,trackingLink(order));
+  if(action === 'complete') {
+    const settings = await getSettings();
+    await notifyCompletedOrder(saved as CateringOrder, safeExternalUrl(settings.google_review_url));
+  }
   return Response.json({order:saved},{headers:{'Cache-Control':'no-store'}});
 }
