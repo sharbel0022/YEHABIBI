@@ -1,13 +1,24 @@
-import type { Metadata } from 'next';
-import { getMenus } from '@/lib/data';
-import { MenuCard } from '@/components/MenuCard';
-import { isSupabaseReady } from '@/lib/config';
-export const metadata: Metadata = { title: 'Cateringmenyer i Västerås', description: 'Se våra libanesiska cateringmenyer: mezze, grill och bufféer för fest, hem och företag.' };
-export default async function Menus() {
-  const menus = await getMenus();
-  return <section className="shell section inner-page"><span className="eyebrow">LIBANESISKA SMAKER</span><h1>Våra cateringmenyer</h1><p className="intro">Upptäck våra favoriter för små och stora sällskap. Alla priser och allergener bekräftas före beställning.</p>
-    {!isSupabaseReady() && <p className="preview-note">Detta är en förhandsvisning. Ägaren behöver lägga in verkliga priser.</p>}
-    <div className="menu-grid">{menus.map(menu => <MenuCard key={menu.id} menu={menu} preview={!isSupabaseReady()} />)}</div>
-    {!menus.length && <p>Menyer publiceras här så snart ägaren har godkänt dem.</p>}
+import type {Metadata} from 'next';
+import {getMenus,getMenuItems,getSettings} from '@/lib/data';
+import {MenuCatalog} from '@/components/MenuCatalog';
+import {isSupabaseReady} from '@/lib/config';
+
+export const metadata:Metadata = {
+  title:'Cateringmenyer & bygg egen meny i Västerås',
+  description:'Beställ libanesisk catering för 5–10 vänner hemma, fest och företag. Välj ostrullar, hummus, grill och mer. Se pris per person.'
+};
+
+export default async function MenusPage({searchParams}:{
+  searchParams:Promise<{val?:string}>
+}) {
+  const [menus,items,settings,params]=await Promise.all([
+    getMenus(),getMenuItems(),getSettings(),searchParams
+  ]);
+  return <section className="shell section inner-page">
+    <span className="eyebrow">LIBANESISKA SMAKER</span>
+    <h1>Menyer som passar just er.</h1>
+    <p className="intro">Välj ett färdigt paket eller bygg din egen catering. Du bestämmer antal och ser priset direkt – även för ett mindre sällskap hemma.</p>
+    <MenuCatalog menus={menus} items={items} initialTab={params.val}
+      minPeople={settings.custom_min_people} preview={!isSupabaseReady()}/>
   </section>;
 }
