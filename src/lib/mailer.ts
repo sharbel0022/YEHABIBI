@@ -18,9 +18,13 @@ async function send(to: string, subject: string, body: string) {
 
 export async function notifyNewOrder(order:CateringOrder, trackingLink:string) {
   const details = `<p><b>Order ${escapeHtml(order.code)}</b></p><p>${escapeHtml(order.menu_title)} · ${order.guests} personer<br>Datum: ${escapeHtml(order.event_date)} kl ${escapeHtml(order.event_time)}<br>Belopp: ${formatSek(order.total_ore)}<br>Betalsätt: ${escapeHtml(paymentLabels[order.payment_preference])}</p>`;
+  const lines=(order.items_snapshot||[]).map(item=>
+    `<li>${item.quantity} × ${escapeHtml(item.title)} (${formatSek(item.unit_price_ore)}/${escapeHtml(item.unit_label)}) = ${formatSek(item.line_total_ore)}</li>`
+  ).join('');
+  const breakdown=lines?`<p><b>Rätt för rätt:</b></p><ul>${lines}</ul>`:'';
   const owner = process.env.OWNER_NOTIFICATION_EMAIL;
-  if (owner) await send(owner, order.payment_preference === 'cash' ? `Kontantbeställning – obetald #${order.code}` : `Ny cateringförfrågan #${order.code}`, `${details}<p><b>Status: OBEHANDLAD – ${order.payment_preference === 'cash' ? 'KONTANT/OBETALD' : 'EJ BETALD'}.</b></p><p>Namn: ${escapeHtml(order.full_name)}<br>Mejl: ${escapeHtml(order.email)}<br>Telefon: ${escapeHtml(order.phone)}<br>Önskemål: ${escapeHtml(order.notes)}</p><p>Logga in i adminpanelen för att godkänna.</p>`);
-  await send(order.email, `Vi har fått din cateringförfrågan #${order.code}`, `${details}<p>Din förfrågan är mottagen men ännu inte godkänd eller betald. Vi återkommer med en bekräftelse.</p><p><a href="${escapeHtml(trackingLink)}">Följ din förfrågan</a></p>`);
+  if (owner) await send(owner, order.payment_preference === 'cash' ? `Kontantbeställning – obetald #${order.code}` : `Ny cateringförfrågan #${order.code}`, `${details}${breakdown}<p><b>Status: OBEHANDLAD – ${order.payment_preference === 'cash' ? 'KONTANT/OBETALD' : 'EJ BETALD'}.</b></p><p>Namn: ${escapeHtml(order.full_name)}<br>Mejl: ${escapeHtml(order.email)}<br>Telefon: ${escapeHtml(order.phone)}<br>Önskemål: ${escapeHtml(order.notes)}</p><p>Logga in i adminpanelen för att godkänna.</p>`);
+  await send(order.email, `Vi har fått din cateringförfrågan #${order.code}`, `${details}${breakdown}<p>Din förfrågan är mottagen men ännu inte godkänd eller betald. Vi återkommer med en bekräftelse.</p><p><a href="${escapeHtml(trackingLink)}">Följ din förfrågan</a></p>`);
 }
 
 export async function notifyOrderDecision(order:CateringOrder, trackingLink:string) {

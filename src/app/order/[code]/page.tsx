@@ -15,9 +15,15 @@ export default async function TrackOrder({params,searchParams}:{params:Promise<{
  const {data,error}=await adminDb().from('orders').select('*').eq('code',code).maybeSingle();
  if(error||!data)notFound();
  const order=data as CateringOrder;
- const provided=Buffer.from(trackingHash(token),'hex');const expected=Buffer.from(order.tracking_hash,'hex');
+ const provided=Uint8Array.from(Buffer.from(trackingHash(token),'hex'));
+ const expected=Uint8Array.from(Buffer.from(order.tracking_hash,'hex'));
  if(provided.length!==expected.length||!timingSafeEqual(provided,expected))notFound();
- return <section className="shell section inner-page"><span className="eyebrow">DIN FÖRFRÅGAN · {order.code}</span><h1>Så går det med din catering</h1><div className="form-layout"><div className="order-panel"><h2>{statusLabels[order.status]}</h2><p>Betalning: <strong>{paymentStatusLabels[order.payment_status]}</strong>.</p><p>{order.menu_title} för {order.guests} personer.<br/>Datum: {order.event_date}, kl {order.event_time}.</p><p>Totalt: {formatSek(order.total_ore)}.</p>
+ return <section className="shell section inner-page"><span className="eyebrow">DIN FÖRFRÅGAN · {order.code}</span><h1>Så går det med din catering</h1><div className="form-layout"><div className="order-panel"><h2>{statusLabels[order.status]}</h2><p>Betalning: <strong>{paymentStatusLabels[order.payment_status]}</strong>.</p><p>{order.menu_title} för {order.guests} personer.<br/>Datum: {order.event_date}, kl {order.event_time}.</p>{(order.items_snapshot||[]).length>0&&<div className="summary-lines">
+   {(order.items_snapshot||[]).map(item=><div key={item.item_id}>
+     <span>{item.quantity} × {item.title}</span><strong>{formatSek(item.line_total_ore)}</strong>
+   </div>)}
+  </div>}
+  <p><strong>Totalt: {formatSek(order.total_ore)}</strong> ({formatSek(Math.round(order.total_ore/order.guests))} per person).</p>
   {order.admin_note&&<div className="preview-note"><strong>Meddelande från oss:</strong> {order.admin_note}</div>}
   {order.status==='approved'&&order.payment_preference==='cash'&&<p>Kontant betalning sker vid överenskommen hämtning. Markeras som betald först när vi tagit emot pengarna.</p>}
   {order.status==='approved'&&order.payment_status!=='paid'&&safeExternalUrl(order.checkout_url)&&<a href={safeExternalUrl(order.checkout_url)!} className="btn btn-primary" rel="noopener noreferrer">Betala säkert →</a>}

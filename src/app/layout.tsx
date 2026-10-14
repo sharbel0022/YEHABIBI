@@ -10,14 +10,14 @@ import './globals.css';
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: { default: `${BRAND} | Libanesisk catering i Västerås`, template: `%s | ${BRAND}` },
-  description: 'Libanesisk catering till hemmet, bröllop, fester och företag i Västerås med omnejd. Se våra menyer och skicka en enkel beställningsförfrågan.',
+  description: 'Libanesisk catering i Västerås till hem, fester och företag. Även för 5–10 vänner. Bygg din egen mezze, se styckpriser och pris per person.',
   applicationName: BRAND,
   robots: isIndexable() ? { index: true, follow: true } : { index: false, follow: false },
   openGraph: { type: 'website', locale: 'sv_SE', title: `${BRAND} – Libanesisk catering`, images: ['/images/hero.webp'] },
   alternates: { canonical: '/' }
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#19382b' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#155A43' };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const settings = await getSettings();
