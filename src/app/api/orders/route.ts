@@ -4,10 +4,10 @@ import { getSettings } from '@/lib/data';
 import { isSupabaseReady } from '@/lib/config';
 import { checkOrigin, jsonError } from '@/lib/auth';
 import { newOrderSchema } from '@/lib/validators';
-import { canUseCash, calcTotal, isValidEventDate } from '@/lib/domain';
+import { canUseCash, calcTotal, calcItemsTotal, deliveryFeeFor, isValidEventDate } from '@/lib/domain';
 import { trackingHash, trackingLink, trackingToken } from '@/lib/tracking';
 import { notifyNewOrder } from '@/lib/mailer';
-import type { CateringOrder } from '@/types/domain';
+import type { CateringOrder, OrderLine } from '@/types/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,22 +39,61 @@ export async function POST(request: Request) {
   }
 
   const settings = await getSettings();
-  const {data:menu,error:menuError} = await db.from('menus').select('*').eq('id',input.menu_id).eq('active',true).maybeSingle();
-  if (menuError || !menu || menu.price_ore <= 0) return jsonError('Menyn är ännu inte bokningsbar.');
-  if (input.guests < menu.min_people) return jsonError(`Den här menyn kräver minst ${menu.min_people} personer.`);
-  if (!isValidEventDate(input.event_date, settings.min_advance_days)) return jsonError('Välj ett datum inom tillåten framförhållning.');
-  if (input.fulfillment === 'delivery' && !settings.delivery_enabled || input.fulfillment === 'pickup' && !settings.pickup_enabled) return jsonError('Valt leveranssätt erbjuds inte.');
-  if (input.fulfillment === 'delivery' && (!input.address || !input.postal_code || !input.city)) return jsonError('Fyll i fullständig leveransadress.');
-  if (!canUseCash(input.payment_preference,input.fulfillment,settings.cash_enabled)) return jsonError('Kontantbetalning kräver hämtning.');
-  if (input.payment_preference === 'swish' && process.env.STRIPE_SWISH_ENABLED !== 'true') return jsonError('Swish är inte aktiverat ännu. Välj ett annat betalningssätt.');
-  if (input.payment_preference !== 'cash' && !process.env.STRIPE_SECRET_KEY) return jsonError('Onlinebetalning är inte aktiverad ännu.');
+  // SERVERN räknar alltid från godkända databaspriser – aldrig från klientens summa.
+  const feeOre = input.fulfillment === 'delivery'
+    ? deliveryFeeFor(input.postal_code, settings.delivery_fee_ore, settings.delivery_zones || [])
+    : 0;
+  let menuId: string | null = null;
+  let menuTitle = 'Bygg din egen meny';
+  let pricePerPersonOre = 0;
+  let itemsSnapshot: OrderLine[] = [];
+  let prices: {subtotal_ore:number;delivery_fee_ore:number;total_ore:number};
 
-  const prices = calcTotal(menu.price_ore, input.guests, input.fulfillment,settings.delivery_fee_ore);
+  if (input.items?.length) {
+    if (input.guests < settings.custom_min_people) {
+      return jsonError(`Minst ${settings.custom_min_people} personer krävs för en egen meny.`);
+    }
+    const selectedIds = input.items.map(item => item.item_id);
+    const {data:dishes,error:dishError} = await db.from('menu_items')
+      .select('id,title,unit_label,unit_price_ore,active').in('id',selectedIds).eq('active',true);
+    if (dishError || !dishes || dishes.length !== selectedIds.length) {
+      return jsonError('En eller flera maträtter är inte tillgängliga. Uppdatera sidan.');
+    }
+    const lookup = new Map(dishes.map(dish => [dish.id, dish]));
+    itemsSnapshot = input.items.map(item => {
+      const dish = lookup.get(item.item_id)!;
+      return {item_id:dish.id,title:dish.title,unit_label:dish.unit_label,
+        unit_price_ore:dish.unit_price_ore,quantity:item.quantity,
+        line_total_ore:dish.unit_price_ore * item.quantity};
+    });
+    if (itemsSnapshot.some(line => line.unit_price_ore <= 0)) {
+      return jsonError('Ägaren behöver godkänna priset för en av rätterna.');
+    }
+    try {
+      const totals = calcItemsTotal(itemsSnapshot,input.guests,input.fulfillment,feeOre);
+      prices = {subtotal_ore:totals.subtotal_ore,delivery_fee_ore:totals.delivery_fee_ore,total_ore:totals.total_ore};
+      pricePerPersonOre = Math.round(totals.subtotal_ore/input.guests);
+    } catch {
+      return jsonError('Beställningens antal eller totalsumma är ogiltig.');
+    }
+  } else {
+    const {data:menu,error:menuError} = await db.from('menus')
+      .select('*').eq('id',input.menu_id).eq('active',true).maybeSingle();
+    if (menuError || !menu || menu.price_ore <= 0) return jsonError('Menyn är ännu inte bokningsbar.');
+    if (input.guests < menu.min_people) return jsonError(`Den här menyn kräver minst ${menu.min_people} personer.`);
+    menuId = menu.id;
+    menuTitle = menu.title;
+    pricePerPersonOre = menu.price_ore;
+    try {
+      prices = calcTotal(menu.price_ore,input.guests,input.fulfillment,feeOre);
+    } catch { return jsonError('Beställningens totalsumma är ogiltig.'); }
+  }
+  if (prices.total_ore <= 0) return jsonError('Ägaren måste fastställa ett pris innan beställningen kan skickas.');
   const id = randomUUID();
   const code = `CM-${randomBytes(5).toString('hex').toUpperCase()}`;
   const order = {
-    id,code,tracking_hash:trackingHash(trackingToken(id)),menu_id:menu.id,menu_title:menu.title,
-    price_per_person_ore:menu.price_ore,guests:input.guests,occasion:input.occasion,
+    id,code,tracking_hash:trackingHash(trackingToken(id)),menu_id:menuId,menu_title:menuTitle,
+    price_per_person_ore:pricePerPersonOre,items_snapshot:itemsSnapshot,guests:input.guests,occasion:input.occasion,
     event_date:input.event_date,event_time:input.event_time,fulfillment:input.fulfillment,
     address:input.fulfillment==='delivery'?input.address:'',postal_code:input.fulfillment==='delivery'?input.postal_code:'',city:input.fulfillment==='delivery'?input.city:'',
     full_name:input.full_name,email:input.email,phone:input.phone,notes:input.notes,
