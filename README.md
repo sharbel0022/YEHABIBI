@@ -1,6 +1,24 @@
 # Cedar Mezze – libanesisk catering
 
+**V2 – vit, enkel och mobilanpassad design** med hemcatering även för 5–10 personer, styckrätter och livepris per person.
+
 En **lättläst Next.js-webbapp** för förbeställd libanesisk catering i Västerås. Projektet ligger i repot `YEHABIBI` men använder arbetsnamnet **Cedar Mezze**. Företagets juridiska namn, menypriser, domän och Google-profil måste godkännas innan publicering.
+
+## Välj kodfil och förstå den
+
+**Läs [docs/FIL_FOR_FIL_V2.md](docs/FIL_FOR_FIL_V2.md)** för språk, databas, varför varje fil finns och exempel på prislogiken.
+
+**Teknik:** TypeScript, React/Next.js, CSS/Tailwind, PostgreSQL/Supabase, Stripe och Resend.
+
+## Nytt i V2
+
+- Vit layout med cedergrönt träd, enkel toppmeny och kampanjer som kan tidsstyras.
+- Välj **Hemma**, **Fest** eller **Företag**. Bygg egen meny även till ett mindre sällskap.
+- Lägg till och ta bort ostrullar, hummus och andra rätter. Visa exakt radpris, total och pris per person.
+- Färdiga paket finns kvar som alternativ.
+- Ägaren får ett separat redigeringsgränssnitt för varje rätt: pris/styck, rekommenderad mängd, allergener och foto.
+- Levanszoner via postnummer och val mellan hemleverans/hämtning.
+- Migrering `supabase/migrations/0002_cedar_mezze_v2.sql` krävs **efter** grundmigreringen 0001.
 
 ## Det här går att göra
 
@@ -29,7 +47,7 @@ npm run dev
 ## Aktivera databas och admin
 
 1. Skapa ett Supabase-projekt som ägs av cateringföretaget.
-2. Kör `supabase/migrations/0001_cedar_mezze.sql` i SQL Editor.
+2. Kör `supabase/migrations/0001_cedar_mezze.sql` och sedan `supabase/migrations/0002_cedar_mezze_v2.sql` i SQL Editor.
 3. Kopiera projektets URL, publishable/anon-nyckel och **hemliga** service-role-nyckel till `.env.local`.
 4. Bjud in ägaren i Supabase Auth. Skriv samma e-postadress i `ADMIN_EMAILS`.
 5. Tillåt korrekt inloggnings-redirect `http://localhost:3000/auth/callback` lokalt, och den slutliga domänen i produktion.
@@ -71,7 +89,7 @@ npm run typecheck
 npm run build
 ```
 
-GitHub Actions gör samma kontroller när koden pushas. Se `docs/TESTPLAN.md` för de manuella testfallen. Denna version är **inte en live-produktionsrelease** förrän ägarens konton och innehåll anslutits.
+GitHub Actions gör samma kontroller när koden pushas. Se även `docs/V2_ACCEPTANS.md` för testfall till de nya funktionerna. Denna version är **inte en live-produktionsrelease** förrän ägarens konton och innehåll anslutits.
 
 ## Hitta rätt fil
 

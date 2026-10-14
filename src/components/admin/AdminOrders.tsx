@@ -27,7 +27,14 @@ export function AdminOrders({ initialOrders }: { initialOrders:CateringOrder[] }
     {!orders.length && <p>Inga beställningar ännu.</p>}
     {orders.map(order => <article key={order.id} style={{padding:'24px 0',borderBottom:'1px solid #ddd'}}>
       <div className="admin-top"><div><strong>#{order.code} · {order.menu_title}</strong><p className="admin-note">{order.full_name} · {order.email} · {order.phone}</p></div><div><span className="admin-pill">{statusLabels[order.status]}</span> <span className="admin-pill">{paymentStatusLabels[order.payment_status]}</span></div></div>
-      <div className="admin-grid"><div><p>{order.guests} personer · {order.event_date} kl {order.event_time}<br/>{order.occasion} · {order.fulfillment === 'pickup'?'Hämtning':`Leverans: ${order.address}, ${order.postal_code} ${order.city}`}<br/>Betalsätt: <strong>{paymentLabels[order.payment_preference]}</strong><br/>Totalt: <strong>{formatSek(order.total_ore)}</strong></p><p>{order.notes}</p></div><div><div className="field"><label htmlFor={`note-${order.id}`}>Meddelande till kunden</label><textarea id={`note-${order.id}`} value={note[order.id]??order.admin_note??''} onChange={event=>setNote(prev=>({...prev,[order.id]:event.target.value}))}/></div></div></div>
+      <div className="admin-grid"><div><p>{order.guests} personer · {order.event_date} kl {order.event_time}<br/>{order.occasion} · {order.fulfillment === 'pickup'?'Hämtning':`Leverans: ${order.address}, ${order.postal_code} ${order.city}`}<br/>Betalsätt: <strong>{paymentLabels[order.payment_preference]}</strong><br/>Totalt: <strong>{formatSek(order.total_ore)}</strong></p>{(order.items_snapshot||[]).length>0&&<div className="summary-lines">
+        <strong>Valda maträtter</strong>
+        {order.items_snapshot.map(item=><div key={item.item_id}>
+          <span>{item.quantity} × {item.title} ({formatSek(item.unit_price_ore)}/{item.unit_label})</span>
+          <strong>{formatSek(item.line_total_ore)}</strong>
+        </div>)}
+      </div>}
+      <p>{order.notes}</p></div><div><div className="field"><label htmlFor={`note-${order.id}`}>Meddelande till kunden</label><textarea id={`note-${order.id}`} value={note[order.id]??order.admin_note??''} onChange={event=>setNote(prev=>({...prev,[order.id]:event.target.value}))}/></div></div></div>
       {order.checkout_url && <p><a className="text-link" href={order.checkout_url} rel="noreferrer" target="_blank">Kundens betalningslänk ↗</a></p>}
       <div className="admin-actions">{(['approve','request_changes','reject','ready','complete','cash_paid','refund','payment_link'] as const).filter(op => {
         if (op === 'approve'||op==='request_changes'||op==='reject') return order.status==='new'||order.status==='changes_requested';
