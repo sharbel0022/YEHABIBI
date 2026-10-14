@@ -1,6 +1,6 @@
 # Läs koden – Cedar Mezze V2
 
-Projektet använder **TypeScript**, **React/Next.js**, **CSS/Tailwind** och **SQL/PostgreSQL**.
+Projektet använder **TypeScript**, **React/Next.js**, **ren CSS** och **SQL/PostgreSQL**.
 
 - **TypeScript**: regler för priser, beställningar, betalning och admin.
 - **React + Next.js**: sidor, knappar, formulär, API och serverfunktioner.

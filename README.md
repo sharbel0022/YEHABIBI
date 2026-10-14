@@ -8,7 +8,7 @@ En **lättläst Next.js-webbapp** för förbeställd libanesisk catering i Väst
 
 **Läs [docs/FIL_FOR_FIL_V2.md](docs/FIL_FOR_FIL_V2.md)** för språk, databas, varför varje fil finns och exempel på prislogiken.
 
-**Teknik:** TypeScript, React/Next.js, CSS/Tailwind, PostgreSQL/Supabase, Stripe och Resend.
+**Teknik:** TypeScript, React/Next.js, ren CSS, PostgreSQL/Supabase, Stripe och Resend.
 
 ## Nytt i V2
 
