@@ -5,7 +5,8 @@ import { CalendarDays, Check, ShieldCheck } from 'lucide-react';
 import { ItemPicker } from '@/components/ItemPicker';
 import { parseQuantities, useMenuDraft } from '@/components/order-draft';
 import type { DeliveryZone, Dish, Fulfillment, Menu, Occasion, PaymentPreference, Settings } from '@/types/domain';
-import { calcDishTotal, calcTotal, findDeliveryZone, formatSek, isValidEventDate, occasions, paymentLabels } from '@/lib/domain';
+import { calcDishTotal, calcTotal, eventDateBounds, findDeliveryZone, formatSek, isValidEventDate, occasions, paymentLabels } from '@/lib/domain';
+import { newOrderSchema } from '@yehabibi/shared';
 
 type Props = {
   menus: Menu[]; dishes: Dish[]; zones: DeliveryZone[]; settings: Settings;
@@ -34,6 +35,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
   const custom = draft.mode === 'bygg';
   const menu = menus.find(item => item.id === draft.menuId) || menus[0];
   const canDeliver = settings.delivery_enabled && zones.length > 0 && paymentMethods.some(method => method !== 'cash');
+  const bookingDates = eventDateBounds(settings.min_advance_days);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<Contact>({
     occasion: initialOccasion === 'fest' || initialOccasion === 'foretag' ? initialOccasion : 'hemma',
@@ -45,6 +47,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [tracking, setTracking] = useState('');
+  const [orderCode, setOrderCode] = useState('');
   const selected = dishes.filter(dish => quantities[dish.id] > 0);
   const items = selected.map(dish => ({ dish_id: dish.id, quantity: quantities[dish.id] }));
   const zone = findDeliveryZone(zones, form.postal_code);
@@ -61,6 +64,18 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
 
   function set<K extends keyof Contact>(key: K, value: Contact[K]) { setForm(old => ({ ...old, [key]: value })); }
   function goBack(to: number) { setError(''); setStep(to); }
+  function orderInput() {
+    return { ...form, guests, menu_id: custom ? undefined : menu?.id,
+      items: custom ? items : undefined, delivery_zone_id: form.fulfillment === 'delivery' ? zone?.id : undefined };
+  }
+  function contactError() {
+    const result = newOrderSchema.safeParse({ ...orderInput(), terms_accepted: true });
+    if (result.success) return '';
+    const messages: Record<string, string> = { full_name: 'Ange ditt fullständiga namn, minst två tecken.',
+      email: 'Ange en giltig e-postadress, högst 200 tecken.', phone: 'Ange ett telefonnummer med minst 7 tecken. Använd siffror, +, mellanslag, bindestreck eller parenteser.',
+      notes: 'Önskemålen får innehålla högst 1 000 tecken.' };
+    return messages[String(result.error.issues[0]?.path[0])] || 'Kontrollera uppgifterna i föregående steg.';
+  }
   function validationError() {
     if (quoteError) return quoteError;
     if ((!custom && !menu) || (custom && !items.length)) return 'Välj ett cateringpaket eller minst en maträtt.';
@@ -80,6 +95,8 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
       if (form.fulfillment === 'delivery' && (!form.address || !form.city || !form.postal_code)) return setError('Ange fullständig leveransadress.');
       if (form.fulfillment === 'delivery' && !zone) return setError('Postnumret ligger utanför våra leveranszoner. Välj hämtning eller kontakta oss.');
     }
+    const contactMessage = step === 3 ? contactError() : '';
+    if (contactMessage) return setError(contactMessage);
     setStep(old => Math.min(old + 1, 4));
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -89,29 +106,31 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
     const message = validationError();
     if (message) return setError(message);
     if (!form.terms_accepted || !availableMethods.includes(form.payment_preference)) return setError('Godkänn villkoren och välj ett tillgängligt betalningssätt.');
+    const parsed = newOrderSchema.safeParse(orderInput());
+    if (!parsed.success) return setError(contactError() || 'Kontrollera dina uppgifter.');
     setSending(true);
     try {
-      const payload = { ...form, guests, menu_id: custom ? undefined : menu?.id,
-        items: custom ? items : undefined, delivery_zone_id: form.fulfillment === 'delivery' ? zone?.id : undefined };
+      const payload = parsed.data;
       const request_id = await requestIdFor(payload);
       const response = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payload, request_id }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Kunde inte skicka förfrågan.');
-      clearDraft(); setTracking(result.tracking_url);
+      clearDraft(); setOrderCode(result.code); setTracking(result.tracking_url);
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Ett oväntat fel inträffade. Försök igen.'); }
     finally { setSending(false); }
   }
 
   if (tracking) return <div className="order-panel form-success" role="status">
     <Check size={32} aria-hidden="true"/><h2>Tack! Din förfrågan är mottagen.</h2>
+    <p>Ordernummer: <strong>{orderCode}</strong></p>
     <p>Vi granskar meny, datum och pris. Maten är ännu inte bokad och du har inte betalat. Vi återkommer med ett besked.</p>
     <a href={tracking} className="btn btn-primary">Följ din förfrågan →</a>
   </div>;
 
   return <><ol className="order-steps" aria-label="Beställningens fyra steg">{steps.map((label, index) =>
     <li key={label} aria-current={step === index + 1 ? 'step' : undefined} className={step > index + 1 ? 'complete' : ''}>
-      <button type="button" disabled={index + 1 > step} onClick={() => goBack(index + 1)}><span>{step > index + 1 ? <Check size={16}/> : index + 1}</span>{label}</button>
+      <button type="button" disabled={sending || index + 1 > step} onClick={() => goBack(index + 1)}><span>{step > index + 1 ? <Check size={16}/> : index + 1}</span>{label}</button>
     </li>)}</ol>
     <div className="form-layout"><div className="order-panel">
       <span className="eyebrow">STEG {step} AV 4</span>
@@ -132,6 +151,8 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
             {item.title} · {item.price_ore ? `${formatSek(item.price_ore)}/person` : 'Pris på förfrågan'}</option>)}</select>
           {menu && <p className="field-hint">{menu.description}<br/>Innehåller: {menu.included.join(', ')}.<br/>Allergener: {menu.allergens.join(', ') || 'Fråga oss'}.</p>}
         </div> : <ItemPicker dishes={dishes} guests={guests} quantities={quantities}
+          summary={<div className="builder-summary"><div className="builder-checkout"><div><span>{deliveryPending ? 'Mat totalt' : 'Totalt'}</span><strong>{total ? formatSek(total.total_ore) : 'Välj maträtter'}</strong>
+            <small>{total ? `${formatSek(Math.round(total.total_ore / guests))} / person` : 'Priset visas när du väljer'}</small></div><span>{selected.length} valda rätter · {guests} personer</span></div></div>}
           onQuantityChange={(id, quantity) => setDraft(old => ({ ...old, quantities: { ...old.quantities, [id]: quantity } }))}/>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn btn-primary" type="submit">Datum och plats →</button>
@@ -141,8 +162,10 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
         <fieldset className="plain-fieldset"><legend>Välj tillfälle</legend><div className="form-choice">{Object.entries(occasions).map(([value, label]) =>
           <label className="choice" key={value}><input type="radio" name="occasion" checked={form.occasion === value}
             onChange={() => set('occasion', value as Occasion)}/>{label}</label>)}</div></fieldset>
+        <div className="field"><label htmlFor="event-guests">Antal personer</label><input id="event-guests" type="number" required min={custom ? customMinimum : menu?.min_people || 1} max={1000} value={guests || ''}
+          onChange={event => setDraft(old => ({ ...old, guests: Number(event.target.value) }))}/></div>
         <div className="field-grid">
-          <div className="field"><label htmlFor="date">Datum</label><input id="date" type="date" required value={form.event_date} onChange={event => set('event_date', event.target.value)}/></div>
+          <div className="field"><label htmlFor="date">Datum</label><input id="date" type="date" required min={bookingDates.min} max={bookingDates.max} value={form.event_date} onChange={event => set('event_date', event.target.value)}/></div>
           <div className="field"><label htmlFor="time">Tid</label><input id="time" type="time" required value={form.event_time} onChange={event => set('event_time', event.target.value)}/></div>
         </div><p className="field-hint">Minst {settings.min_advance_days} dagar i förväg. Köket bekräftar tillgängligheten.</p>
         <fieldset className="plain-fieldset"><legend>Leverans eller hämtning</legend><div className="form-choice">
@@ -164,10 +187,10 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
       </form>}
       {step === 3 && <form onSubmit={next}>
         <h2>Hur når vi dig?</h2><p className="muted">Vi använder uppgifterna för att bekräfta din catering.</p>
-        <div className="field"><label htmlFor="name">Namn</label><input id="name" required autoComplete="name" maxLength={120} value={form.full_name} onChange={event => set('full_name', event.target.value)}/></div>
+        <div className="field"><label htmlFor="name">Fullständigt namn</label><input id="name" required autoComplete="name" minLength={2} maxLength={120} value={form.full_name} onChange={event => set('full_name', event.target.value)}/></div>
         <div className="field-grid">
-          <div className="field"><label htmlFor="email">E-post</label><input id="email" type="email" required autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)}/></div>
-          <div className="field"><label htmlFor="phone">Telefon</label><input id="phone" type="tel" required autoComplete="tel" minLength={5} maxLength={30} value={form.phone} onChange={event => set('phone', event.target.value)}/></div>
+          <div className="field"><label htmlFor="email">E-post</label><input id="email" type="email" required autoComplete="email" maxLength={200} value={form.email} onChange={event => set('email', event.target.value)}/></div>
+          <div className="field"><label htmlFor="phone">Telefon</label><input id="phone" type="tel" required autoComplete="tel" minLength={7} maxLength={30} value={form.phone} onChange={event => set('phone', event.target.value)}/></div>
         </div>
         <div className="field"><label htmlFor="notes">Allergier eller önskemål (frivilligt)</label><textarea id="notes" maxLength={1000} value={form.notes} onChange={event => set('notes', event.target.value)} placeholder="Berätta vad köket behöver veta."/></div>
         {error && <p className="form-error" role="alert">{error}</p>}
@@ -182,28 +205,28 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
           <button type="button" className="text-link" onClick={() => goBack(3)}>Ändra</button></div>
         <fieldset className="plain-fieldset"><legend>Betalningssätt efter godkännande</legend>
           <div className="form-choice">{availableMethods.map(value => <label className="choice" key={value}>
-            <input type="radio" name="payment" checked={form.payment_preference === value} onChange={() => set('payment_preference', value)}/>{paymentLabels[value]}</label>)}</div></fieldset>
+            <input type="radio" name="payment" disabled={sending} checked={form.payment_preference === value} onChange={() => set('payment_preference', value)}/>{paymentLabels[value]}</label>)}</div></fieldset>
         {!availableMethods.length && <p className="preview-note">Betalningssätten visas när köket har öppnat beställningarna.</p>}
         {availableMethods.includes('card') ? <p className="field-hint">Apple Pay visas i säker Checkout på stödda enheter.</p> : null}
         <p className="approval-note"><ShieldCheck size={20} aria-hidden="true"/>Du betalar först efter kökets godkännande. Ett nytt pris kräver ditt godkännande. Kontant gäller endast vid hämtning.</p>
-        <label className="checkbox-label"><input type="checkbox" required checked={form.terms_accepted} onChange={event => set('terms_accepted', event.target.checked)}/>
+        <label className="checkbox-label"><input type="checkbox" required disabled={sending} checked={form.terms_accepted} onChange={event => set('terms_accepted', event.target.checked)}/>
           <span>Jag godkänner <a className="text-link" href="/villkor" target="_blank" rel="noopener noreferrer">villkoren</a> och har läst <a className="text-link" href="/integritet" target="_blank" rel="noopener noreferrer">integritetspolicyn</a>.</span></label>
         <div hidden aria-hidden="true"><label htmlFor="website">Lämna tomt</label><input id="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={event => set('website', event.target.value)}/></div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <div className="form-actions"><button type="button" className="btn" onClick={() => goBack(3)}>← Tillbaka</button>
-          <button type="submit" className="btn btn-accent" disabled={!enabled || sending || !!quoteError || !availableMethods.includes(form.payment_preference)}>{sending ? 'Skickar…' : 'Skicka förfrågan →'}</button></div>
+        <div className="form-actions"><button type="button" disabled={sending} className="btn" onClick={() => goBack(3)}>← Tillbaka</button>
+          <button type="submit" className="btn btn-accent" disabled={!enabled || sending || !!quoteError || !availableMethods.includes(form.payment_preference)}>{sending ? 'Skickar…' : 'Skicka cateringförfrågan →'}</button></div>
       </form>}
       {!enabled && <p className="preview-note">Förhandsvisning. Köket behöver publicera godkända priser och inställningar innan förfrågningar öppnas.</p>}
     </div>
     <aside className="form-sidebar"><span className="eyebrow">DIN CATERING</span><h3>{custom ? 'Din egen meny' : menu?.title || 'Välj ett paket'}</h3><p>{guests} personer · {occasions[form.occasion]}</p>
       {custom && selected.length > 0 ? <div className="summary-lines">{selected.map(dish => <div key={dish.id}><span>{quantities[dish.id]} × {dish.title}<small>{formatSek(dish.price_ore)} / {dish.portion_label}</small></span><strong>{formatSek(quantities[dish.id] * dish.price_ore)}</strong></div>)}</div>
-        : !custom && menu && <p className="field-hint">{menu.included.join(', ')}</p>}
+        : !custom && menu && <p className="field-hint">{guests} × {formatSek(menu.price_ore)} / person<br/>{menu.included.join(', ')}</p>}
       <div className="summary-list"><span>Mat</span><strong>{total ? formatSek(total.subtotal_ore) : 'Ej fastställt'}</strong>
         <span>Leverans</span><strong>{form.fulfillment === 'pickup' ? 'Hämtning: 0 kr' : zone ? formatSek(fee) : 'Ange postnummer'}</strong>
         <span className="total">{deliveryPending ? 'Mat totalt' : 'Totalt'}</span><strong className="total">{total ? formatSek(total.total_ore) : '–'}</strong>
         <span>Per person ({guests})</span><strong>{total ? formatSek(Math.round(total.total_ore / guests)) : '–'}</strong></div>
       {quoteError && <p className="form-error" role="alert">{quoteError}</p>}
       <p className="field-hint">{deliveryPending ? 'Leverans tillkommer. ' : ''}Pris per person är en jämförelse. Hela menyn är en gemensam beställning.</p>
-      {step > 1 && <button type="button" className="text-link" onClick={() => goBack(1)}>Ändra din meny</button>}
+      {step > 1 && <button type="button" disabled={sending} className="text-link" onClick={() => goBack(1)}>Ändra din meny</button>}
     </aside></div></>;
 }

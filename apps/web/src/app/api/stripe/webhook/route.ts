@@ -20,11 +20,11 @@ export async function POST(request:Request) {
   let sessionId:string|null=null;
   let paymentIntent:string|null=null;
   let kind:'paid'|'failed'|'refunded'|null=null;
-  if(['checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed'].includes(event.type)) {
+  if(['checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed','checkout.session.expired'].includes(event.type)) {
     const session=event.data.object as Stripe.Checkout.Session;
     orderId=session.metadata?.order_id||null;sessionId=session.id;
     paymentIntent=typeof session.payment_intent==='string'?session.payment_intent:null;
-    kind=event.type==='checkout.session.async_payment_failed'?'failed':session.payment_status==='paid'?'paid':null;
+    kind=['checkout.session.async_payment_failed','checkout.session.expired'].includes(event.type)?'failed':session.payment_status==='paid'?'paid':null;
     if(kind==='paid' && orderId) {
       const {data:order,error} = await db.from('orders').select('total_ore,payment_preference,stripe_checkout_session_id').eq('id',orderId).maybeSingle();
       if(error) return new Response('Retry event',{status:500});

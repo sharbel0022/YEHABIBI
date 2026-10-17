@@ -1,6 +1,6 @@
 {
   "name": "@yehabibi/mobile",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "57.0.17",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@yehabibi/shared": "*",
     "expo": "57.0.30",
     "expo-constants": "57.0.22",
+    "expo-crypto": "57.0.4",
     "expo-dev-client": "57.0.20",
     "expo-device": "57.0.2",
     "expo-linking": "57.0.13",

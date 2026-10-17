@@ -1,4 +1,42 @@
-# Tester och verifiering – V4
+# Tester och verifiering – V4.1
+
+## Aktuell V4.1-verifiering, 2026-10-17
+
+V4-resultaten längre ned är historik. V4.1 testas med verklig lokal PostgreSQL **18.3**, officiell PostgREST **16.4** och de riktiga Next.js-API-rutterna. Endast Supabase Auth, Stripe och Resend har isolerade HTTP-testtransporter; inga externa konton eller mejlmottagare används. Testdata är syntetiska och ligger i ett separat nytt kluster under ignorerade `.tmp`.
+
+Kör från roten:
+
+```powershell
+npm ci
+npm run syntax
+npm run test
+npm run typecheck
+npm run build
+npm run export:mobile
+npm run test:integration
+```
+
+Integrationen kräver PostgreSQLs `initdb`, `pg_ctl`, `psql` och PostgREST. Windows använder som standard `C:/Program Files/PostgreSQL/18/bin` och `.tmp/v41-tools/postgrest.exe`; sätt `PG_BIN`/`POSTGREST_BIN` om verktygen finns någon annanstans. Hämta PostgREST från [officiella version 16.4](https://github.com/PostgREST/postgrest/releases/tag/v16.4). Testet väljer lediga loopbackportar, initierar eget PGDATA och stänger sina processer efteråt. Kör inte samtidigt med en annan Next-utvecklingsserver i samma checkout. `--keep` är bara för separat lokal klient-QA, och avslutas med Ctrl+C. Inga riktiga projekt återställs eller migreras.
+
+GitHub Actions installerar PostgREST 16.4 med verifierad SHA-256 och kör samma integration mot runnerns PostgreSQL efter de vanliga kontrollerna. Testtransporten injiceras bara i testets barnprocess; produktions-API:t har ingen testinloggning eller flagga som hoppar över behörighet.
+
+| V4.1-kontroll | Faktiskt verifierat |
+| --- | --- |
+| Ren installation | `npm ci` lyckades efter att gamla projektservrars Windows-fillås släppts |
+| Affärsregler/SQL | 36 tester godkända: pengar, datum, zoner, originalpriser, återförsök, offertacceptans, webhook och RLS; även specifikationens fiktiva fempersonersexempel |
+| Riktig lokal integration | Samtidiga HTTP-inskick ger en order; order/rader/notiskö rullas tillbaka tillsammans vid fel; administratörsbehörighet, privata tokens och otillåten direktläsning kontrolleras |
+| Order-/betalflöde lokalt | Förslag/acceptans, sessionsåteranvändning, signerade webhookar, dubbletter, utgången session/nytt försök, återbetalning, statusar och kontanter testas med providerersättningar |
+| Notiser lokalt | Ägarens adress/rader/kontakt, misslyckat mejl med kvarvarande order, per-mottagare-återförsök och ersatta betalningsbesked kontrolleras |
+| Mobil | SDK57-typkontroll och Android/iOS/webb-export godkända; native UI-resultat redovisas efter slutprovet |
+| Webbläsar-E2E lokalt | Inte verifierad. Browserns originbehörighet avvisades; ingen annan browser/adress användes som omväg |
+| Supabase security advisors lokalt | Inga ERROR; en WARN gäller V1:s `pgcrypto` i public. Ingen automatisk flytt av historisk extension |
+| Externa tjänster | Supabase Auth/Storage, Stripe-testkonto/Swish/Apple Pay, verklig Resend-leverans och APNs/FCM är inte verifierade |
+
+Webbens produktionsberoenden ger **0** npm-auditfynd. Hela monorepon ger **30** (19 high, 11 moderate), främst SDK57:s Expo/Metro-verktyg och transitiva paket. [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) och [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv) saknar publicerad rättning enligt de aktuella advisories. Ingen SDK-nedgradering eller `audit fix --force` används; detta kvarstår som ett dokumenterat beroendeproblem och får inte beskrivas som en ren säkerhetsaudit.
+
+Fysiska iPhone-prov och nya EAS-nativebyggen för V4.1 får inte antas från V4-byggena. Publik aktivering förblir spärrad. Användarens beslut är lokal testdatabas och att inte använda de tillgängliga oidentifierade Supabase-/Stripe-kontona. Se [PUBLICERING.md](PUBLICERING.md) för vad företaget behöver konfigurera.
+
+## Historisk verifiering av V4
 
 Resultaten avser V4-källan. Tidigare V3-byggen bevisar inte att nya native-moduler fungerar. V3-historiken finns i Git-historiken för detta dokument, bland annat commit 6575987.
 

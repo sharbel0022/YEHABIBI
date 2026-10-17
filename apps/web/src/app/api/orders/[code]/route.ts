@@ -1,11 +1,11 @@
 import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady } from '@/lib/config';
 import { checkOrigin, jsonError, publicOptions, publicResponse } from '@/lib/auth';
-import { trackingLink, verifyTrackingToken } from '@/lib/tracking';
+import { verifyTrackingToken } from '@/lib/tracking';
 import { customerActionSchema } from '@/lib/validators';
 import { publicOrderView } from '@/lib/data';
 import { createCheckout } from '@/lib/payments';
-import { notifyOrderDecision } from '@/lib/mailer';
+import { deliverOrderNotifications } from '@/lib/mailer';
 import type { CateringOrder } from '@/types/domain';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +59,7 @@ async function updateOrder(request:Request,context:Context) {
       if(!attachError && attached) order = attached as CateringOrder;
     } catch { console.error('Accepted quote saved; payment link requires retry'); }
   }
-  if(saved._accepted) await notifyOrderDecision(order,trackingLink(order));
+  await deliverOrderNotifications(order.id).catch(()=>console.error('Quote accepted; notifications pending'));
   return customerResponse(order);
 }
 

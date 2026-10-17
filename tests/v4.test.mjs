@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
-import {adminActionSchema,customerActionSchema,newOrderSchema,canTransition} from '../packages/shared/index.ts';
+import {adminActionSchema,customerActionSchema,newOrderSchema,canTransition,eventDateBounds,menuSchema} from '../packages/shared/index.ts';
 import {resolveCheckout} from '../apps/web/src/lib/checkout.ts';
 
 test('V4: prisförslag kräver förklaring, kundacceptans kräver rätt revision',()=>{
@@ -28,6 +28,13 @@ test('V4: ägaren kan granska, men får aldrig kringgå kundens prisgodkännande
   assert.equal(canTransition('dispatched','complete','paid','card'),true);
   assert.equal(canTransition('approved','cancel','pending','card'),false);
   assert.equal(canTransition('reviewing','cancel','unpaid','cash'),true);
+});
+
+test('V4.1: gemensamma datumbounds och godkända relativa menybilder',()=>{
+  assert.deepEqual(eventDateBounds(2,new Date('2026-10-17T22:30:00Z')),{min:'2026-10-20',max:'2027-10-18'});
+  const menu={title:'Testmeny',description:'',included:[],allergens:[],price_ore:25000,min_people:6,active:false,sort_order:1};
+  assert.equal(menuSchema.safeParse({...menu,image_url:'/images/mezze.webp'}).success,true);
+  assert.equal(menuSchema.safeParse({...menu,image_url:'javascript:alert(1)'}).success,false);
 });
 
 test('V4: Stripe-sessionens återförsöksnyckel hör till godkänd prisrevision',async()=>{
@@ -113,16 +120,41 @@ test('V4 SQL: återförsök, prisacceptans, webhookkö och privat åtkomst',asyn
       assert.equal(await event('evt_paid_2','paid'),false);
       assert.equal(await event('evt_late_failure','failed'),false);
       assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'paid');
-      assert.equal((await db.query('select count(*)::int as count from public.order_notifications')).rows[0].count,1);
+      assert.equal((await db.query("select count(*)::int as count from public.order_notifications where kind='paid'")).rows[0].count,1);
       assert.equal(await event('evt_refund','refunded',null),true);
       assert.equal(await event('evt_refund','refunded',null),false);
-      assert.equal((await db.query('select count(*)::int as count from public.order_notifications')).rows[0].count,2);
+      assert.equal((await db.query("select count(*)::int as count from public.order_notifications where kind in ('paid','refunded')")).rows[0].count,2);
       assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'refunded');
     });
     await t.test('kontantorder förblir obetald och kan aldrig stämmas av genom Stripe',async()=>{
       const cash=await create({...payload,id:randomUUID(),code:'CM-1122334455',request_id:randomUUID(),payment_preference:'cash'});
       assert.equal(cash.payment_status,'unpaid');assert.equal(cash.checkout_url,null);
       await assert.rejects(db.query('select public.apply_stripe_event($1,$2,$3,$4,$5)',['evt_cash','paid',cash.id,null,null]),/does not match/);
+    });
+    await t.test('V4.1: inställningar bevarar nya zoners ID och aktivering',async()=>{
+      const id=randomUUID();
+      await db.query("insert into public.delivery_zones(id,name,postal_prefixes,fee_ore,active) values($1,'Modern zon',array['721'],10000,true)",[id]);
+      await db.query("update public.delivery_zones set active=false where legacy_key='base'");
+      await db.query('select public.update_catering_settings($1::jsonb)',[JSON.stringify({contact_phone:'0700000000',delivery_zones:[]})]);
+      const zone=(await db.query('select id,active,fee_ore from public.delivery_zones where id=$1',[id])).rows[0];
+      assert.equal(zone.id,id);assert.equal(zone.active,true);assert.equal(zone.fee_ore,10000);
+      assert.equal((await db.query("select active from public.delivery_zones where legacy_key='base'")).rows[0].active,false);
+      await db.query("update public.delivery_zones set active=true where legacy_key='base'");
+      for(const enabled of [false,true]) {
+        await db.query('select public.update_catering_settings($1::jsonb)',[JSON.stringify({delivery_enabled:enabled,delivery_zones:[]})]);
+        assert.equal((await db.query("select active from public.delivery_zones where legacy_key='base'")).rows[0].active,true);
+      }
+    });
+    await t.test('V4.1: köade besked bevarar snapshot; avstämd gammal webhook är idempotent',async()=>{
+      const queued=(await db.query("select payload from public.order_notifications where order_id=$1 and kind='new'",[order.id])).rows[0].payload;
+      assert.equal(queued.total_ore,5000);assert.equal(queued.status,'new');
+      await db.query("update public.orders set stripe_checkout_session_id='cs_later' where id=$1",[order.id]);
+      assert.equal(await event('evt_paid','paid','cs_v4'),false);
+      const before=Number((await db.query('select count(*) as count from public.order_notifications')).rows[0].count);
+      await db.exec('begin');
+      await db.query("update public.orders set status='preparing' where id=$1",[order.id]);
+      await db.exec('rollback');
+      assert.equal(Number((await db.query('select count(*) as count from public.order_notifications')).rows[0].count),before);
     });
     await t.test('RLS, funktionsbehörighet och tokenvalidering skyddar order och notifieringar',async()=>{
       await assert.rejects(db.query('insert into public.order_push_tokens(order_id,token) values($1,$2)',[order.id,'bad']),/check constraint/);

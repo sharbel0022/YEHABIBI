@@ -1,4 +1,34 @@
-# V4 – förändringar från V3
+# V4 och V4.1 – förändringar
+
+## V4.1: fel- och åtgärdsrapport före ändringar, 2026-10-17
+
+Granskningen omfattar mobilens skärmar/stödfiler, webbens kund- och adminvyer, API/serverkod, shared, migrationer, tester och konfiguration. Utgångspunkt: main `4f9111b`.
+
+| Identifierat problem | Planerad åtgärd |
+| --- | --- |
+| Sites har endast URL/indexeringsflaggor och `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false`; inga Supabase-, Stripe- eller Resend-uppgifter. Lokalt saknas webbens `.env.local`. | Behåll spärrarna. Dokumentera exakt konfiguration; testa i separat miljö utan produktionsdata. |
+| Enda anslutna Supabase-projektet heter `sharbel0022's Project` och är `INACTIVE`; kopplingen till Yehabibi är inte verifierad. Stripe visar en testmiljö `Quick match`, utan verifierat företagsägarskap. | Inga ändringar i dessa konton utan identifiering/godkännande. Externa flöden räknas inte som verifierade. |
+| Expo-byggaren startar med filtret `valda`, så första besöket är tomt. Webbens väljare startar redan med alla rätter. | Visa Alla rätter från början i Expo; behåll menyutkast och tydlig summering. |
+| Mobilen har textfält för datum/tid, svag laddnings-/felåterkoppling och saknar tangentbordsanpassning. | Native datum-/tidsväljare, tydlig retry och kompakt synlig summering i befintliga filer. |
+| Bekräftelsen på webben visar ingen orderkod. Datumväljaren saknar bokningsgränser; mobilens slutkontroll saknar styckpris. | Visa ordernummer och fullständig översikt, bind datumgränser till delad logik. |
+| Adminuppladdning kan kopplas till fel utkast efter flikbyte; inställningsvyn läser äldre leverans-/kampanjfält. | Lås rätt redigering under uppladdning, använd aktuell katalog/inställningsprojektion och testa zonbevarande. |
+| Ägarmejl saknar leveransadress och paketrader. Vanliga statusmejl saknar beständig betalningskö. | Förbättra meddelandets faktiska orderinnehåll och verifiera fel/återförsök utan förlorad order. |
+| Befintliga 32 tester använder PGlite och mockad Checkout, inte hela HTTP→PostgREST→PostgreSQL/Stripe/Resend. | Lägg till isolerad riktig databas-/API-verifiering om runtime går att starta; särredovisa externa begränsningar. |
+
+Verkliga priser/portioner får bara komma från företagets admin. Specifikationens exempel är testdata och publiceras inte som godkända priser.
+
+## V4.1: genomförda rättningar
+
+- Expo öppnar Alla rätter och visar fast summering/Fortsätt, tydlig katalogretry och korrekt tangentbordshantering. Native datum/tid och SHA-256-baserade återförsök använder SDK57:s officiella moduler med reserv för äldre egna byggen.
+- Webben visar ordernummer, fyra steg med delad kontaktvalidering, datumgränser, styckpriser/portioner och kompakt synlig totalsumma. Admin låser redigeringen under uppladdning och visar begripliga fel.
+- Inställningar bevarar moderna leveranszoner och deras ID. En arkiverad bred grundzon återaktiveras inte. Pris per person inkluderar leverans i den delade beräkningen.
+- Alla orderbesked köas i PostgreSQL med snapshot och mottagarkvittenser. Ägarens mejl innehåller kontakt, adress, datum, rätter/paket och betalningsönskemål. Ersatta pris-/betalbesked markeras separat; de kallas inte levererade.
+- Utgångna Stripe-sessioner hanteras, dubbla gamla webhookar förblir idempotenta efter sessionsbyte och betalspärren är densamma i monorepo och Sites. Paketmejl använder originalpris och separat accepterad justering.
+- En ny kompakt integrationsfil provar riktig PostgreSQL/PostgREST/Next HTTP. Auth/Stripe/Resend ersätts bara i testprocessen; inga produktionsbypasser införs. CI kör samma flöde med checksumkontrollerad PostgREST.
+
+Fyra nya filer behövs: två små webbgränser (`loading.tsx`, `global-error.tsx`), en additiv SQL-migration och ett integrationstest. Inga nya mobilskärmar, API-lager eller dokumentmappar skapas. Befintlig design och Expo-identitet bevaras. Faktiska resultat och begränsningar finns i [TESTER.md](TESTER.md).
+
+## V4 – förändringar från V3
 
 V4 utvecklar den befintliga monorepon. SDK57, Expo-projektet, V2:s katalog-ID:n och tidigare orderhistorik bevaras.
 

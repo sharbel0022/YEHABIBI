@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View, type TextInputProps } from 'react-native';
 import { router } from 'expo-router';
 import {
-  findDeliveryZone, formatSek, isValidEventDate, newOrderSchema, occasions, paymentLabels,
+  eventDateBounds, findDeliveryZone, formatSek, isValidEventDate, newOrderSchema, occasions, paymentLabels,
   type Fulfillment, type PaymentPreference,
 } from '@yehabibi/shared';
-import { apiUrl, newRequestId, openPolicy, request, type OrderReference } from '../lib/api';
+import { apiUrl, clearRequestId, newRequestId, openPolicy, persistentRequestId, request, type OrderReference } from '../lib/api';
 import { getQuote, useCatering } from '../lib/store';
-import { Amount, Button, Choices, colors, Field, Notice, Screen, Stepper, s } from '../lib/ui';
+import { Amount, Button, Choices, colors, DateTimeField, Field, Notice, Screen, Stepper, s } from '../lib/ui';
 
 const emptyForm = {
   event_date: '', event_time: '', full_name: '', email: '', phone: '',
@@ -25,14 +25,18 @@ export default function OrderScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [retryNotice, setRetryNotice] = useState('');
   const inFlight = useRef(false);
   const retry = useRef({ payload: '', id: '' });
   const settings = catalog.settings;
+  const dates = eventDateBounds(settings.min_advance_days);
   const menu = catalog.menus.find(item => item.id === selection.menuId);
   const items = Object.entries(selection.quantities).filter(([, quantity]) => quantity > 0)
     .map(([dish_id, quantity]) => ({ dish_id, quantity }));
   const zone = fulfillment === 'delivery' ? findDeliveryZone(catalog.delivery_zones, form.postal_code) : null;
   const quote = getQuote(catalog, selection, fulfillment, zone?.fee_ore || 0);
+  const foodQuote = getQuote(catalog, { ...selection,
+    guests: Math.max(selection.guests, menu?.min_people || settings.custom_min_people) });
   const methods = catalog.payment_methods.filter(value =>
     value !== 'cash' || (fulfillment === 'pickup' && settings.cash_enabled));
   const canSubmit = catalog.orders_enabled && !catalog.demo && !!quote && methods.includes(payment) &&
@@ -58,8 +62,9 @@ export default function OrderScreen() {
   }
   function next() {
     setError('');
-    if (step === 1 && !quote) return setError('Välj prissatt mat och kontrollera minsta antal personer.');
+    if (step === 1 && !foodQuote) return setError('Välj mat med bekräftade priser.');
     if (step === 2) {
+      if (!quote) return setError('Kontrollera minsta antal personer och att rätterna har bekräftade priser.');
       if (!isValidEventDate(form.event_date, settings.min_advance_days) ||
           !/^([01]\d|2[0-3]):[0-5]\d$/.test(form.event_time)) {
         return setError(`Ange en giltig tid och ett datum minst ${settings.min_advance_days} dagar framåt, inom ett år.`);
@@ -84,17 +89,27 @@ export default function OrderScreen() {
     if (!parsed.success || !isValidEventDate(form.event_date, settings.min_advance_days)) {
       setError('Kontrollera alla uppgifter före förfrågan.'); return;
     }
-    const encoded = JSON.stringify(parsed.data);
-    if (retry.current.payload !== encoded) retry.current = { payload: encoded, id: newRequestId() };
     inFlight.current = true;
     setSending(true);
     setError('');
     try {
+      const encoded = JSON.stringify(parsed.data);
+      if (retry.current.payload !== encoded) {
+        setRetryNotice('');
+        let id: string;
+        try { id = await persistentRequestId(encoded); }
+        catch {
+          id = newRequestId();
+          setRetryNotice('Det här appbygget kunde inte spara återförsöksnyckeln. Behåll appen öppen om du behöver försöka igen.');
+        }
+        retry.current = { payload: encoded, id };
+      }
       const reference = await request<OrderReference>('/api/orders', {
         method: 'POST', body: JSON.stringify({ ...parsed.data, request_id: retry.current.id }),
       });
       await rememberOrder(reference);
       setSubmitted(reference.code);
+      await clearRequestId().catch(() => setRetryNotice('Förfrågan är mottagen, men enhetens återförsöksminne kunde inte tömmas. Behåll ditt ordernummer.'));
       retry.current = { payload: '', id: '' };
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Förfrågan kunde inte skickas. Samma förfrågan kan provas igen.');
@@ -110,7 +125,10 @@ export default function OrderScreen() {
       {menu ? <Text style={s.body}>{menu.price_ore > 0 ? `${selection.guests} × ${formatSek(menu.price_ore)}` : 'Menypriset inväntar bekräftelse.'}</Text> : items.map(item => {
         const dish = catalog.dishes.find(row => row.id === item.dish_id);
         return <View key={item.dish_id} style={s.row}>
-          <Text style={s.body}>{item.quantity} × {dish?.title || 'Rätt som inte längre är tillgänglig'}</Text>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={s.body}>{item.quantity} × {dish?.title || 'Rätt som inte längre är tillgänglig'}</Text>
+            <Text style={s.detail}>{dish?.price_ore ? `${formatSek(dish.price_ore)} / ${dish.portion_label}` : 'Pris bekräftas'}</Text>
+          </View>
           <Text style={s.label}>{dish?.price_ore ? formatSek(dish.price_ore * item.quantity) : 'Pris bekräftas'}</Text>
         </View>;
       })}
@@ -119,7 +137,7 @@ export default function OrderScreen() {
         <Amount label="Mat" ore={quote.subtotal_ore} />
         {fulfillment === 'pickup' || zone
           ? <><Amount label={fulfillment === 'pickup' ? 'Hämtning' : 'Leverans'} ore={quote.delivery_fee_ore} />
-              <Amount strong label="Totalt" ore={quote.total_ore} />
+              <Amount strong label="Preliminärt totalt" ore={quote.total_ore} />
               <Amount label="Per person, avrundat" ore={Math.round(quote.total_ore / selection.guests)} /></>
           : <Text style={s.detail}>Leveransavgift visas för ett giltigt postnummer.</Text>}
         <Text style={s.detail}>Pris per person är en jämförelse, ingen uppdelad betalning. Servern kontrollerar priserna.</Text>
@@ -134,6 +152,8 @@ export default function OrderScreen() {
       <Text style={s.body}>Maten är ännu inte bokad eller betald. Vi bekräftar tillgänglighet och pris innan betalning.</Text>
     </View>
     {!!storageNotice && <Notice text={storageNotice} />}
+    {!!retryNotice && <Notice text={retryNotice} />}
+    <Text style={s.detail}>Din privata orderreferens finns under Mina beställningar på den här enheten.</Text>
     <Button title="Följ min beställning  →" onPress={() => router.push('/ordrar')} />
     <Button secondary title="Planera en ny förfrågan" onPress={() => {
       setSubmitted(''); setForm(emptyForm); setTerms(false); setStep(1); router.push('/menyer');
@@ -151,19 +171,21 @@ export default function OrderScreen() {
       {step === 1 && <>
         {summary()}
         <Button secondary title="Ändra meny eller rätter" onPress={() => router.push(selection.menuId ? '/menyer' : '/bygg')} />
-        <Field label="Antal personer" value={String(selection.guests)} keyboardType="number-pad"
-          onChangeText={value => setGuests(Number(value))} />
+        <Text style={s.detail}>Du väljer antal personer, datum och leverans i nästa steg.</Text>
+      </>}
+      {step === 2 && <View style={s.section}>
+        <Text style={s.label}>Antal personer</Text>
         <Stepper label="personer" min={menu?.min_people || settings.custom_min_people} value={selection.guests}
           onChange={difference => setGuests(selection.guests + difference)} />
         <Text style={s.detail}>Minst {menu?.min_people || settings.custom_min_people} personer.</Text>
-      </>}
-      {step === 2 && <View style={s.section}>
         <Choices values={Object.entries(occasions).map(([value, label]) => ({
           value: value as typeof selection.occasion, label,
         }))} selected={selection.occasion} onSelect={setOccasion} />
-        {field('event_date', 'Datum (ÅÅÅÅ-MM-DD)', { placeholder: 'ÅÅÅÅ-MM-DD', keyboardType: 'numbers-and-punctuation', maxLength: 10 })}
-        {field('event_time', 'Tid (TT:MM)', { placeholder: '17:30', keyboardType: 'numbers-and-punctuation', maxLength: 5 })}
-        <Text style={s.detail}>Minst {settings.min_advance_days} dagar i förväg. Köket bekräftar tillgängligheten.</Text>
+        <DateTimeField label="Datum" mode="date" value={form.event_date} minimum={dates.min} maximum={dates.max}
+          onChange={value => setForm(previous => ({ ...previous, event_date: value }))} />
+        <DateTimeField label="Tid" mode="time" value={form.event_time}
+          onChange={value => setForm(previous => ({ ...previous, event_time: value }))} />
+        <Text style={s.detail}>Svensk tid. Boka {dates.min}–{dates.max}. Köket bekräftar tillgängligheten.</Text>
         <Choices values={[
           ...(settings.pickup_enabled ? [{ value: 'pickup' as const, label: 'Hämtning' }] : []),
           ...(settings.delivery_enabled ? [{ value: 'delivery' as const, label: 'Hemleverans' }] : []),
@@ -213,8 +235,9 @@ export default function OrderScreen() {
         {!catalog.orders_enabled && <Notice text="Förfrågningar öppnar när ägaren har verifierat priser, företagsuppgifter och betalningar." />}
       </>}
       {!!error && <Notice text={error} />}
-      {step < 4 ? <Button title={`${steps[step]}  →`} disabled={step === 1 && !quote} onPress={next} />
-        : <Button accent title={sending ? 'Skickar förfrågan…' : 'Skicka förfrågan  →'}
+      {!!retryNotice && <Notice text={retryNotice} />}
+      {step < 4 ? <Button title={`${steps[step]}  →`} disabled={step === 1 && !foodQuote} onPress={next} />
+        : <Button accent title={sending ? 'Skickar förfrågan…' : 'Skicka cateringförfrågan  →'}
             disabled={!canSubmit || sending || !terms} onPress={() => void submit()} />}
       {step > 1 && <Button secondary title="Tillbaka" disabled={sending} onPress={() => { setError(''); setStep(step - 1); }} />}
     </Screen>

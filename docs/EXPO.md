@@ -1,6 +1,8 @@
-# Expo SDK 57 i Windows – V4
+# Expo SDK 57 i Windows – V4.1
 
 Mobilen använder Expo 57.0.30, React Native 0.86.3 och React 19.2.3. Versionen hålls på **SDK 57** för din iPhone. Det befintliga EAS-projektet är [sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze), projekt-id `a93fde8c-7227-4824-af1f-9bcffe77221d`.
+
+V4.1 lägger till SDK57-kompatibla `@react-native-community/datetimepicker` 9.1.0 och `expo-crypto` 57.0.4. Expo Go innehåller dem. Äldre egna V4-APK:er behöver nytt native-bygge för modulerna; koden har en säker text-/sessionsreserv om modulen saknas. V4:s EAS-artefakter nedan är historik och rapporteras inte som nya V4.1-byggen.
 
 ## Starta på iPhone
 

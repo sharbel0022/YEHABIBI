@@ -1,4 +1,4 @@
-# Fil för fil – V4
+# Fil för fil – V4.1
 
 Börja med mobilen `app/index.tsx` → `lib/store.tsx` → `lib/api.ts` → webbens `api/orders/route.ts` → SQL. Då följer du kundens val hela vägen till databasen.
 
@@ -16,12 +16,12 @@ Vi behåller sex skärmfiler och tre stödfiler. Fyra synliga bottenflikar håll
 | `app/index.tsx` | Hero, tillfällen, populära rätter, datumstyrda kampanjer | store, ui, Router | Rubriker och startsidans ordning |
 | `app/menyer.tsx` | Paket och kategoriserade styckrätter | store, ui | Kategorier och kortens presentation |
 | `app/bygg.tsx` | Gästantal, rättmängder, portionsförslag och radtotaler | store, shared, ui | Presentation av summeringen; prisregler ändras i shared |
-| `app/bestall.tsx` | Fyra steg, datum/plats, kontakt, kontroll och en förfrågan med återförsöks-ID | store, api, shared | Fälttexter och steg; servervalidering måste fortfarande gälla |
+| `app/bestall.tsx` | Fyra steg, native datum/tid, kontakt, styckpriser/kontroll och beständig återförsöksnyckel | store, api, shared | Fälttexter och steg; servervalidering måste fortfarande gälla |
 | `app/ordrar.tsx` | Privat status, godkänna förslag, öppna Checkout och aktivera push | api, store, shared | Statuspresentation och förklaringar |
 | `app/kontakt.tsx` | Verklig kontakt, Maps, recensioner och sociala länkar | store, api, ui | Layout; företagets länkar ändras i admin |
 | `lib/store.tsx` | Context, katalog, menyutkast, getQuote och orderreferenser | api, shared, alla skärmar | Hur val sparas eller uppdateras |
 | `lib/api.ts` | HTTP med timeout, SecureStore, utkast, privat token, säkra externa länkar, native pushregistrering | API, Expo-moduler | API-adress i `.env.local`; behåll HTTPS/Stripe-kontrollerna |
-| `lib/ui.tsx` | Färger, Screen, Button, Field, Stepper, bilder/video och DishCard | Alla skärmar | Gemensamt utseende, avstånd och tillgänglighet |
+| `lib/ui.tsx` | Screen med tangentbord/retry/fast summering, datumväljare, reglage och rättkort | Alla skärmar | Gemensamt utseende, avstånd och tillgänglighet |
 | `app.config.ts` | Appnamn/version, ikon, plugins, EAS-projekt och miljöidentitet | Expo/EAS | Varumärke; byt inte projekt-id av misstag |
 | `eas.json` | Android/iOS development-, simulator-, preview- och produktionsprofiler | EAS | Byggmiljö eller profil; inga hemliga värden |
 | `package.json`, `tsconfig.json` | SDK57-beroenden, kommandon och typkontroll | npm, Expo, TypeScript | Installera native-paket med `expo install` |
@@ -54,6 +54,7 @@ Alla följande sökvägar utgår från `src/`.
 | `components/order-draft.ts` | Gemensamt sparande av menyval utan kundens kontaktuppgifter | Catalog, Form, webblagring | Utkastets format och återställning |
 | `app/order/[code]/page.tsx` | Privat serverläst orderöversikt | data, tracking, OrderTracking | Sidram; inga kontaktuppgifter i publikt svar |
 | `components/OrderTracking.tsx` | Statusförlopp och uttrycklig acceptans av prisförslag | Privat order-API | Kundens status och acceptansvyn |
+| `app/global-error.tsx`, `app/loading.tsx` | Små laddnings-/felvyer med återförsök även vid fel i sidramens databasläsning | App-router | Begripliga texter; dölj tekniska fel för besökaren |
 | `components/{Brand,Header,Footer,Cta,MenuCard,SectionHeading}.tsx` | Befintliga små återanvända vyer | Sidor, CSS | Logo, navigering, paketkort och rubriker |
 | `components/HeroMedia.tsx` | Bild/video, paus och minskad rörelse | Home, inställningar | Mediapresentation; materialet väljs i admin |
 | `components/LocalStructuredData.tsx`, `components/PwaRegister.tsx` | Riktig företags-JSON-LD och service worker | Layout, settings | Metadata/caching; privata API-anrop får inte cachas |
@@ -89,7 +90,7 @@ Om en komponent får ett annat filnamn vid vidareutveckling följer du importen 
 | `auth.ts` | Verifierad admin, origin och CORS | API, Supabase Auth | Allowlist via servermiljö; inga publika wildcard |
 | `tracking.ts` | HMAC, tokenhash, jämförelse och privat länk | Order-API, mailer | Behörighetsnycklar kräver extra granskning |
 | `payments.ts`, `checkout.ts` | Stripe efter godkännande och återanvändning av session | Stripe, admin-API | Betalregler och retries med test |
-| `mailer.ts`, `push.ts` | Statusmejl, kund-/ägarpush och leveranskontroller | Resend, Expo, DB | Meddelandetext och tjänstekonfiguration |
+| `mailer.ts`, `push.ts` | Leverera köade snapshot-besked och kvittera mottagare; kund-/ägarpush | Resend, Expo, DB | Meddelandetext och tjänstekonfiguration; behåll idempotens |
 | `browser-upload.ts` | Återanvänt adminuppladdningsanrop | Admin, upload-API | Klientens filvalidering |
 | `domain.ts`, `validators.ts`, `../types/domain.ts` | Tunna kompatibilitetsexporter av shared | Gammal V2-kod | Lägg ny affärslogik i shared, inte här |
 
@@ -99,6 +100,7 @@ Om en komponent får ett annat filnamn vid vidareutveckling följer du importen 
 | --- | --- | --- | --- |
 | `supabase/migrations/*.sql` | SQL i filnamnsordning; tabeller, priser, lås, RPC och RLS | Serverns Supabase-klient | Skapa en ny additiv migration, ändra inte körd historik |
 | `tests/*.test.mjs` | Node-tester för priser, validering, Checkout och riktiga SQL-transaktioner i PGlite | Shared, testbar serverlogik, migrationer | Lägg till beteendet och relevanta gränsfall |
+| `tests/integration.mjs` | Separat riktigt PostgreSQL/PostgREST/Next-HTTP-test; endast Auth/Stripe/Resend har lokal testtransport | Installerade PG/PostgREST-verktyg, produktionsrutter | Kör enligt TESTER.md; ingen testbypass finns i produktionskoden |
 | `scripts/check-source.cjs` | JavaScript som syntaxkontrollerar TypeScript | Källmappar, TypeScript | Utöka bara om nya källmappar tillkommer |
 | `package.json`, `package-lock.json` | Workspaces, kommandon och låsta versioner | npm, CI, apparna | Ändra paketfil, låt npm uppdatera låsfil |
 | `.github/workflows/check.yml` | YAML för CI-installation/test/bygge/export | GitHub Actions | Samma kontroller som lokalt |

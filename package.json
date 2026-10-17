@@ -1,6 +1,6 @@
 {
   "name": "yehabibi",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -16,6 +16,7 @@
     "start": "npm run start --workspace @yehabibi/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test tests/*.test.mjs",
+    "test:integration": "node --experimental-strip-types tests/integration.mjs",
     "verify": "npm run syntax && npm run typecheck && npm test && npm run build && npm run export:mobile",
     "syntax": "node scripts/check-source.cjs",
     "lint": "npm run syntax",

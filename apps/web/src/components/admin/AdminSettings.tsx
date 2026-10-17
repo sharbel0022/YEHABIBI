@@ -24,7 +24,7 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     return zonesText.split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{
       const [name,prefix,price,...rest]=line.split('|').map(s=>s.trim());
       const kronor=Number((price||'').replace(',','.'));
-      if(rest.length||!name||!/^[0-9]{1,5}$/.test(prefix||'')||
+      if(rest.length||!name||!price||!/^[0-9]{1,5}$/.test(prefix||'')||
         !Number.isFinite(kronor)||kronor<0||kronor>10000){
         throw new Error('Leveranszon måste skrivas: Område | Postnummerprefix | Pris i kr');
       }
@@ -32,7 +32,7 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     });
   }
   async function save(event:React.FormEvent<HTMLFormElement>){
-    event.preventDefault();setMessage('');setBusy(true);
+    event.preventDefault();if(busy||uploading)return;setMessage('');setBusy(true);
     try {
       const updated={...form,delivery_zones:parseZones()};
       const res=await fetch('/api/admin/settings',{
@@ -46,7 +46,7 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     finally{setBusy(false);}
   }
   async function upload(file:File|undefined,field:'hero_video_url'|'hero_poster_url'|'campaign_image_url') {
-    if(!file)return;setUploading(true);setMessage('');
+    if(!file||busy||uploading)return;setUploading(true);setMessage('');
     try {
       const url=await uploadAdminFile(file);
       set(field,url);
@@ -55,6 +55,7 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     finally{setUploading(false);}
   }
   return <form className="admin-panel" onSubmit={save}>
+    <fieldset className="plain-fieldset" disabled={busy||uploading}>
     <h2>Inställningar för Cedar Mezze</h2>
     <p className="admin-note">Bara riktiga företagsuppgifter, godkända priser och bilder från ägaren/fotografen ska publiceras.</p>
 
@@ -85,7 +86,7 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     <div className="field"><label htmlFor="zones">Postnummerzoner (en per rad)</label>
       <textarea id="zones" rows={3} value={zonesText} onChange={e=>setZonesText(e.target.value)}
         placeholder="Västerås centrum | 722 | 49\nVästerås övrigt | 72 | 99"/>
-      <p className="field-hint">Format: Namn | första 1–5 siffrorna i postnummer | leveranspris i kronor. Längsta prefix gäller. Grundavgiften är den synliga V2-fallbackzonen. Katalogen och Expo använder samma zoner.</p>
+      <p className="field-hint">Format: Namn | första 1–5 siffrorna i postnummer | leveranspris i kronor. Längsta prefix gäller. Leveranszoner som skapats under Katalog och leverans hanteras där och bevaras när du sparar här.</p>
     </div>
     {([['delivery_enabled','Erbjud hemleverans'],['pickup_enabled','Erbjud hämtning'],
       ['cash_enabled','Tillåt kontantbetalning vid hämtning']] as const).map(([key,label])=>
@@ -134,7 +135,8 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
           <input id={key} type="url" placeholder="https://..." value={form[key]||''}
             onChange={e=>set(key,e.target.value)}/></div>)}
     </div>
-    {message&&<p className="preview-note" role="status">{message}</p>}
+    </fieldset>
+    {(message||busy||uploading)&&<p className="preview-note" role="status">{uploading?'Laddar upp filen…':busy?'Sparar…':message}</p>}
     <button className="btn btn-primary" disabled={busy||uploading} type="submit">{busy?'Sparar...':'Spara allt'}</button>
     <div className="divider"/>
     <h3>QR-koder till cateringbeställning och Google-recensioner</h3>

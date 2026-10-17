@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Dish, ItemCategory } from '@/types/domain';
 import { formatSek } from '@/lib/domain';
 
@@ -19,12 +19,14 @@ type Props = {
   guests: number;
   quantities: Record<string, number>;
   onQuantityChange: (dishId: string, quantity: number) => void;
+  summary?: ReactNode;
 };
 
 /** Samma rättväljare används i menykatalogen och beställningsformuläret. */
-export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Props) {
+export function ItemPicker({ dishes, guests, quantities, onQuantityChange, summary }: Props) {
   const [filter, setFilter] = useState<ItemCategory | 'alla'>('alla');
-  const visible = filter === 'alla' ? dishes : dishes.filter(dish => (dish.category || 'kalla_meze') === filter);
+  const available = dishes.filter(dish => dish.active);
+  const visible = filter === 'alla' ? available : available.filter(dish => (dish.category || 'kalla_meze') === filter);
 
   return <div>
     <div className="dish-filter" role="group" aria-label="Filtrera rätter">
@@ -34,8 +36,9 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Pro
         {category.label}
       </button>)}
     </div>
-    {!dishes.length && <p>Ägaren har ännu inte publicerat några rätter.</p>}
-    {dishes.length > 0 && !visible.length && <p>Inga rätter finns i den här kategorin ännu.</p>}
+    {!available.length && <p>Ägaren har ännu inte publicerat några rätter.</p>}
+    {available.length > 0 && !visible.length && <p>Inga rätter finns i den här kategorin ännu.</p>}
+    {summary}
     <div className="dish-grid">
       {visible.map(dish => {
         const quantity = quantities[dish.id] || 0;
@@ -47,7 +50,7 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Pro
           <div className="dish-body">
             <h3>{dish.title}</h3><p>{dish.description}</p>
             <strong>{priced ? `${formatSek(dish.price_ore)} / ${dish.portion_label}` : 'Pris fastställs av ägaren'}</strong>
-            {dish.suggested_per_person ? <small>Kökets riktmärke: {dish.suggested_per_person} {dish.portion_label} per person</small> : null}
+            <small>{dish.suggested_per_person ? `Kökets riktmärke: ${dish.suggested_per_person} ${dish.portion_label} per person` : 'Köket anger rekommenderad mängd.'}</small>
             <small>Allergener: {dish.allergens.join(', ') || 'Fråga oss före beställning'}</small>
             {priced && suggestion > 0 && suggestion <= 1000 && <button type="button" className="dish-suggestion"
               onClick={() => onQuantityChange(dish.id, suggestion)}>

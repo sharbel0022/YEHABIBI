@@ -32,7 +32,10 @@ export default function Orders() {
     setError('');
     const results = await Promise.allSettled(references.map(reference => getOrder(reference)));
     const fresh = results.flatMap(result => result.status === 'fulfilled' ? [result.value.order] : []);
-    setOrders(fresh);
+    setOrders(previous => references.flatMap(reference => {
+      const order = fresh.find(item => item.code === reference.code) || previous.find(item => item.code === reference.code);
+      return order ? [order] : [];
+    }));
     if (results.some(result => result.status === 'rejected')) {
       setError('Några beställningar kunde inte hämtas. Kontrollera anslutningen och uppdatera igen.');
     }
@@ -90,7 +93,8 @@ export default function Orders() {
       {!!updated && <Text style={s.detail}>Senast uppdaterad {updated}</Text>}
       {orders.map(order => {
         const stage = stages.findIndex(item => item.status === (order.status === 'dispatched' ? 'ready' : order.status));
-        const canPay = order.status === 'approved' && order.payment_status === 'pending' &&
+        const canPay = !error && !loading && ['approved', 'preparing', 'ready'].includes(order.status) &&
+          ['unpaid', 'pending', 'failed'].includes(order.payment_status) &&
           order.payment_preference !== 'cash' && !!order.checkout_url;
         return <View key={order.code} style={s.card}>
           <View style={s.cardBody}>

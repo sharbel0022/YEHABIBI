@@ -5,8 +5,7 @@ import { checkOrigin, jsonError, publicOptions, publicResponse } from '@/lib/aut
 import { newOrderSchema } from '@/lib/validators';
 import { canUseCash, calcDishTotal, calcTotal, findDeliveryZone, isValidEventDate } from '@/lib/domain';
 import { trackingHash, trackingLink, trackingToken } from '@/lib/tracking';
-import { notifyNewOrder } from '@/lib/mailer';
-import { notifyOwnerPush } from '@/lib/push';
+import { deliverOrderNotifications } from '@/lib/mailer';
 import type { CateringOrder, Dish } from '@/types/domain';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +30,7 @@ async function createOrder(request: Request) {
   if(previousError) return jsonError('Kunde inte kontrollera förfrågan. Försök igen senare.',503);
   if(previous) {
     if(previous.request_hash!==requestHash) return jsonError('Förfrågan har ändrats. Starta en ny beställning.',409);
+    await deliverOrderNotifications(previous.id).catch(()=>console.error('Order retry; notifications pending'));
     return orderReceipt(previous as CateringOrder,200);
   }
   // Separata beständiga gränser per nätverk och kundmejl; inga IP-adresser lagras.
@@ -75,9 +75,8 @@ async function createOrder(request: Request) {
   });
   if(error || !saved) { console.error('Order transaction failed',error?.code); return jsonError('Priset eller tillgängligheten kan ha ändrats. Uppdatera menyn och försök igen.',409); }
   const order = saved as CateringOrder;
-  const followUp = trackingLink(order);
   // Ordern finns kvar i admin även om externa notifieringstjänster tillfälligt fallerar.
-  if(saved._created!==false) await Promise.allSettled([notifyNewOrder(order,followUp),notifyOwnerPush(order)]);
+  await deliverOrderNotifications(order.id).catch(()=>console.error('Order saved; notifications pending'));
   return orderReceipt(order,saved._created===false?200:201);
 }
 

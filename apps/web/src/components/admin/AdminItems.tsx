@@ -32,16 +32,18 @@ export function AdminItems({initialItems}:{initialItems:MenuItem[]}) {
   const [busy,setBusy]=useState(false);
 
   function edit(item?:MenuItem) {
+    if(busy)return;
     setDraft(makeDraft(item));setEditing(item?.id||'new');setError('');
   }
   function field<K extends keyof Draft>(key:K,value:Draft[K]){
     setDraft(old=>({...old,[key]:value}));
   }
   async function save(event:React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();setError('');setBusy(true);
+    event.preventDefault();if(busy)return;setError('');setBusy(true);
     try {
       const amount=Number(draft.unitPrice.replace(',','.'));
       if(!Number.isFinite(amount)||amount<0||amount>10000)throw new Error('Ange ett styckpris mellan 0 och 10 000 kr.');
+      if(draft.active && amount<=0)throw new Error('Ange ett godkänt pris större än 0 kr innan rätten publiceras.');
       const payload={
         title:draft.title,description:draft.description,category:draft.category,
         unit_label:draft.unit_label,unit_price_ore:Math.round(amount*100),
@@ -63,7 +65,7 @@ export function AdminItems({initialItems}:{initialItems:MenuItem[]}) {
     finally{setBusy(false);}
   }
   async function upload(file:File|undefined) {
-    if(!file)return;
+    if(!file || busy)return;
     setBusy(true);setError('');
     try {const url=await uploadAdminFile(file);field('image_url',url);}
     catch(e){setError(e instanceof Error?e.message:'Bild kunde inte laddas upp.');}
@@ -73,34 +75,35 @@ export function AdminItems({initialItems}:{initialItems:MenuItem[]}) {
   return <div className="admin-panel">
     <div className="admin-top"><div><h2>Maträtter och styckpriser</h2>
       <p className="admin-note">Ägaren bestämmer alla priser och portionsförslag. Inga exempelpriser ska aktiveras av misstag.</p></div>
-      <button type="button" className="btn btn-primary" onClick={()=>edit()}>Ny maträtt</button>
+      <button type="button" disabled={busy} className="btn btn-primary" onClick={()=>edit()}>Ny maträtt</button>
     </div>
     <div className="admin-list">
       {items.map(item=><div key={item.id} className="admin-row">
         <div><strong>{item.title}</strong><small>{categoryLabels[item.category]} · {formatSek(item.unit_price_ore)} / {item.unit_label} · {item.active?'Publicerad':'Dold'}</small></div>
-        <button type="button" className="btn" onClick={()=>edit(item)}>Ändra</button>
+        <button type="button" disabled={busy} className="btn" onClick={()=>edit(item)}>Ändra</button>
       </div>)}
       {!items.length&&<p>Lägg till dina första libanesiska maträtter.</p>}
     </div>
     {editing&&<form onSubmit={save} className="admin-panel" style={{marginTop:24}}>
       <h3>{editing==='new'?'Ny rätt':'Ändra rätt'}</h3>
+      <fieldset className="plain-fieldset" disabled={busy}>
       <div className="field"><label htmlFor="itemTitle">Namn</label>
-        <input id="itemTitle" required value={draft.title} onChange={e=>field('title',e.target.value)}/></div>
+        <input id="itemTitle" required minLength={2} maxLength={90} value={draft.title} onChange={e=>field('title',e.target.value)}/></div>
       <div className="field"><label htmlFor="itemDescription">Kort beskrivning</label>
-        <textarea id="itemDescription" value={draft.description} onChange={e=>field('description',e.target.value)}/></div>
+        <textarea id="itemDescription" maxLength={350} value={draft.description} onChange={e=>field('description',e.target.value)}/></div>
       <div className="field-grid">
         <div className="field"><label htmlFor="itemCategory">Kategori</label>
           <select id="itemCategory" value={draft.category} onChange={e=>field('category',e.target.value as ItemCategory)}>
             {Object.entries(categoryLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}
           </select></div>
         <div className="field"><label htmlFor="unitLabel">Prisenhet, t.ex. styck eller fat</label>
-          <input id="unitLabel" required value={draft.unit_label} onChange={e=>field('unit_label',e.target.value)}/></div>
+          <input id="unitLabel" required maxLength={35} value={draft.unit_label} onChange={e=>field('unit_label',e.target.value)}/></div>
       </div>
       <div className="field-grid">
         <div className="field"><label htmlFor="itemPrice">Pris per enhet i kronor</label>
           <input id="itemPrice" inputMode="decimal" required value={draft.unitPrice} onChange={e=>field('unitPrice',e.target.value)}/></div>
         <div className="field"><label htmlFor="suggestion">Rekommenderat antal per gäst</label>
-          <input id="suggestion" type="number" min="0" max="20" step="0.25" value={draft.suggested_per_person}
+          <input id="suggestion" type="number" min="0" max="20" step="0.01" value={draft.suggested_per_person}
             onChange={e=>field('suggested_per_person',Number(e.target.value))}/></div>
       </div>
       <div className="field"><label htmlFor="allergens">Allergener (separera med komma)</label>
@@ -117,6 +120,7 @@ export function AdminItems({initialItems}:{initialItems:MenuItem[]}) {
       {error&&<p className="form-error" role="alert">{error}</p>}
       <div className="form-actions"><button className="btn btn-primary" disabled={busy} type="submit">Spara maträtt</button>
         <button className="btn" type="button" onClick={()=>setEditing(null)}>Avbryt</button></div>
-    </form>}
+    </fieldset></form>}
+    {busy&&<p role="status">Arbetar… Vänta tills åtgärden är klar.</p>}
   </div>;
 }

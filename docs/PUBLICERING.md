@@ -1,6 +1,6 @@
 # Publicering
 
-Byggning och publicering är skilda steg. V4 innehåller EAS-profiler och en webbackend, men företagets konton, innehåll, identiteter och betalningsflöden måste verifieras före release. Ingen automatisk butiksuppladdning sker.
+V4.1 innehåller EAS-profiler och en webbackend. Företagets konton, innehåll och externa betalningsflöden måste verifieras före aktivering. Ingen automatisk butiksuppladdning sker. Användarens beslut 2026-10-17: använd endast isolerad lokal testdatabas; använd inte det inaktiva Supabase-projektet eller Stripe-miljön Quick match.
 
 Aktuell appkälla använder SDK 57 för iPhone/Expo Go. Skapa och verifiera nya SDK 57-artefakter för egna development-/butiksbyggen; de tidigare färdiga SDK 58-byggena är historiska testresultat.
 
@@ -22,11 +22,30 @@ Profilerna skiljer apparnas identitet men skapar inte databaser eller backend-se
 2. Skapa separata Supabase-miljöer och kör SQL-migrationerna i ordning enligt [DATABAS.md](DATABAS.md). Bjud in ägaren i Supabase Auth, ange `ADMIN_EMAILS` och rätt `/auth/callback`-redirect.
 3. Välj hosting med Next.js-serverstöd. Rotens `npm run build` bygger workspace `@yehabibi/web`. Statiska Expo-filer ersätter inte API-servern.
 4. Ange `NEXT_PUBLIC_SITE_URL` till webbens riktiga HTTPS-domän. Appens API-adress ska nå samma backend. Ordermejl och QR använder webbadressen, aldrig emulatorns `10.0.2.2`.
-5. Konfigurera företagsägd Stripe sandbox, verifierad Resend-avsändare och två olika orderhemligheter på minst 32 tecken. Håll `ORDERS_ENABLED=false` tills innehåll och hela orderflödet verifierats. Livebetalningar har en separat `STRIPE_LIVE_ENABLED`-spärr.
-6. Lägg till Stripe-webhook på `/api/stripe/webhook`: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `charge.refunded`. Lägg in dess egen signeringshemlighet.
+5. Konfigurera företagsägd Stripe sandbox, verifierad Resend-avsändare och två olika orderhemligheter på minst 32 tecken. Håll `ORDERS_ENABLED=false` och `PAYMENTS_ENABLED=false` publikt tills innehåll och hela orderflödet verifierats. En separat godkänd testmiljö sätter betalspärren till true med testnyckel. Livebetalningar har dessutom `STRIPE_LIVE_ENABLED` som ska förbli false.
+6. Lägg till Stripe-webhook på `/api/stripe/webhook`: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`. Lägg in dess egen signeringshemlighet.
 7. Verifiera testkort, Swish om kontot stöder det, eventuell Apple Pay på stödd fysisk enhet, kontantflöde och återbetalning. Gå till livekonfiguration först efter godkänt testflöde.
 
 Swish går genom hosted Checkout i SEK. Kontrollera faktisk kontotillgång och sätt först därefter `STRIPE_SWISH_ENABLED=true`. Apple Pay i Checkout visas när plattformen stöder det. Se [Stripes guide](https://docs.stripe.com/payments/swish/accept-a-payment?payment-ui=checkout).
+
+## Befintliga ChatGPT Sites
+
+[Yehabibi](https://yehabibi.asdasdsa213.chatgpt.site) behåller projektet `appgprj_6ace628740b88191ab7cae7e9704a5f2` och publik åtkomst. Webbens `src`/`public` samt shared synkroniseras från granskad main till det befintliga Vinext/Worker-bygglagret. Källkod, kontroller och arkiv sparas före native Sites-publicering. Inga `.env`, kunddata, mobilbyggen eller lokala testkluster följer med.
+
+Workers använder Supabases HTTPS-API, inte en rå PostgreSQL-anslutning. Samma säkra serverrutter kan köras där; ingen databas eller betalning ersätts av en frontendbekräftelse. Sites har för närvarande inga företagsnycklar. Därför behålls båda spärrarna false. Om företagets framtida backend ligger separat ska Expo och webben peka mot samma verifierade HTTPS-API med uttrycklig CORS-konfiguration.
+
+### Konfigurera företagets testmiljö
+
+| Tjänst | Behövs på servern och i företagets konto |
+| --- | --- |
+| Supabase | Identifierat aktivt projekt, fem migrationer i ordning, `NEXT_PUBLIC_SUPABASE_URL`, publik anon-nyckel och serverns `SUPABASE_SERVICE_ROLE_KEY`; bjud in/bekräfta admin och ange `ADMIN_EMAILS`. Testa Storage-uppladdning och Auth-callback på rätt domän. |
+| Katalog | Admin publicerar verkliga priser i öre, portionsstorlekar, rekommenderade mängder, allergener, bilder, paket, minimum och aktiva leveranszoner. Testpriser från specifikationen används inte publikt. |
+| Order | Två olika slumpade hemligheter på minst 32 tecken: `ORDER_LINK_SECRET`, `ORDER_RATE_LIMIT_SECRET`. Granska villkor och kontakt. Aktivera `ORDERS_ENABLED` endast i verifierad testmiljö först. |
+| Stripe | Företagsägd sandbox/testnyckel, `STRIPE_WEBHOOK_SECRET` för rätt URL och händelserna ovan. `PAYMENTS_ENABLED=true` bara i testmiljön. Verifiera kontoåtkomst till Swish före dess flagga; Apple Pay provas på kompatibel enhet. Liveflaggan förblir false. |
+| Resend | `RESEND_API_KEY`, verifierad avsändare i `EMAIL_FROM`, rätt `OWNER_NOTIFICATION_EMAIL` och företagets godkända testmottagare. Verifiera faktisk leverans och återförsök, inte bara ett lyckat API-svar. |
+| Expo | `EXPO_PUBLIC_API_URL` till samma HTTPS-testbackend. Enbart API-adressen är publik; inga servernycklar i appen. Push kräver företagets FCM/APNs och fysisk installerad app. |
+
+När företagets externa testflöde är godkänt behövs ett separat uttryckligt beslut före skarpa order/betalningar. Den lokala verifieringen ersätter inte detta.
 
 ## Android och iOS via EAS
 

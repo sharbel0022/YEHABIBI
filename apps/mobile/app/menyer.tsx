@@ -11,7 +11,12 @@ export default function Menus() {
   const quote = getQuote(catalog, selection);
   const dishes = catalog.dishes.filter(dish => dish.active && (category === 'alla' || dish.category === category));
   return (
-    <Screen title="Våra menyer" intro="Små rätter. Stora upplevelser. Välj ett paket eller dina egna favoriter.">
+    <Screen title="Våra menyer" intro="Välj ett färdigt cateringpaket eller bygg din egen meny." footer={count > 0 && <>
+      {quote ? <Amount strong label={`${count} rätter · mat`} ore={quote.subtotal_ore} />
+        : <Text style={s.detail}>Rätterna behöver bekräftade priser innan du kan beställa.</Text>}
+      <Button title="Fortsätt till beställning  →" disabled={!quote} onPress={() => router.push('/bestall')} />
+      <Button secondary title="Ändra antal och meny" onPress={() => router.push('/bygg')} />
+    </>}>
       <View style={s.panel}>
         <Text style={s.heading}>{count ? `${count} rätter i din meny` : 'Precis som ni vill ha det'}</Text>
         {quote && <Amount label="Mat" ore={quote.subtotal_ore} />}
