@@ -70,7 +70,7 @@ export type OrderPayload = Omit<OrderInput, 'terms_accepted'> & { terms_accepted
 export type OrderReference = { code: string; token: string };
 export type OrderReceipt = OrderReference & { tracking_url: string };
 export type OrderStatusResponse = { order: PublicOrder };
-export type PaymentSessionResponse = { checkout_url: string; payment_status: PaymentStatus };
+export type PaymentSessionResponse = { checkout_url: string; payment_status: PaymentStatus; test_mode?: boolean };
 export type PushRegistrationResponse = { registered: true };
 /** Ursprungliga rader bevaras. Förslaget visar en uttrycklig prisjustering. */
 export type OrderProposal = {
@@ -104,4 +104,6 @@ export type Catalog = {
   menus: Menu[]; dishes: Dish[]; campaigns: Campaign[]; settings: Settings;
   delivery_zones: DeliveryZone[]; orders_enabled: boolean; payment_methods: PaymentPreference[]; demo: boolean;
   payment_unavailable_reason?: string;
+  /** Endast den isolerade servern får intyga ett fungerande testläge. */
+  test_mode?: boolean;
 };

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ShieldCheck } from 'lucide-react';
 import type { Catalog, OnlinePaymentMethod, PublicOrder } from '@yehabibi/shared';
-import { formatSek, paymentLabels, paymentStatusLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
+import { formatSek, paymentMethodLabel, paymentStatusLabels, safePaymentUrl, statusLabels } from '@/lib/domain';
 import { api } from '@/lib/api-client';
 import { canPayOrder, orderPaymentMethods, orderProgress, orderTimelineLabels } from '@yehabibi/shared';
 import { usePaymentMethods } from '@/components/use-payment-methods';
@@ -19,7 +19,9 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
   const [selectedMethod, setSelectedMethod] = useState<OnlinePaymentMethod | ''>('');
   const [statusVerified, setStatusVerified] = useState(false);
   const inFlight = useRef(false);
-  const deviceMethods = usePaymentMethods(catalog?.demo ? [] : catalog?.payment_methods || []);
+  const testMode = catalog?.test_mode === true;
+  const simulated = testMode || order.payment_provider === 'local_test';
+  const deviceMethods = usePaymentMethods(catalog?.demo ? [] : catalog?.payment_methods || [], testMode);
   const methods = orderPaymentMethods(deviceMethods, order);
   const paymentMethod = methods.find(method => method === selectedMethod) ||
     methods.find(method => method === order.payment_preference) || methods[0];
@@ -53,7 +55,7 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
     inFlight.current = true; setBusy(true); setError('');
     try {
       const session = await api.createPayment({ code: order.code, token }, paymentMethod);
-      const url = safeExternalUrl(session.checkout_url);
+      const url = safePaymentUrl(session.checkout_url, window.location.origin, testMode && session.test_mode === true);
       if (!url) throw new Error('Betalningslänken kunde inte verifieras. Kontakta köket.');
       window.location.assign(url);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Betalningen kunde inte öppnas.'); }
@@ -77,7 +79,7 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
   return <div className="form-layout"><div className="order-panel">
     <span className="admin-pill">{order.status === 'approved' && order.payment_status === 'pending' ? 'Väntar på betalning' : statusLabels[order.status]}</span>
     <h2>{order.menu_title}</h2><p>{order.guests} personer · {order.event_date}, kl {order.event_time}<br/>{order.fulfillment === 'pickup' ? 'Hämtning' : 'Hemleverans'}</p>
-    <p className="admin-note">Betalning: <strong>{paymentStatusLabels[order.payment_status]}</strong> · {paymentLabels[order.payment_preference]}</p>
+    <p className="admin-note">{simulated ? 'Simulerad betalning' : 'Betalning'}: <strong>{paymentStatusLabels[order.payment_status]}</strong> · {paymentMethodLabel(order.payment_preference, simulated)}</p>
     {order.payment_review_required && <p className="form-error" role="alert">{order.payment_refund_status === 'needs_review' ? 'Återbetalningen behöver kontrolleras av köket.' : 'Betalningen behöver kontrolleras av köket.'} Kontakta oss innan du betalar igen.</p>}
     {order.payment_transaction_reference && <p className="field-hint">Transaktionsreferens: {order.payment_transaction_reference}</p>}
     {order.payment_refund_status === 'pending' && <p className="preview-note">Återbetalning begärd. Vi väntar på leverantörens bekräftelse.</p>}
@@ -98,12 +100,12 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
       <p className="field-hint">Betalning öppnas efter att du har godkänt. Kontakta oss om du vill ändra eller avstå.</p>
     </section>}
     {canPay && methods.length > 0 && <section aria-labelledby="payment-title"><h3 id="payment-title">{order.payment_provider ? 'Fortsätt din betalning' : 'Välj betalningssätt'}</h3>
-      <p className="field-hint">Godkänt totalbelopp: {formatSek(order.total_ore)}. Betalningen genomförs på leverantörens säkra sida.</p>
+      <p className="field-hint">Godkänt totalbelopp: {formatSek(order.total_ore)}. {testMode ? 'Du öppnar den lokala simulatorn. Ingen riktig Swish, Apple Pay, Google Pay eller kortdebitering sker.' : 'Betalningen genomförs på leverantörens säkra sida.'}</p>
       <div className="form-choice">{methods.map(method => <label className="choice" key={method}>
         <input type="radio" name="approved-payment" checked={paymentMethod === method} disabled={busy}
-          onChange={() => setSelectedMethod(method)}/>{paymentLabels[method]}</label>)}</div>
+          onChange={() => setSelectedMethod(method)}/>{paymentMethodLabel(method, testMode)}</label>)}</div>
       {order.payment_provider && <p className="field-hint">Det påbörjade betalningsförsöket använder samma metod. Kontakta köket om du behöver ändra.</p>}
-      <div className="form-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void pay()}>{busy ? 'Öppnar…' : 'Betala säkert →'}</button></div>
+      <div className="form-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void pay()}>{busy ? 'Öppnar…' : testMode ? 'Öppna betalningssimulation →' : 'Betala säkert →'}</button></div>
     </section>}
     {canPay && !methods.length && <p className="preview-note">{catalog?.payment_unavailable_reason || 'Onlinebetalning är ännu inte aktiverad för din enhet. Kontakta köket om betalning.'}</p>}
     {order.payment_status === 'pending' && <p className="field-hint">Väntar på verifierad betalningsbekräftelse. Att återvända från betalsidan är inget kvitto.</p>}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { CateringOrder } from '@/types/domain';
-import { canTransition, formatSek, occasions, paymentLabels, paymentStatusLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
+import { canTransition, formatSek, occasions, paymentMethodLabel, paymentStatusLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
 
 const actions = {
   review: 'Granska', approve: 'Godkänn', request_changes: 'Föreslå ändring', reject: 'Neka',
@@ -27,7 +27,9 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
     if (operation === 'request_changes' && !message.trim()) return setError('Beskriv ändringen för kunden innan du skickar förslaget.');
     const proposedOre = amount ? Math.round(Number(amount.replace(',', '.')) * 100) : undefined;
     if (operation === 'request_changes' && amount && (!Number.isSafeInteger(proposedOre) || proposedOre! <= 0)) return setError('Ange ett giltigt nytt totalpris i kronor.');
-    const confirmation = operation === 'cash_paid' ? 'Bekräfta att du har tagit emot hela kontantbeloppet.' : operation === 'refund' ? 'Begär återbetalning av hela beloppet via betalleverantören? Status ändras först när leverantören bekräftar.' : '';
+    const confirmation = operation === 'cash_paid' ? 'Bekräfta att du har tagit emot hela kontantbeloppet.' : operation === 'refund'
+      ? order.payment_provider === 'local_test' ? 'Simulera återbetalning av hela testbeloppet? Inga riktiga pengar används.'
+        : 'Begär återbetalning av hela beloppet via betalleverantören? Status ändras först när leverantören bekräftar.' : '';
     if (confirmation && !window.confirm(confirmation)) return;
     setBusy(order.id); setError(''); setMessage('');
     try {
@@ -60,7 +62,7 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
         <div className="admin-top"><div><strong>#{order.code} · {order.menu_title}</strong><p className="admin-note">{order.full_name} · {order.guests} personer · {order.event_date} kl {order.event_time}</p></div>
           <div><span className="admin-pill">{statusLabels[order.status]}</span> <span className="admin-pill">{paymentStatusLabels[order.payment_status]}</span></div></div>
         <div className="admin-grid"><div><p>{occasions[order.occasion]} · {order.fulfillment === 'pickup' ? 'Hämtning' : `Leverans: ${order.address}, ${order.postal_code} ${order.city}`}<br/>
-          <a href={`mailto:${order.email}`}>{order.email}</a> · <a href={`tel:${order.phone}`}>{order.phone}</a><br/>{paymentLabels[order.payment_preference]} · <strong>{formatSek(order.total_ore)}</strong></p>
+          <a href={`mailto:${order.email}`}>{order.email}</a> · <a href={`tel:${order.phone}`}>{order.phone}</a><br/>{paymentMethodLabel(order.payment_preference, order.payment_provider === 'local_test')} · <strong>{formatSek(order.total_ore)}</strong></p>
           {!!order.price_adjustment_ore && <p className="admin-note">Godkänd prisjustering: {formatSek(order.price_adjustment_ore)}</p>}
           <p className="admin-note">Betalleverantör: {order.payment_provider || 'Ingen aktiv betalning'}<br/>
             Transaktionsreferens: {order.payment_transaction_reference || order.provider_payment_id || 'Inväntar leverantören'}</p>
@@ -84,7 +86,7 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
           if (operation === 'ready' && order.fulfillment !== 'pickup') return false;
           if (operation === 'dispatched' && order.fulfillment !== 'delivery') return false;
           return canTransition(order.status, operation, order.payment_status, order.payment_preference);
-        }).map(([operation, label]) => <button key={operation} className={`btn ${operation === 'approve' || operation === 'cash_paid' ? 'btn-primary' : ''}`} type="button" disabled={!!busy} onClick={() => action(order, operation)}>{busy === order.id ? 'Arbetar…' : label}</button>)}</div>
+        }).map(([operation, label]) => <button key={operation} className={`btn ${operation === 'approve' || operation === 'cash_paid' ? 'btn-primary' : ''}`} type="button" disabled={!!busy} onClick={() => action(order, operation)}>{busy === order.id ? 'Arbetar…' : operation === 'refund' && order.payment_provider === 'local_test' ? 'Simulera återbetalning' : label}</button>)}</div>
       </article>;
     })}
   </div>;

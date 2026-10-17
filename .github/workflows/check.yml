@@ -9,7 +9,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,6 +43,8 @@ jobs:
           echo "PG_BIN=$(dirname "$(find /usr/lib/postgresql -path '*/bin/initdb' | sort -V | tail -n 1)")" >> "$GITHUB_ENV"
       - name: Real PostgreSQL, PostgREST and Next HTTP flow
         run: npm run test:integration
+      - name: Isolated test orders, simulation, notifications and security boundaries
+        run: npm run test:mode
       - name: Database test diagnostics on failure
         if: failure()
         shell: bash

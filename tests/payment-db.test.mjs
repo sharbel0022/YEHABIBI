@@ -172,11 +172,16 @@ test('V4.3 payment SQL: reservations, exact references, corrections, refunds, ca
       assert.equal(policies.length,3);assert.ok(policies.every(row=>row.relrowsecurity));
       const functions=(await db.query("select prosecdef from pg_proc where proname in ('reserve_catering_payment','attach_catering_payment','apply_catering_payment_event','reserve_catering_refund','attach_catering_refund','record_catering_cash_payment')")).rows;
       assert.equal(functions.length,6);assert.ok(functions.every(row=>!row.prosecdef));
+      const refundOverloads=(await db.query("select pronargs from pg_proc where proname='reserve_catering_refund'")).rows;
+      assert.deepEqual(refundOverloads,[{pronargs:3}]);
+      const providers=(await db.query('select provider,environment,checkout_base_url from public.payment_provider_registry order by environment')).rows;
+      assert.deepEqual(providers,[{provider:'adyen',environment:'live',checkout_base_url:'https://eu.adyen.link/'},{provider:'adyen',environment:'test',checkout_base_url:'https://test.adyen.link/'}]);
       for(const role of ['anon','authenticated']) {
         await db.exec(`reset role;set role ${role}`);
-        for(const table of ['payment_attempts','payment_provider_events','payment_refunds','orders']) await assert.rejects(db.query(`select * from public.${table}`),/permission denied/);
+        for(const table of ['payment_attempts','payment_provider_events','payment_refunds','payment_provider_registry','orders']) await assert.rejects(db.query(`select * from public.${table}`),/permission denied/);
         await assert.rejects(reserve(o),/permission denied/);
         await assert.rejects(apply(event(a)),/permission denied/);
+        await assert.rejects(one('select public.reserve_catering_refund($1,$2,$3) as saved',[o.id,'test','adyen']),/permission denied/);
         await assert.rejects(one('select public.record_catering_cash_payment($1,$2) as saved',[o.id,adminId]),/permission denied/);
       }
     });

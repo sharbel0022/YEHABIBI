@@ -4,6 +4,8 @@ Underlag kontrollerat 2026-10-17. **Adyen Pay by Link är integrationskandidaten
 
 En byggd integration och ett godkänt lokalt HTTP-/databastest bevisar inte en verklig sandboxbetalning. Företagets Adyen-konto, Swish, Apple Pay, Google Pay, verklig Resend-leverans och fysiska iPhone-/Android-prov återstår tills konton och behörigheter finns. Läs [TESTER.md](TESTER.md) för faktiskt körda kontroller. Produktionsspärren `PAYMENTS_LIVE_APPROVED` är false och prefix/nycklar saknas i mallen. Inga liveanrop eller verkliga betalningar har gjorts.
 
+För att använda hela orderflödet utan merchant-konto finns nu en separat lokal testplattform enligt [TEST_ORDER_PAYMENT_GUIDE.md](TEST_ORDER_PAYMENT_GUIDE.md). Den har egen PostgreSQL-databas, syntetiska priser, testadmin och signerad betalningssimulator. Testadaptern finns endast i den isolerade arbetskopian och ingår inte i produktionsappen; Adyen och riktiga betalningar förblir avstängda.
+
 ## Varför Adyen utvärderas först
 
 Adyen dokumenterar Swish i SEK med appväxling på mobil och QR på dator. Metoden stöder återbetalningar men ingen separat capture. [Adyens Swish-dokumentation](https://docs.adyen.com/payment-methods/swish/).

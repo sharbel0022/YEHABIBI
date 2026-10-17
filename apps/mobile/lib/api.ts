@@ -3,13 +3,13 @@ import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { createApiClient } from '@yehabibi/api-client';
-import { safeExternalUrl, type OrderReference } from '@yehabibi/shared';
+import { localApiStorageKey, safeExternalUrl, safePaymentUrl, type OrderReference } from '@yehabibi/shared';
 
 export const apiUrl = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
 export type { OrderReference } from '@yehabibi/shared';
-const storageKey = 'cedar-mezze-orders-v1';
-const draftKey = 'cedar-mezze-selection-v4';
-const requestKey = 'cedar-mezze-request-v1';
+const storageKey = localApiStorageKey('cedar-mezze-orders-v1', apiUrl);
+const draftKey = localApiStorageKey('cedar-mezze-selection-v4', apiUrl);
+const requestKey = localApiStorageKey('cedar-mezze-request-v1', apiUrl);
 
 // Bara adressen och utvecklingsläget är mobilspecifika; kontrakt/fel delas med webben.
 export const api = createApiClient({
@@ -91,7 +91,12 @@ export async function clearRequestId() {
   else await SecureStore.deleteItemAsync(requestKey);
 }
 
-export async function registerOrderPush(reference: OrderReference) {
+export async function registerOrderPush(reference: OrderReference, testMode = false) {
+  if (testMode) {
+    const catalog = await api.getCatalog();
+    if (catalog.test_mode !== true) throw new Error('Servern har inte verifierat ett isolerat testläge.');
+    return api.registerOrderPush(reference, 'ExpoPushToken[isolated_test_device_0001]');
+  }
   if (Platform.OS === 'web' || Constants.appOwnership === 'expo') {
     throw new Error('Pushnotiser kräver den installerade utvecklingsappen eller EAS-appen. I Expo Go följer du status här och via e-post.');
   }
@@ -116,8 +121,8 @@ export async function registerOrderPush(reference: OrderReference) {
   await api.registerOrderPush(reference, token.data);
 }
 
-export async function openWebsite(value: string | null | undefined, checkout = false) {
-  const url = safeExternalUrl(value);
+export async function openWebsite(value: string | null | undefined, checkout = false, verifiedTestMode = false) {
+  const url = checkout ? safePaymentUrl(value, apiUrl, verifiedTestMode) : safeExternalUrl(value);
   if (!url) {
     throw new Error('Den här länken är inte tillgänglig. Kontakta Cedar Mezze.');
   }

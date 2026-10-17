@@ -5,7 +5,8 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { LocalStructuredData } from '@/components/LocalStructuredData';
 import { PwaRegister } from '@/components/PwaRegister';
-import { getSettings } from '@/lib/data';
+import { TestModeBanner } from '@/components/TestModeBanner';
+import { getCatalog } from '@/lib/data';
 import { BRAND, isIndexable, siteUrl } from '@/lib/config';
 import './globals.css';
 
@@ -24,10 +25,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: designColors.green };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const settings = await getSettings();
-  return <html lang="sv">
+  const catalog = await getCatalog();
+  const settings = catalog.settings;
+  return <html lang="sv" data-scroll-behavior="smooth">
     <body style={{ '--green': designColors.green, '--red': designColors.red, '--sand': designColors.soft, '--white': designColors.white } as CSSProperties}>
       <a href="#main" className="skip-link">Hoppa till innehåll</a>
+      <TestModeBanner initialTestMode={catalog.test_mode === true}/>
       <Header />
       <main id="main">{children}</main>
       <Footer settings={settings} />

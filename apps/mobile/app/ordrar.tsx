@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  canPayOrder, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentLabels,
+  canPayOrder, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
   paymentStatusLabels, statusLabels, type OnlinePaymentMethod, type PublicOrder,
 } from '@yehabibi/shared';
 import { api, openWebsite, registerOrderPush } from '../lib/api';
@@ -22,7 +22,7 @@ export default function Orders() {
   const refreshing = useRef(false);
   const methods = onlinePaymentMethods(catalog.demo || catalogError ? [] : catalog.payment_methods, {
     applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android',
-  });
+  }, catalog.test_mode === true);
   const refresh = useCallback(async () => {
     if (!references.length || refreshing.current) return;
     refreshing.current = true;
@@ -71,16 +71,16 @@ export default function Orders() {
           available.find(item => item === order.payment_preference) || available[0];
         if (!canPayOrder(order) || !method || catalogLoading || catalogError) throw new Error('Betalningssättet är inte tillgängligt. Uppdatera och försök igen.');
         const session = await api.createPayment(reference, method);
-        await openWebsite(session.checkout_url, true);
-        setNotice('Betalningssidan har öppnats. Betald visas först när backend har verifierat resultatet.');
+        await openWebsite(session.checkout_url, true, catalog.test_mode === true && session.test_mode === true);
+        setNotice(catalog.test_mode === true ? 'Den lokala betalningssimulationen har öppnats. Backend uppdaterar teststatus; inga pengar används.' : 'Betalningssidan har öppnats. Betald visas först när backend har verifierat resultatet.');
       }
       if (kind === 'accept' && order.proposal) {
         await api.acceptPriceChange(reference, order.proposal.revision);
         setNotice('Du har godkänt förslaget. Nästa steg visas i din beställning.');
       }
       if (kind === 'push') {
-        await registerOrderPush(reference);
-        setNotice('Statusnotiser för den här beställningen är aktiverade på enheten.');
+        await registerOrderPush(reference, catalog.test_mode === true);
+        setNotice(catalog.test_mode === true ? 'Testnotiser registrerade för den lokala testinkorgen. Inga riktiga pushnotiser skickas.' : 'Statusnotiser för den här beställningen är aktiverade på enheten.');
       }
       // Betald visas först när backend har verifierat betalningen.
       await refresh();
@@ -115,8 +115,8 @@ export default function Orders() {
             <Text style={s.body}>{order.event_date} kl. {order.event_time} · {order.guests} personer</Text>
             <View style={[s.panel, { backgroundColor: colors.mint }]}>
               <Text style={s.price}>{statusLabels[order.status]}</Text>
-              <Text style={s.body}>Betalning: {paymentStatusLabels[order.payment_status]}</Text>
-              <Text style={s.detail}>{paymentLabels[order.payment_preference]} · {order.fulfillment === 'pickup' ? 'Hämtning' : 'Leverans'}</Text>
+              <Text style={s.body}>{catalog.test_mode === true || order.payment_provider === 'local_test' ? 'Simulerad betalning' : 'Betalning'}: {paymentStatusLabels[order.payment_status]}</Text>
+              <Text style={s.detail}>{paymentMethodLabel(order.payment_preference, catalog.test_mode === true || order.payment_provider === 'local_test')} · {order.fulfillment === 'pickup' ? 'Hämtning' : 'Leverans'}</Text>
             </View>
             {order.payment_review_required && <Notice text={`${order.payment_refund_status === 'needs_review' ? 'Återbetalningen behöver kontrolleras av köket.' : 'Betalningen behöver kontrolleras av köket.'} Kontakta oss innan du betalar igen.`} />}
             {!!order.payment_transaction_reference && <Text style={s.detail}>Transaktionsreferens: {order.payment_transaction_reference}</Text>}
@@ -147,13 +147,14 @@ export default function Orders() {
             {order.payment_preference === 'cash' && order.payment_status !== 'paid' && <Text style={s.detail}>Kontant vid hämtning. Ägaren registrerar betalningen när pengarna har tagits emot.</Text>}
             {canPay && available.length > 0 && <View style={s.section}>
               <Text style={s.heading}>{order.payment_provider ? 'Fortsätt din betalning' : 'Välj betalningssätt'}</Text>
-              <Choices values={available.map(value => ({ value, label: paymentLabels[value] }))}
+              <Choices values={available.map(value => ({ value, label: paymentMethodLabel(value, catalog.test_mode === true) }))}
                 selected={method} onSelect={value => setSelectedMethods(previous => ({ ...previous, [order.code]: value }))} />
               {!!order.payment_provider && <Text style={s.detail}>Det påbörjade försöket använder samma metod. Kontakta köket om du behöver ändra.</Text>}
-              <Button title="Öppna säker betalning  →" disabled={!!busy} onPress={() => void action(order, 'pay')} />
+              {catalog.test_mode === true && <Text style={s.detail}>Lokal simulation av vald metod. Inga pengar, plånböcker eller kort används.</Text>}
+              <Button title={catalog.test_mode === true ? 'Öppna betalningssimulation  →' : 'Öppna säker betalning  →'} disabled={!!busy} onPress={() => void action(order, 'pay')} />
             </View>}
             {canPay && !available.length && <Notice text={catalog.payment_unavailable_reason || 'Onlinebetalning är ännu inte aktiverad för din enhet. Kontakta köket om betalning.'} />}
-            {!['completed', 'rejected', 'cancelled'].includes(order.status) && <Button secondary title="Aktivera statusnotiser"
+            {!['completed', 'rejected', 'cancelled'].includes(order.status) && <Button secondary title={catalog.test_mode === true ? 'Simulera statusnotiser' : 'Aktivera statusnotiser'}
               disabled={!!busy} onPress={() => void action(order, 'push')} />}
             {order.payment_status === 'pending' && <Text style={s.detail}>Betalningen bekräftas av betalleverantören. Återkomsten från betalningssidan räcker inte som kvitto.</Text>}
           </View>

@@ -3,7 +3,7 @@ import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
 import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings } from '@/types/domain';
 import { safeExternalUrl, previewDishes } from '@/lib/domain';
-import { paymentCapabilities, paymentsConfigured } from '@/lib/payments';
+import { paymentCapabilities, paymentsConfigured, paymentRuntimeInfo } from '@/lib/payments';
 
 export async function getMenus(): Promise<Menu[]> {
   if (!isSupabaseReady()) return previewMenus;
@@ -72,12 +72,13 @@ export async function getCatalog(): Promise<Catalog> {
     campaigns = (campaignResult.data || []) as Campaign[];
   }
   // Kontokonfiguration och leverantörens faktiska metodlista måste båda godkänna metoden.
-  const payment_methods: PaymentPreference[] = isSupabaseReady() ? await paymentCapabilities() : [];
+  const [runtime, capabilities] = await Promise.all([paymentRuntimeInfo(), isSupabaseReady() ? paymentCapabilities() : Promise.resolve([])]);
+  const payment_methods: PaymentPreference[] = capabilities;
   if(settings.cash_enabled && settings.pickup_enabled) payment_methods.push('cash');
   if(settings.allow_unpaid_requests) payment_methods.push('unpaid');
   // Ta bort eventuella framtida privata databasfält genom en explicit kopia.
   const publicSettings: Settings = Object.fromEntries(Object.keys(previewSettings).map(key => [key,settings[key as keyof Settings]])) as Settings;
-  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,demo:!isSupabaseReady()};
+  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
 }
 
 /** Privat order läses med token i API:t; bara denna tillåtna vy når kunden. */

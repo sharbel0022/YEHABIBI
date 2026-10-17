@@ -20,6 +20,8 @@ for (const relative of ['src/app/api/stripe/webhook/route.ts', 'src/lib/checkout
 }
 let copiedFiles = 0;
 for (const file of files) {
+  // The private simulator, launcher and its tests stay outside hosted source.
+  if (file.startsWith('tests/test-mode')) continue;
   let relative = file.startsWith('apps/web/src/') || file.startsWith('apps/web/public/')
     ? file.slice('apps/web/'.length)
     : /^(packages\/|supabase\/migrations\/|docs\/|tests\/)/.test(file) ? file : null;

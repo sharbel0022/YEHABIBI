@@ -6,6 +6,8 @@ V4.3 ersätter aktiv Stripe-kod med ett gemensamt betalningsgränssnitt och en a
 
 Läs [V4.3-guiden](docs/PAYMENTS_WITHOUT_STRIPE_V4_3.md) för betalningsflöde, leverantörsjämförelse, verifierade priser, installation och kvarvarande företagskrav. [V4.2-guiden](docs/UNIFIED_ARCHITECTURE_V4_2.md) bevarar refaktoreringens bakgrund. [TESTER.md](docs/TESTER.md) redovisar faktiskt testutfall. GitHub/CI och Sites senaste verifierade publicering beskrivs i [PUBLICERING.md](docs/PUBLICERING.md).
 
+För kompletta orderflöden utan riktiga pengar finns en separat lokal testmiljö med PostgreSQL/PostgREST, syntetisk meny, egen testadmin, testinkorg och simulerade betalningar. Start, återställning och mobilanslutning beskrivs i [TEST_ORDER_PAYMENT_GUIDE.md](docs/TEST_ORDER_PAYMENT_GUIDE.md). Testadaptern och dess sidor kopieras endast till en isolerad arbetskopia; de ingår inte i produktionsappen eller den publika Site-versionen.
+
 ## Starta i Windows
 
 Använd Node.js 22.13 eller senare. Kör i repots rot:
@@ -91,7 +93,7 @@ npm run test:web
 npm run export:mobile
 ```
 
-`npm run verify` samlar dessa kontroller. `npm run test:integration` kör ett separat tillfälligt PostgreSQL/PostgREST/Next-kluster enligt [TESTER.md](docs/TESTER.md). Expo-export verifierar paketering för Android, iOS och webb; den bevisar inte ett nytt signerat EAS-bygge eller test på fysisk telefon.
+`npm run verify` samlar syntax, tester, typkontroll, produktionsbygge och Expo-export. Kör även `npm run test:web`, `npm run test:integration` och `npm run test:mode` för produktionsspärrar och isolerade HTTP-/databasflöden enligt [TESTER.md](docs/TESTER.md) och [testguiden](docs/TEST_ORDER_PAYMENT_GUIDE.md). Expo-export verifierar paketering för Android, iOS och webb; den bevisar inte ett nytt signerat EAS-bygge eller test på fysisk telefon.
 
 Installera workspaces från roten och uppdatera låsfilen med npm vid beroendeändringar. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel.
 

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import {
   availablePaymentMethods, buildOrderPayload, eventDateBounds, findDeliveryZone, formatSek,
   itemsFromQuantities, minimumGuestsFor, newOrderSchema, occasions, orderContactError,
-  onlinePaymentMethods, orderDetailsError, orderSteps, paymentLabels,
+  onlinePaymentMethods, orderDetailsError, orderSteps, paymentMethodLabel,
   type Fulfillment, type PaymentPreference,
 } from '@yehabibi/shared';
 import { api, apiUrl, clearRequestId, newRequestId, openPolicy, persistentRequestId } from '../lib/api';
@@ -40,7 +40,7 @@ export default function OrderScreen() {
     guests: Math.max(selection.guests, minimumGuestsFor(menu, settings.custom_min_people)) });
   const online = onlinePaymentMethods(catalog.payment_methods, {
     applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android',
-  });
+  }, catalog.test_mode === true);
   const methods = availablePaymentMethods(catalog, fulfillment)
     .filter(method => method === 'cash' || method === 'unpaid' || online.includes(method));
   const selectedPayment = methods.includes(payment) ? payment : methods[0];
@@ -200,14 +200,15 @@ export default function OrderScreen() {
         {field('email', 'E-post', { keyboardType: 'email-address', autoCapitalize: 'none', autoComplete: 'email', maxLength: 200 })}
         {field('phone', 'Telefon', { keyboardType: 'phone-pad', autoComplete: 'tel', maxLength: 30 })}
         {field('notes', 'Allergier och särskilda önskemål', { multiline: true, maxLength: 1000 })}
-        <Text style={s.heading}>Önskat betalningssätt</Text>
-        <Choices values={methods.map(value => ({ value, label: paymentLabels[value] }))}
+        <Text style={s.heading}>{catalog.test_mode === true ? 'Simulerat betalningssätt' : 'Önskat betalningssätt'}</Text>
+        <Choices values={methods.map(value => ({ value, label: paymentMethodLabel(value, catalog.test_mode === true) }))}
           selected={selectedPayment} onSelect={setPayment} />
         <Text style={s.detail}>{selectedPayment === 'cash'
           ? 'Kontant endast vid hämtning. Ägaren registrerar betalningen när pengarna tagits emot.'
           : selectedPayment === 'unpaid'
             ? 'Köket tillåter obetalda förfrågningar. Betalningssätt avtalas efter godkännande; ingen onlinebetalning är utlovad.'
-            : 'Ingen betalning sker nu. Du väljer en aktiverad betalningsmetod efter godkännandet. Leverantören kontrollerar stöd på enheten.'}</Text>
+            : catalog.test_mode === true ? 'Endast testdata och simulerad betalning. Inga pengar, riktiga plånböcker eller kort används.'
+              : 'Ingen betalning sker nu. Du väljer en aktiverad betalningsmetod efter godkännandet. Leverantören kontrollerar stöd på enheten.'}</Text>
         {!methods.length && <Notice text={catalog.payment_unavailable_reason || 'Inga betalningssätt är aktiverade. Kontakta köket för att beställa.'} />}
       </View>}
       {step === 4 && <>
@@ -219,7 +220,7 @@ export default function OrderScreen() {
           <Text style={s.body}>{form.full_name} · {form.phone}</Text>
           <Text style={s.body}>{form.email}</Text>
           {!!form.notes && <Text style={s.detail}>{form.notes}</Text>}
-          <Text style={s.detail}>Önskat betalningssätt: {selectedPayment ? paymentLabels[selectedPayment] : 'Inget aktiverat betalningssätt'}</Text>
+          <Text style={s.detail}>Önskat betalningssätt: {selectedPayment ? paymentMethodLabel(selectedPayment, catalog.test_mode === true) : 'Inget aktiverat betalningssätt'}</Text>
         </View>
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: terms }}
           onPress={() => setTerms(!terms)} style={[s.panel, { minHeight: 54 }]}>

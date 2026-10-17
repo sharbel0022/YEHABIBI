@@ -76,4 +76,5 @@ export const previewCatalog: Catalog = {
   orders_enabled: false,
   payment_methods: [],
   demo: true,
+  test_mode: false,
 };

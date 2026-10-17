@@ -129,6 +129,32 @@ export function safeExternalUrl(value: string | null | undefined) {
   } catch { return null; }
 }
 
+/** Lokal simulering får bara öppna samma privata backend som intygat testläget. */
+export function safePaymentUrl(value: string | null | undefined, apiOrigin: string, verifiedTestMode = false) {
+  if (!verifiedTestMode) return safeExternalUrl(value);
+  if (!value) return null;
+  try {
+    const base = new URL(apiOrigin), url = new URL(value, base);
+    const privateHost = (hostname: string) => {
+      if (hostname === 'localhost' || hostname === '[::1]') return true;
+      const parts = hostname.split('.');
+      if (parts.length !== 4 || parts.some(part => !/^\d{1,3}$/.test(part) || Number(part) > 255)) return false;
+      const [first, second] = parts.map(Number);
+      return first === 127 || first === 10 || first === 192 && second === 168 || first === 172 && second >= 16 && second <= 31;
+    };
+    if (url.username || url.password || base.username || base.password || url.origin !== base.origin ||
+        !privateHost(base.hostname) || !['http:', 'https:'].includes(url.protocol)) return null;
+    return url.toString();
+  } catch { return null; }
+}
+
+export function paymentMethodLabel(preference: PaymentPreference, testMode = false) {
+  return testMode && !['cash', 'unpaid'].includes(preference)
+    ? `Simulerad ${paymentLabels[preference]}` : paymentLabels[preference];
+}
+
+export const testModeBanner = 'TESTLÄGE – INGA RIKTIGA BESTÄLLNINGAR';
+
 const htmlEntities: Record<string, string> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 };
