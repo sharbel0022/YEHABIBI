@@ -39,6 +39,16 @@ Starta AVD:n i Android Studio → Device Manager. Verifierad lokal AVD är `Medi
 
 `npm run android` använder i stället en installerad egen development build. `npm run build:android` försöker native-kompilera lokalt, men det tidigare Windowsförsöket stoppades av långa CMake-sökvägar. EAS är den verifierade byggvägen; globala Java-inställningar behöver inte ändras.
 
+När iPhone använder Expo Go på 8081 kör du den installerade Android-klienten i en separat terminal från `apps/mobile`:
+
+```powershell
+$env:EXPO_PUBLIC_API_URL='http://10.0.2.2:3000'
+npx expo start --dev-client --host lan --port 8082 --clear
+# Tryck a för Android. Webb/API ska redan köra på port 3000.
+```
+
+Detta är den verifierade samtidiga konfigurationen för V4 här. Att byta den egna Android-klienten till Expo Go-sessionen på 8081 fastnade vid Bundling 99%; en separat `--dev-client`-session på 8082 löste det. Variabeln ovan gäller bara den terminalen och ändrar inte iPhones LAN-adress i miljöfilen.
+
 ## Android- och iOS-byggen med EAS
 
 Kör från `apps/mobile`:

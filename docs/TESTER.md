@@ -47,6 +47,8 @@ V4:s nya EAS-APK hämtades, 252 770 173 byte, och `adb install -r` gav **Success
 
 Publicerad Sites: startsida och kategori/gästreglage fungerar i webbläsaren, katalog och health svarar 200, demo har 11 rätter och stängda beställningar. POST orders ger 503, tillåten CORS-preflight 204 med PATCH och otillåten origin 403. Native iPhone-manifest på LAN svarar 200 med SDK 57.0.0, app 4.0.0 och rätt EAS-projekt. Lokal API-server har startats om till V4 på port 3000 och Expo Go körs på LAN-port 8081.
 
+Vid slutlig överlämning fastnade den egna Android-klienten efter byte till Expo Go-servern 8081. Separat Metro `--dev-client` på 8082 med API `http://10.0.2.2:3000` löste det. Startsidan och `Running main` verifierades igen utan JS-/fatalfel. API 3000, iPhones Expo Go 8081 och Androids development-session 8082 lämnades igång. Stegen finns i [EXPO.md](EXPO.md).
+
 Turbopack misslyckades lokalt i en Windows-underprocess för CSS, utan källdiagnostik. Det dokumenterade `next build --webpack` valdes som stabilt standardkommando och passerade lokalt och i CI. Hermes behövde en skrivbar temporär mapp under den ignorerade `.tmp` i lokal export; omkörning och hela verify passerade. Ingen kodkontroll stängdes av.
 
 ## Verifieringsgränser före lansering
