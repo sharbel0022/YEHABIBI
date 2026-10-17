@@ -118,9 +118,11 @@ export async function registerOrderPush(reference: OrderReference) {
 
 export async function openWebsite(value: string | null | undefined, checkout = false) {
   const url = safeExternalUrl(value);
-  if (!url || (checkout && new URL(url).hostname !== 'checkout.stripe.com')) {
+  if (!url) {
     throw new Error('Den här länken är inte tillgänglig. Kontakta Cedar Mezze.');
   }
+  // Leverantören hanterar eventuellt appbyte och SCA på sin officiella sida.
+  // Återkomsten är aldrig en betalningsbekräftelse; kunden läser backend igen.
   if (checkout) await Linking.openURL(url);
   else await WebBrowser.openBrowserAsync(url);
 }

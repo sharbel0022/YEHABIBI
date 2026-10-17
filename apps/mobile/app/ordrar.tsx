@@ -1,28 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Text, View } from 'react-native';
+import { AppState, Platform, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  canPayOrder, formatSek, orderProgress, orderTimelineLabels, paymentLabels,
-  paymentStatusLabels, statusLabels, type PublicOrder,
+  canPayOrder, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentLabels,
+  paymentStatusLabels, statusLabels, type OnlinePaymentMethod, type PublicOrder,
 } from '@yehabibi/shared';
-import { api, getOrder, openWebsite, registerOrderPush } from '../lib/api';
+import { api, openWebsite, registerOrderPush } from '../lib/api';
 import { useCatering } from '../lib/store';
-import { Amount, Button, colors, Notice, Screen, s } from '../lib/ui';
+import { Amount, Button, Choices, colors, Notice, Screen, s } from '../lib/ui';
 
 export default function Orders() {
-  const { references, storageNotice } = useCatering();
+  const { references, storageNotice, catalog, catalogError, loading: catalogLoading, refresh: refreshCatalog } = useCatering();
   const [orders, setOrders] = useState<PublicOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [updated, setUpdated] = useState('');
+  const [selectedMethods, setSelectedMethods] = useState<Record<string, OnlinePaymentMethod>>({});
   const inFlight = useRef(false);
+  const refreshing = useRef(false);
+  const methods = onlinePaymentMethods(catalog.demo || catalogError ? [] : catalog.payment_methods, {
+    applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android',
+  });
   const refresh = useCallback(async () => {
-    if (!references.length) return;
+    if (!references.length || refreshing.current) return;
+    refreshing.current = true;
     setLoading(true);
     setError('');
-    const results = await Promise.allSettled(references.map(reference => getOrder(reference)));
+    const results = await Promise.allSettled(references.map(reference => api.getPaymentStatus(reference)));
     const fresh = results.flatMap(result => result.status === 'fulfilled' ? [result.value.order] : []);
     setOrders(previous => references.flatMap(reference => {
       const order = fresh.find(item => item.code === reference.code) || previous.find(item => item.code === reference.code);
@@ -35,9 +41,16 @@ export default function Orders() {
       hour: '2-digit', minute: '2-digit',
     }).format(new Date()));
     setLoading(false);
+    refreshing.current = false;
   }, [references]);
 
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  useFocusEffect(useCallback(() => {
+    void refresh();
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') { void refresh(); void refreshCatalog(); }
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [refresh, refreshCatalog]));
   useEffect(() => {
     const listener = AppState.addEventListener('change', state => {
       if (state === 'active') void refresh();
@@ -52,7 +65,15 @@ export default function Orders() {
     inFlight.current = true;
     setBusy(order.code); setError(''); setNotice('');
     try {
-      if (kind === 'pay') await openWebsite(order.checkout_url, true);
+      if (kind === 'pay') {
+        const available = orderPaymentMethods(methods, order);
+        const method = available.find(item => item === selectedMethods[order.code]) ||
+          available.find(item => item === order.payment_preference) || available[0];
+        if (!canPayOrder(order) || !method || catalogLoading || catalogError) throw new Error('Betalningssättet är inte tillgängligt. Uppdatera och försök igen.');
+        const session = await api.createPayment(reference, method);
+        await openWebsite(session.checkout_url, true);
+        setNotice('Betalningssidan har öppnats. Betald visas först när backend har verifierat resultatet.');
+      }
       if (kind === 'accept' && order.proposal) {
         await api.acceptPriceChange(reference, order.proposal.revision);
         setNotice('Du har godkänt förslaget. Nästa steg visas i din beställning.');
@@ -83,7 +104,10 @@ export default function Orders() {
       {!!updated && <Text style={s.detail}>Senast uppdaterad {updated}</Text>}
       {orders.map(order => {
         const stage = orderProgress(order) - 1;
-        const canPay = !error && !loading && canPayOrder(order);
+        const canPay = !error && !loading && !catalogLoading && !catalogError && canPayOrder(order);
+        const available = orderPaymentMethods(methods, order);
+        const method = available.find(item => item === selectedMethods[order.code]) ||
+          available.find(item => item === order.payment_preference) || available[0];
         return <View key={order.code} style={s.card}>
           <View style={s.cardBody}>
             <Text style={s.eyebrow}>{order.code}</Text>
@@ -94,9 +118,12 @@ export default function Orders() {
               <Text style={s.body}>Betalning: {paymentStatusLabels[order.payment_status]}</Text>
               <Text style={s.detail}>{paymentLabels[order.payment_preference]} · {order.fulfillment === 'pickup' ? 'Hämtning' : 'Leverans'}</Text>
             </View>
+            {order.payment_review_required && <Notice text={`${order.payment_refund_status === 'needs_review' ? 'Återbetalningen behöver kontrolleras av köket.' : 'Betalningen behöver kontrolleras av köket.'} Kontakta oss innan du betalar igen.`} />}
+            {!!order.payment_transaction_reference && <Text style={s.detail}>Transaktionsreferens: {order.payment_transaction_reference}</Text>}
+            {order.payment_refund_status === 'pending' && <Notice text="Återbetalning begärd. Väntar på leverantörens bekräftelse." />}
             {stage >= 0 && <View style={s.section}>{orderTimelineLabels(order).map((label, index) =>
-              <Text key={label} style={[s.detail, { color: index <= stage ? colors.green : colors.muted }]}>
-                {index < stage ? '✓' : index === stage ? '●' : '○'}  {label}
+              <Text key={label} style={[s.detail, { color: index <= stage && (index !== 4 || order.payment_status === 'paid') ? colors.green : colors.muted }]}>
+                {index <= stage && (index !== 4 || order.payment_status === 'paid') ? index === stage ? '●' : '✓' : '○'}  {label}
               </Text>)}</View>}
             {order.items.map((item, index) => <View key={index} style={s.row}>
               <Text style={s.body}>{item.quantity} × {item.title}</Text>
@@ -118,7 +145,14 @@ export default function Orders() {
             </View>}
             {order.status === 'new' && <Text style={s.detail}>Förfrågan är mottagen. Köket bekräftar tillgänglighet och pris.</Text>}
             {order.payment_preference === 'cash' && order.payment_status !== 'paid' && <Text style={s.detail}>Kontant vid hämtning. Ägaren registrerar betalningen när pengarna har tagits emot.</Text>}
-            {canPay && <Button title="Öppna säker betalning  →" disabled={!!busy} onPress={() => void action(order, 'pay')} />}
+            {canPay && available.length > 0 && <View style={s.section}>
+              <Text style={s.heading}>{order.payment_provider ? 'Fortsätt din betalning' : 'Välj betalningssätt'}</Text>
+              <Choices values={available.map(value => ({ value, label: paymentLabels[value] }))}
+                selected={method} onSelect={value => setSelectedMethods(previous => ({ ...previous, [order.code]: value }))} />
+              {!!order.payment_provider && <Text style={s.detail}>Det påbörjade försöket använder samma metod. Kontakta köket om du behöver ändra.</Text>}
+              <Button title="Öppna säker betalning  →" disabled={!!busy} onPress={() => void action(order, 'pay')} />
+            </View>}
+            {canPay && !available.length && <Notice text={catalog.payment_unavailable_reason || 'Onlinebetalning är ännu inte aktiverad för din enhet. Kontakta köket om betalning.'} />}
             {!['completed', 'rejected', 'cancelled'].includes(order.status) && <Button secondary title="Aktivera statusnotiser"
               disabled={!!busy} onPress={() => void action(order, 'push')} />}
             {order.payment_status === 'pending' && <Text style={s.detail}>Betalningen bekräftas av betalleverantören. Återkomsten från betalningssidan räcker inte som kvitto.</Text>}

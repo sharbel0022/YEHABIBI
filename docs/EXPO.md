@@ -1,8 +1,10 @@
-# Expo SDK 57 i Windows – V4.2
+# Expo SDK 57 i Windows – V4.3
 
-Mobilen behåller Expo 57.0.30, React Native 0.86.3 och React 19.2.3. V4.2 inför inga nya native-moduler. Appversionen är 4.2.0 och det befintliga [EAS-projektet sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) bevaras, projekt-ID `a93fde8c-7227-4824-af1f-9bcffe77221d`.
+Mobilen behåller Expo 57.0.30, React Native 0.86.3 och React 19.2.3. V4.3 behåller SDK 57 och använder hostad betalning genom samma backend. Aktuell appversion läses ur `app.config.ts` och det befintliga [EAS-projektet sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) bevaras, projekt-ID `a93fde8c-7227-4824-af1f-9bcffe77221d`.
 
-API-anrop och affärsregler finns nu i `packages/api-client` och `packages/shared`. Native navigation, tangentbord, datumväljare, lagring och pushbehörighet stannar i `apps/mobile`. EAS skapar ingen extra backend eller databas.
+Betalningar är avstängda tills företagets verifierade testkonto finns; produktionsspärren är false och inga livebetalningar är aktiverade. Apple Pay på fysisk iPhone och Google Pay/Swish på fysisk Android behöver egna acceptansprov enligt [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md). EAS-/exportresultat bevisar inte ett sådant betalningstest.
+
+API-anrop och affärsregler finns i `packages/api-client` och `packages/shared`. Native navigation, tangentbord, datumväljare, lagring och pushbehörighet stannar i `apps/mobile`. EAS skapar ingen extra backend eller databas.
 
 ## Starta iPhone och Android
 
@@ -49,7 +51,7 @@ Remove-Item Env:REACT_NATIVE_PACKAGER_HOSTNAME -ErrorAction SilentlyContinue
 
 Starta en AVD i Android Studio → Device Manager. Den tidigare lokala installationen använder `Medium_Phone_API_36.0` och SDK i `C:\Users\sharbel\AppData\Local\Android\Sdk`. Ange `http://10.0.2.2:3000` som mobilens API-adress, starta webb/API och Expo, tryck `a` för Expo Go.
 
-`npm run android` använder en installerad egen development build. `npm run build:android` försöker kompilera native lokalt. Ett tidigare Windowsförsök stoppades av långa CMake-sökvägar; det bevisar inte ett aktuellt V4.2-byggfel eller att EAS lyckats med V4.2.
+`npm run android` använder en installerad egen development build. `npm run build:android` försöker kompilera native lokalt. Ett tidigare Windowsförsök stoppades av långa CMake-sökvägar; det bevisar inte ett aktuellt V4.3-byggfel eller att EAS lyckats med V4.3.
 
 Om iPhone kör Expo Go på port 8081 kan en separat installerad Android-klient använda port 8082. Kör från `apps/mobile`:
 
@@ -62,7 +64,7 @@ Variabeln gäller bara den terminalen och ändrar inte iPhones LAN-adress i milj
 
 ## Gemensam katalog, utkast och order
 
-`lib/api.ts` skapar API-klienten med `EXPO_PUBLIC_API_URL`. Alla produkt- och orderanrop går till samma Next.js-backend som webbplatsen. Ingen Supabase service-role, Stripe secret eller Resend-nyckel finns i mobilen.
+`lib/api.ts` skapar API-klienten med `EXPO_PUBLIC_API_URL`. Alla produkt- och orderanrop går till samma Next.js-backend som webbplatsen. Ingen Supabase service-role, betalnings-API-/HMAC-nyckel eller Resend-nyckel finns i mobilen.
 
 `CateringProvider` hämtar katalogen vid start, när appen åter blir aktiv och vid drag för att uppdatera. Samtidiga kataloghämtningar delar samma anrop. Adminändringar i priser, bilder, aktivering eller leveransregler blir synliga vid nästa hämtning. Priser i gamla order påverkas inte.
 
@@ -90,7 +92,7 @@ npx eas-cli@latest build --platform android --profile development --non-interact
 npx eas-cli@latest build --platform ios --profile ios-simulator --non-interactive --no-wait
 ```
 
-Detta är byggkommandon, inget påstående om att nya V4.2-artefakter har skapats. Kontrollera alltid källcommit, appversion, jobbets slutstatus och artefakt. Äldre V4-jobb/APK:er verifierar inte V4.2. Windows kan starta iOS-molnbyggen men kör inte Xcode/iOS Simulator. En fysisk iPhone-development build kräver Apple-behörighet, signering och registrerad enhet.
+Detta är byggkommandon, inget påstående om att nya V4.3-artefakter har skapats. Kontrollera alltid källcommit, appversion, jobbets slutstatus och artefakt. Äldre V4-jobb/APK:er verifierar inte V4.3. Windows kan starta iOS-molnbyggen men kör inte Xcode/iOS Simulator. En fysisk iPhone-development build kräver Apple-behörighet, signering och registrerad enhet.
 
 `npm run export:mobile` från roten paketerar iOS, Android och webb. Det bevisar inte ett nytt native EAS-bygge, installation, APNs/FCM eller test på fysisk telefon. Körda kontroller och kvarvarande enhetstester redovisas i [TESTER.md](TESTER.md).
 

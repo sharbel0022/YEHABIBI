@@ -1,51 +1,39 @@
-# Betalningar i V4.2
+# Betalningar – V4.3
 
-Webb och Expo använder samma serverflöde för Stripe Checkout. V4.2 ändrar klienternas återanvändning och inför ingen separat native betalningsintegration. Orderbelopp kommer från databasen och sparas i heltalsöre.
+Stripe är avvecklat som aktiv integration. V4.3 använder ett gemensamt serverkontrakt och en Adyen Pay by Link-adapter för test och separat spärrad produktion. Inget merchant-konto är anslutet/godkänt här och inga livebetalningar aktiveras. Historiska order, betalningsreferenser och migrationer bevaras.
 
-## Från förfrågan till betald order
+Den fullständiga installationsguiden, leverantörsjämförelsen, verifierade priser och aktuella primärkällor finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md). Faktiskt testutfall finns i [TESTER.md](TESTER.md).
 
-1. Kunden skickar en obetald förfrågan genom `api.createOrder` med en stabil återförsöksnyckel.
-2. Servern beräknar priset mot aktuella data och sparar order/rader atomärt.
-3. Ägaren granskar, godkänner, nekar eller lämnar ett förklarat prisförslag.
-4. Ett prisförslag kräver kundens uttryckliga acceptans av exakt revision genom `api.acceptPriceChange`. Ursprungliga rader bevaras och en godkänd prisjustering redovisas separat.
-5. Efter godkännande skapar servern Checkout och kopplar länken atomärt till rätt orderrevision/session.
-6. Kunden öppnar serverns länk. Frontend hämtar sedan aktuell status och markerar aldrig själv onlinebetalningen betald.
-7. En signerad webhook verifieras mot rätt order, belopp, SEK och session innan betalningsstatus uppdateras.
+## Efter ägargodkännande
 
-Orderstatus och betalningsstatus är separata fält. En godkänd order kan vara obetald. Onlineorder kräver betalning före förberedelse. Kontantorder kan förberedas före betalning vid hämtningen och ägaren registrerar pengarna när de tagits emot.
+Kunden skickar först en obetald förfrågan. Ägaren granskar och godkänner. Ett ändrat belopp sparas som ny revision och kräver kundens uttryckliga godkännande före betalning. Varken godkännande eller prisacceptans skapar automatiskt en extern session. Ägaren kan skicka betalningsbegäran med privat statuslänk; kunden väljer en tillgänglig metod där. Webb och Expo använder samma regler, API och databas.
 
-## Tillgängliga metoder
+`/api/catalog` visar bara serverns verifierade betalmetoder. Saknas aktiverad onlineleverantör erbjuds inte Swish/kort/plånböcker. Obetald förfrågan kräver företagets `allow_unpaid_requests`; kontant kräver hämtning och företagets kontantinställning.
 
-| Metod | Villkor i systemet |
+| Metod | Villkor |
 | --- | --- |
-| Kort | Serverns godkända Stripe-testmiljö, betalningar aktiverade och webhook konfigurerad |
-| Apple Pay | Ingår i kort-Checkout när Stripe, enheten, webbläsaren och plånboken stöder det |
-| Swish | Serverns `STRIPE_SWISH_ENABLED=true` och metoden aktiverad/verifierad för företagets Stripe-konto |
-| Kontant | Företaget tillåter det och kunden väljer hämtning |
+| Swish | Verifierat Adyen-konto i vald miljö med Swish för SEK/SE; leverantörens mobilväxling/desktop-QR |
+| Visa/Mastercard | Aktiverad metod och säkert hostat formulär, inklusive 3D Secure/SCA när nödvändigt |
+| Apple Pay | Aktiverat konto och Adyens certifikat för Pay by Link; hostad sida avgör enhets-/plånboksstöd |
+| Google Pay | Aktiverat konto och registrerad hostad domän; stödd plattform/plånbok |
+| Kontant | Endast hämtning, ingen extern session, obetald tills behörig ägare kvitterar pengar |
 
-`/api/catalog` anger aktuella betalval. `availablePaymentMethods` i shared tillämpar samma kontantregel i webb och Expo. Ett önskemål i formuläret garanterar inte att en viss plånbok eller metod visas hos Stripe. Faktura, Klarna och delbetalning är inte implementerade.
+Klarna, faktura och delbetalning aktiveras inte.
 
-Checkout-länken läses ur `PublicOrder` genom `getOrderStatus`. `canPayOrder` delar visningsregeln mellan plattformarna. Mobilen kontrollerar HTTPS och `checkout.stripe.com` innan betalningslänken öppnas i systemwebbläsaren. Inga kortuppgifter eller Stripe-hemligheter finns i API-klienten eller appen.
+## Servern avgör betalstatus
 
-## Filer och skydd mot dubbel hantering
+Ett beständigt betalningsförsök reserveras före leverantörsanropet. Samma försök/idempotensnyckel används vid timeout och låser metoden tills försöket avstämts. Backend skapar länken för orderns exakt godkända öresbelopp, SEK och revision. Kunden öppnar endast verifierad HTTPS-adress hos leverantören.
 
-| Fil/funktion | Ansvar |
-| --- | --- |
-| `apps/web/src/lib/payments.ts` | Skapar och kontrollerar serverns Stripe-sessioner efter godkännande |
-| `apps/web/src/lib/checkout.ts` | Återanvänder rätt öppen session och väljer idempotensnyckel för orderns revision |
-| `apps/web/src/app/api/stripe/webhook/route.ts` | Verifierar signatur, belopp, valuta och session |
-| `attach_catering_checkout` i SQL | Kopplar session bara om förväntad status/betalstatus/session fortfarande stämmer |
-| `apply_stripe_event` och `payment_events` | Tillämpa en betalhändelse atomärt och avvisa fel session/dubbla händelser |
-| `order_notifications`, `mailer.ts`, `push.ts` | Köa rätt besked atomärt och kvittera leverans separat |
+`/api/payments/webhook` verifierar Standard-HMAC och matchar konto, unik merchantreferens, PSP-referens, belopp och valuta innan SQL uppdaterar betalning/notifieringar atomärt. Osignerad metadata och kundens returlänk är aldrig betalningsbevis. GET på en genomförd betalningslänk sätter inte ensamt `paid`.
 
-Frontendens dubbeltrycksskydd kompletteras av databasens idempotens. En sen händelse får inte återställa `paid` till väntande eller misslyckad. Ett redan avstämt webhookevent är idempotent även efter sessionsbyte. En prisacceptans markerar inte ordern betald.
+Adyen-kandidaten kräver verifierad **omedelbar automatisk capture** på rätt konto i vald miljö. En signerad lyckad `AUTHORISATION` följer det dokumenterade Pay by Link-flödet; manual capture stöds inte av aktiveringspolicyn. Swish saknar separat capture. Senare capturefel, chargeback eller återförda medel ger ett avstämningsärende för ägaren.
 
-## Miljöer och verifiering
+Återbetalning kräver behörig admin, samma verifierade provider/transaction och ett beständigt återbetalningsförsök. API-svar `received` är väntande; leverantörshändelsen avgör status och sena refundfel kräver åtgärd. En gammal Stripebetalning får aldrig återbetalas genom Adyen.
 
-`PAYMENTS_ENABLED=false` stoppar nya sessioner. `STRIPE_LIVE_ENABLED=false` ska behållas tills separat produktionsgodkännande. Företagsägd Stripe-sandbox/testnyckel, signeringshemlighet och övriga serveruppgifter konfigureras enligt `apps/web/.env.example`. Den tidigare Stripe-miljön Quick match används inte enligt tidigare beslut.
+## Kod och databas
 
-När nya sessioner stängs av måste redan utfärdade sessioner fortfarande kunna stämmas av. Webhooken verifieras därför oberoende av spärren för att skapa sessioner. Livehändelser kräver fortfarande uttrycklig liveaktivering.
+`lib/payments/provider.ts` är serverkontraktet, `service.ts` hanterar försök/avstämning och `providers/adyen.ts` har testanrop/HMAC. De generiska `/api/payments/create`, `/status` och `/webhook` återanvänds av webb och Expo. `payment_attempts`, `payment_provider_events` och `payment_refunds` tillkommer additivt med RLS och begränsade serverrättigheter.
 
-De lokala integrationstesterna använder isolerad databas och kontrollerad transport för externa tjänster. De kan bevisa kodens belopps-, signatur- och idempotensregler, men bevisar inte en verklig debitering, Swish, Apple Pay eller levererad e-post. Aktuellt testutfall finns i [TESTER.md](TESTER.md).
+`PAYMENTS_ENABLED=false` stoppar nya betalningar. Tom `PAYMENT_PROVIDER` i konfigurationsmallen innebär avstängt läge. En redan utfärdad betalning måste fortfarande kunna stämmas av när nya betalningar stängs; rätt providerhemligheter får därför inte raderas innan alla försök är avstämda. Produktion kräver separat uttryckligt ägarbeslut, godkänd verklig sandbox, rätt livekonto och `PAYMENTS_LIVE_APPROVED=true`, `ADYEN_ENVIRONMENT=live` samt validerat `ADYEN_LIVE_URL_PREFIX`. Dessa är avstängda/tomma här; inga liveanrop har gjorts. Test/live binds till varje försök och får inte blandas. Se V4.3-guiden för den framtida aktiveringsordningen.
 
-Före riktiga betalningar behöver företagets miljö verifiera lyckad/nekad betalning, avbruten/utgången Checkout, återbetalning, dubbla webhooks, Swish och Apple Pay på kompatibla fysiska enheter. En Expo-export, ett EAS-jobb eller en grön CI är inte ett sådant betalningstest. V4.2 aktiverar inga skarpa betalningar och ändrar inte befintliga kundbetalningar.
+Lokala signerade testhändelser och kontrollerade HTTP-svar är simulerade leverantörer. Företagets riktiga sandbox, Resend-leverans och fysiska iPhone/Android återstår tills de verifierats separat. Grön CI, Expo-export eller EAS-bygge bevisar inte en betalning.

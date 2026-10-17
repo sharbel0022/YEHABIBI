@@ -1,6 +1,6 @@
 import type {
-  Catalog, Menu, OrderInput, OrderReceipt, OrderReference, OrderStatusResponse,
-  PushRegistrationResponse, Settings,
+  Catalog, Menu, OnlinePaymentMethod, OrderInput, OrderReceipt, OrderReference, OrderStatusResponse,
+  PaymentSessionResponse, PushRegistrationResponse, Settings,
 } from '@yehabibi/shared';
 
 export type ApiErrorKind = 'configuration' | 'network' | 'timeout' | 'aborted' | 'http' | 'response';
@@ -48,6 +48,15 @@ function isOrderResponse(value: unknown): value is OrderStatusResponse {
 function isReceipt(value: unknown): value is OrderReceipt {
   return isObject(value) && typeof value.code === 'string' && typeof value.token === 'string' &&
     typeof value.tracking_url === 'string';
+}
+
+function isPaymentSession(value: unknown): value is PaymentSessionResponse {
+  if (!isObject(value) || typeof value.checkout_url !== 'string' ||
+      !['unpaid', 'pending', 'paid', 'failed', 'refunded'].includes(String(value.payment_status))) return false;
+  try {
+    const url = new URL(value.checkout_url);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch { return false; }
 }
 
 function apiBase(options: ApiClientOptions) {
@@ -135,6 +144,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     getOrderStatus(reference: OrderReference, requestOptions?: RequestOptions) {
       return request(orderPath(reference), isOrderResponse, {}, requestOptions);
+    },
+    createPayment(reference: OrderReference, method: OnlinePaymentMethod, requestOptions?: RequestOptions) {
+      return request('/api/payments/create', isPaymentSession, {
+        method: 'POST', body: JSON.stringify({ ...reference, payment_method: method }),
+      }, requestOptions);
+    },
+    getPaymentStatus(reference: OrderReference, requestOptions?: RequestOptions) {
+      return request(`/api/payments/status?code=${encodeURIComponent(reference.code)}&token=${encodeURIComponent(reference.token)}`,
+        isOrderResponse, {}, requestOptions);
     },
     acceptPriceChange(reference: OrderReference, revision: number, requestOptions?: RequestOptions) {
       return request(orderPath(reference), isOrderResponse, {

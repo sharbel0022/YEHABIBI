@@ -1,3 +1,5 @@
+> Historiskt dokument. Beskrivningar av Stripe gäller dåvarande version och är inte aktiva i V4.3. Aktuell betalningsarkitektur, kontokrav och testgränser finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md).
+
 # Yehabibi V4.2 – ett gemensamt system
 
 V4.2 förenklar den befintliga V4.1-plattformen. Next.js är fortfarande webbfrontend, gemensam backend och enda adminpanel. Expo är fortfarande kundappen för iPhone och Android. Båda använder samma data, orderformat och regler inom respektive miljö.

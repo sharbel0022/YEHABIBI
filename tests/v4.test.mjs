@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {adminActionSchema,customerActionSchema,newOrderSchema,canTransition,eventDateBounds,menuSchema} from '../packages/shared/index.ts';
-import {resolveCheckout} from '../apps/web/src/lib/checkout.ts';
+
 
 test('V4: prisförslag kräver förklaring, kundacceptans kräver rätt revision',()=>{
   assert.equal(adminActionSchema.safeParse({action:'request_changes',proposed_total_ore:30000}).success,false);
@@ -37,31 +37,8 @@ test('V4.1: gemensamma datumbounds och godkända relativa menybilder',()=>{
   assert.equal(menuSchema.safeParse({...menu,image_url:'javascript:alert(1)'}).success,false);
 });
 
-test('V4: Stripe-sessionens återförsöksnyckel hör till godkänd prisrevision',async()=>{
-  const keys=[];
-  const order={id:randomUUID(),total_ore:30000,stripe_checkout_session_id:null,quote_revision:2};
-  const gateway={retrieve:async()=>assert.fail('Ingen gammal session'),create:async(_,options)=>{
-    keys.push(options.idempotencyKey);
-    return {id:'cs_v4',status:'open',url:'https://checkout.stripe.com/v4',amount_total:order.total_ore,currency:'sek',client_reference_id:order.id,metadata:{order_id:order.id}};
-  }};
-  await resolveCheckout(order,gateway,{});
-  await resolveCheckout(order,gateway,{});
-  await resolveCheckout({...order,quote_revision:3},gateway,{});
-  assert.equal(keys[0],keys[1]);
-  assert.notEqual(keys[1],keys[2]);
-});
-
-test('V4: verifierad misslyckad asynkron betalning får en ny session; väntande betalning blockeras',async()=>{
-  const order={id:randomUUID(),total_ore:30000,stripe_checkout_session_id:'cs_failed',payment_status:'failed'};
-  let created=0;
-  const gateway={retrieve:async()=>({id:'cs_failed',status:'complete'}),create:async()=>{
-    created++;
-    return {id:'cs_retry',status:'open',url:'https://checkout.stripe.com/retry',amount_total:order.total_ore,currency:'sek',client_reference_id:order.id,metadata:{order_id:order.id}};
-  }};
-  assert.equal((await resolveCheckout(order,gateway,{})).id,'cs_retry');
-  for(const payment_status of ['pending','paid','unpaid','refunded']) await assert.rejects(resolveCheckout({...order,payment_status},gateway,{}),/behandlas redan/);
-  assert.equal(created,1);
-});
+// V4.3:s beständiga provideroberoende försök/idempotens provas i
+// payments.test.mjs och payment-db.test.mjs. Gamla Stripe-purehelpers är avvecklade.
 
 test('V4 SQL: återförsök, prisacceptans, webhookkö och privat åtkomst',async t=>{
   const {PGlite}=await import('@electric-sql/pglite');
@@ -72,7 +49,10 @@ test('V4 SQL: återförsök, prisacceptans, webhookkö och privat åtkomst',asyn
       create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
       create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text); alter table storage.objects enable row level security;`);
     const directory=new URL('../supabase/migrations/',import.meta.url);
-    for(const file of readdirSync(directory).filter(name=>name.endsWith('.sql')).sort()) {
+    // Historiskt V4/V4.1-kontrakt: bevara assertions om dåvarande Stripe-RPC:er.
+    // V4.3 återkallar dem; hela nya migrationskedjan provas i payment-db.test.mjs.
+    const historicalBoundary = '20261017192114_v41_notifications_and_settings.sql';
+    for(const file of readdirSync(directory).filter(name=>name.endsWith('.sql') && name <= historicalBoundary).sort()) {
       await db.exec(readFileSync(new URL(file,directory),'utf8').replace('create extension if not exists pgcrypto;',''));
     }
     await db.exec('grant usage on schema public to service_role; grant all on all tables in schema public to service_role; set role service_role;');

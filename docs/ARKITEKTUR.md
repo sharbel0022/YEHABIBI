@@ -1,6 +1,6 @@
-# Arkitektur i V4.2
+# Arkitektur i V4.3
 
-Yehabibi har en logisk backend: Next.js-servern. Webb, Expo och den gemensamma adminpanelen använder samma Supabase/PostgreSQL inom respektive miljö. V4.2 lägger till ett delat API-klientpaket och flyttar återkommande regler till shared. Befintliga API-rutter, tabeller och orderhistorik bevaras.
+Yehabibi har en logisk backend: Next.js-servern. Webb, Expo och den gemensamma adminpanelen använder samma Supabase/PostgreSQL inom respektive miljö. API-klientpaketet och reglerna i shared från V4.2 återanvänds. V4.3 tillför generiska betalningsrutter, en avstängd Adyen-adapter med separat produktionsspärr och additiva betalningstabeller. Katalog/orderkontrakt och orderhistorik bevaras.
 
 ```mermaid
 flowchart LR
@@ -11,8 +11,8 @@ flowchart LR
   Webb -->|Serverrenderad katalog| Data[Serverns data.ts]
   API --> Data
   Data --> DB[(Gemensam Supabase PostgreSQL)]
-  API --> Stripe[Stripe Checkout]
-  Stripe -->|Signerad webhook| API
+  API --> Betaltjanst[Gemensamt providergränssnitt / Adyen]
+  Betaltjanst -->|HMAC-verifierad webhook| API
   API --> Besked[Resend och Expo Push]
   Shared[packages/shared] -. regler och typer .-> Webb
   Shared -. regler och typer .-> Mobil
@@ -28,7 +28,7 @@ flowchart LR
 5. `apps/web/src/app/api/orders/route.ts` verifierar förfrågan och aktuella databaspriser.
 6. `create_catering_order` i befintliga SQL-migrationer sparar order och rader atomärt.
 
-[Filguiden](FIL_FOR_FIL.md) förklarar ansvaren. [V4.2-guiden](UNIFIED_ARCHITECTURE_V4_2.md) visar före/efter och vanliga ändringar.
+[Filguiden](FIL_FOR_FIL.md) förklarar ansvaren. [V4.2-bakgrunden](UNIFIED_ARCHITECTURE_V4_2.md) visar före/efter och vanliga ändringar.
 
 ## Paketens gränser
 
@@ -63,11 +63,11 @@ Frontendens belopp är en förhandsvisning. Servern läser aktuella priser och l
 
 Samma UUID och innehåll ger samma order vid återförsök. Ett återanvänt UUID med ändrat innehåll avvisas. Förfrågan börjar obetald och ska granskas av ägaren. Ett prisförslag sparas separat och kräver kundens acceptans av rätt revision. Ursprungliga orderrader och godkänd prisjustering hålls spårbara.
 
-Orderstatus och betalningsstatus är olika fält. En Checkout-länk kommer från servern efter godkännande. Bara signerad Stripe-webhook bekräftar onlinebetalning. Kontant gäller hämtning och registreras av ägaren efter mottagna pengar. Läs [BETALNINGAR.md](BETALNINGAR.md).
+Orderstatus och betalningsstatus är olika fält. Godkännande och kundens prisacceptans skapar ingen automatisk betalsession. Ägaren skickar privat statuslänk; kunden väljer serververifierad metod och initierar betalningen efter godkännande. Bara autentiserad leverantörsbekräftelse bekräftar onlinebetalning. Kontant gäller hämtning och registreras av ägaren efter mottagna pengar. Läs [BETALNINGAR.md](BETALNINGAR.md) och [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md).
 
 ## Behörighet och besked
 
-Admin kräver serververifierad Supabase-användare, bekräftad e-post och `ADMIN_EMAILS`. Kundstatus och kundåtgärder kräver orderkod och privat token. Supabase service-role, Stripe secret och Resend-nyckeln finns endast på servern. RLS, indragna publika rättigheter och begränsade SQL-funktioner skyddar tabellerna.
+Admin kräver serververifierad Supabase-användare, bekräftad e-post och `ADMIN_EMAILS`. Kundstatus och kundåtgärder kräver orderkod och privat token. Supabase service-role, betalnings-API-/HMAC-nycklar och Resend-nyckeln finns endast på servern. RLS, indragna publika rättigheter och begränsade SQL-funktioner skyddar tabellerna.
 
 Databasen köar besked atomärt med orderändringen. Serverns `mailer.ts` och `push.ts` levererar till Resend/Expo och kvitterar mottagare. Händelsens snapshot bevarar rätt innehåll vid återförsök. Ingen extra backend eller fristående bakgrundsarbetare tillkommer.
 

@@ -5,7 +5,8 @@ export const occasions: Record<Occasion, string> = {
   hemma: 'Hemma', fest: 'Fest', foretag: 'Företag'
 };
 export const paymentLabels: Record<PaymentPreference, string> = {
-  swish: 'Swish', card: 'Kort', apple_pay: 'Apple Pay', cash: 'Kontant vid hämtning'
+  swish: 'Swish', card: 'Visa / Mastercard', apple_pay: 'Apple Pay', google_pay: 'Google Pay',
+  cash: 'Kontant vid hämtning', unpaid: 'Obetald förfrågan – betalning avtalas efter godkännande'
 };
 export const statusLabels: Record<OrderStatus, string> = {
   new: 'Mottagen', reviewing:'Under granskning', changes_requested: 'Ändring föreslagen',
@@ -102,17 +103,6 @@ export function findDeliveryZone(zones: DeliveryZone[], postalCode: string, zone
   return zoneId && best?.id!==zoneId ? null : best;
 }
 
-export function isTestStripeKey(key: string | undefined) { return /^(sk|rk)_test_/.test(key || ''); }
-
-export function stripePaymentTypes(preference: PaymentPreference, swishEnabled: boolean): ['card'] | ['swish'] {
-  if (preference === 'cash') throw new Error('Kontantbetalningar ska inte gå till Stripe');
-  if (preference === 'swish') {
-    if (!swishEnabled) throw new Error('Swish är ännu inte aktiverat i betalningskontot');
-    return ['swish'];
-  }
-  return ['card']; // Apple Pay is a wallet on eligible Stripe card checkout devices.
-}
-
 export function eventDateBounds(minAdvanceDays:number,now=new Date()) {
   const today = new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
   const day = Date.parse(`${today}T00:00:00Z`);
@@ -135,7 +125,7 @@ export function safeExternalUrl(value: string | null | undefined) {
   if (!value) return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' ? url.toString() : null;
+    return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : null;
   } catch { return null; }
 }
 

@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calcTotal, canUseCash, canTransition, isValidEventDate,
-  stripePaymentTypes, safeExternalUrl, escapeHtml, formatSek
+  safeExternalUrl, escapeHtml, formatSek
 } from '../packages/shared/pricing/index.ts';
+import { onlinePaymentMethods } from '../packages/shared/ordering/index.ts';
 
 test('summa: pris per person + leveransavgift i öre', () => {
   assert.deepEqual(calcTotal(27900,20,'delivery',9900),{
@@ -34,14 +35,13 @@ test('ägaren får inte slutföra en order som inte är betald', () => {
   assert.equal(canTransition('rejected','approve','unpaid','cash'),false);
 });
 
-test('Swish måste vara aktiverat och kort används för Apple Pay', () => {
-  assert.deepEqual(stripePaymentTypes('card',false),['card']);
-  assert.deepEqual(stripePaymentTypes('apple_pay',false),['card']);
-  assert.deepEqual(stripePaymentTypes('swish',true),['swish']);
-  assert.throws(()=>stripePaymentTypes('swish',false));
-  assert.throws(()=>stripePaymentTypes('cash',true));
+test('onlinebetalval kräver serverns metoder och plånboksstöd på enheten', () => {
+  const methods = ['swish', 'card', 'apple_pay', 'google_pay', 'cash'];
+  assert.deepEqual(onlinePaymentMethods(methods,{applePay:false,googlePay:false}),['swish','card']);
+  assert.deepEqual(onlinePaymentMethods(methods,{applePay:true,googlePay:false}),['swish','card','apple_pay']);
+  assert.deepEqual(onlinePaymentMethods(methods,{applePay:false,googlePay:true}),['swish','card','google_pay']);
+  assert.deepEqual(onlinePaymentMethods([],{applePay:true,googlePay:true}),[]);
 });
-
 test('datum ska ligga inom tillåtet bokningsfönster i Sverige', () => {
   const now=new Date('2026-10-13T09:00:00Z');
   assert.equal(isValidEventDate('2026-10-15',2,now),true);

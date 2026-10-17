@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View, type TextInputProps } from 'react-native';
+import { Platform, Pressable, Text, View, type TextInputProps } from 'react-native';
 import { router } from 'expo-router';
 import {
   availablePaymentMethods, buildOrderPayload, eventDateBounds, findDeliveryZone, formatSek,
   itemsFromQuantities, minimumGuestsFor, newOrderSchema, occasions, orderContactError,
-  orderDetailsError, orderSteps, paymentLabels,
+  onlinePaymentMethods, orderDetailsError, orderSteps, paymentLabels,
   type Fulfillment, type PaymentPreference,
 } from '@yehabibi/shared';
 import { api, apiUrl, clearRequestId, newRequestId, openPolicy, persistentRequestId } from '../lib/api';
@@ -22,7 +22,7 @@ export default function OrderScreen() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(emptyForm);
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
-  const [payment, setPayment] = useState<PaymentPreference>('card');
+  const [payment, setPayment] = useState<PaymentPreference>('unpaid');
   const [terms, setTerms] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -38,17 +38,18 @@ export default function OrderScreen() {
   const quote = getQuote(catalog, selection, fulfillment, zone?.fee_ore || 0);
   const foodQuote = getQuote(catalog, { ...selection,
     guests: Math.max(selection.guests, minimumGuestsFor(menu, settings.custom_min_people)) });
-  const methods = availablePaymentMethods(catalog, fulfillment);
-  const canSubmit = !loading && !catalogError && catalog.orders_enabled && !catalog.demo && !!quote && methods.includes(payment) &&
+  const online = onlinePaymentMethods(catalog.payment_methods, {
+    applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android',
+  });
+  const methods = availablePaymentMethods(catalog, fulfillment)
+    .filter(method => method === 'cash' || method === 'unpaid' || online.includes(method));
+  const selectedPayment = methods.includes(payment) ? payment : methods[0];
+  const canSubmit = !loading && !catalogError && catalog.orders_enabled && !catalog.demo && !!quote && !!selectedPayment &&
     (fulfillment === 'pickup' ? settings.pickup_enabled : settings.delivery_enabled && !!zone);
 
   useEffect(() => {
     if (!settings.pickup_enabled && settings.delivery_enabled) setFulfillment('delivery');
   }, [settings.pickup_enabled, settings.delivery_enabled]);
-  useEffect(() => {
-    if (!methods.includes(payment) && methods.length) setPayment(methods[0]);
-  }, [methods.join(','), payment]);
-
   function field(name: keyof typeof emptyForm, label: string, props: TextInputProps = {}) {
     return <Field label={label} value={form[name]}
       onChangeText={value => setForm(previous => ({ ...previous, [name]: value }))} {...props} />;
@@ -56,7 +57,7 @@ export default function OrderScreen() {
   function payload(accepted: boolean) {
     return buildOrderPayload(selection, {
       ...form, fulfillment,
-      delivery_zone_id: zone?.id, payment_preference: payment, terms_accepted: accepted,
+      delivery_zone_id: zone?.id, payment_preference: selectedPayment || 'unpaid', terms_accepted: accepted,
     });
   }
   function next() {
@@ -201,11 +202,13 @@ export default function OrderScreen() {
         {field('notes', 'Allergier och särskilda önskemål', { multiline: true, maxLength: 1000 })}
         <Text style={s.heading}>Önskat betalningssätt</Text>
         <Choices values={methods.map(value => ({ value, label: paymentLabels[value] }))}
-          selected={payment} onSelect={setPayment} />
-        <Text style={s.detail}>{payment === 'cash'
+          selected={selectedPayment} onSelect={setPayment} />
+        <Text style={s.detail}>{selectedPayment === 'cash'
           ? 'Kontant endast vid hämtning. Ägaren registrerar betalningen när pengarna tagits emot.'
-          : 'Ingen betalning sker nu. Tillgängliga betalningssätt visas i säker Checkout efter godkännandet. Apple Pay visas på stödda enheter.'}</Text>
-        {!methods.length && <Notice text="Betalningssätt är ännu inte aktiverade av ägaren." />}
+          : selectedPayment === 'unpaid'
+            ? 'Köket tillåter obetalda förfrågningar. Betalningssätt avtalas efter godkännande; ingen onlinebetalning är utlovad.'
+            : 'Ingen betalning sker nu. Du väljer en aktiverad betalningsmetod efter godkännandet. Leverantören kontrollerar stöd på enheten.'}</Text>
+        {!methods.length && <Notice text={catalog.payment_unavailable_reason || 'Inga betalningssätt är aktiverade. Kontakta köket för att beställa.'} />}
       </View>}
       {step === 4 && <>
         {summary()}
@@ -216,7 +219,7 @@ export default function OrderScreen() {
           <Text style={s.body}>{form.full_name} · {form.phone}</Text>
           <Text style={s.body}>{form.email}</Text>
           {!!form.notes && <Text style={s.detail}>{form.notes}</Text>}
-          <Text style={s.detail}>Önskat betalningssätt: {paymentLabels[payment]}</Text>
+          <Text style={s.detail}>Önskat betalningssätt: {selectedPayment ? paymentLabels[selectedPayment] : 'Inget aktiverat betalningssätt'}</Text>
         </View>
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: terms }}
           onPress={() => setTerms(!terms)} style={[s.panel, { minHeight: 54 }]}>

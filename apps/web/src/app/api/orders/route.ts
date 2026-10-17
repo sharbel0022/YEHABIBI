@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { adminDb } from '@/lib/supabase';
-import { getDeliveryZones, getSettings, onlinePaymentsReady, ordersReady } from '@/lib/data';
+import { getDeliveryZones, getSettings, ordersReady } from '@/lib/data';
+import { paymentCapabilities } from '@/lib/payments';
 import { checkOrigin, jsonError, publicOptions, publicResponse } from '@/lib/auth';
 import { newOrderSchema } from '@/lib/validators';
 import { canUseCash, calcDishTotal, calcTotal, findDeliveryZone, isValidEventDate } from '@/lib/domain';
@@ -46,8 +47,10 @@ async function createOrder(request: Request) {
   if (!isValidEventDate(input.event_date,settings.min_advance_days)) return jsonError('Välj ett datum inom tillåten framförhållning.');
   if ((input.fulfillment==='delivery' && !settings.delivery_enabled) || (input.fulfillment==='pickup' && !settings.pickup_enabled)) return jsonError('Valt leveranssätt erbjuds inte.');
   if (!canUseCash(input.payment_preference,input.fulfillment,settings.cash_enabled)) return jsonError('Kontantbetalning kräver hämtning.');
-  if (input.payment_preference==='swish' && process.env.STRIPE_SWISH_ENABLED!=='true') return jsonError('Swish är inte aktiverat ännu.');
-  if (input.payment_preference!=='cash' && !onlinePaymentsReady()) return jsonError('Onlinebetalning är inte aktiverad i testläge ännu.',503);
+  if (input.payment_preference==='unpaid' && !settings.allow_unpaid_requests) return jsonError('Företaget tar inte emot obetalda förfrågningar.',503);
+  if (input.payment_preference!=='cash' && input.payment_preference!=='unpaid' && !(await paymentCapabilities()).includes(input.payment_preference)) {
+    return jsonError('Det valda betalningssättet är inte aktiverat. Uppdatera menyn.',503);
+  }
   const zone = input.fulfillment==='delivery' ? findDeliveryZone(zones,input.postal_code,input.delivery_zone_id) : null;
   if (input.fulfillment==='delivery' && (!input.address || !input.city || !zone)) return jsonError('Ange fullständig adress inom en tillgänglig leveranszon.');
 

@@ -1,9 +1,9 @@
-import { calcDishTotal, calcTotal, canUseCash, findDeliveryZone, isValidEventDate, safeExternalUrl } from '../pricing/index.ts';
+import { calcDishTotal, calcTotal, canUseCash, findDeliveryZone, isValidEventDate } from '../pricing/index.ts';
 import { isValidEventTime, orderContactSchema } from '../validation/index.ts';
 import { orderLimits } from '../limits.ts';
 import type {
   Catalog, DeliveryZone, DishSelection, Fulfillment, Menu, MenuSelection,
-  OrderContactInput, OrderInput, OrderPayload, PublicOrder, Settings,
+  OnlinePaymentMethod, OrderContactInput, OrderInput, OrderPayload, PublicOrder, Settings,
 } from '../types/index.ts';
 
 export function minimumGuestsFor(menu: Pick<Menu, 'min_people'> | null | undefined, customMinimum: number) {
@@ -73,7 +73,21 @@ export function quoteSelection(catalog: Pick<Catalog, 'menus' | 'dishes' | 'sett
 }
 
 export function availablePaymentMethods(catalog: Pick<Catalog, 'payment_methods' | 'settings'>, fulfillment: Fulfillment) {
-  return catalog.payment_methods.filter(method => canUseCash(method, fulfillment, catalog.settings.cash_enabled));
+  const methods = catalog.payment_methods.filter(method => method !== 'unpaid' &&
+    canUseCash(method, fulfillment, catalog.settings.cash_enabled));
+  return catalog.settings.allow_unpaid_requests ? [...methods, 'unpaid' as const] : methods;
+}
+
+/** Kontots metoder kommer från backend. Plånböcker behöver även stöd på enheten. */
+export function onlinePaymentMethods(methods: Catalog['payment_methods'], wallets: { applePay: boolean; googlePay: boolean }): OnlinePaymentMethod[] {
+  return methods.filter((method): method is OnlinePaymentMethod =>
+    method === 'card' || method === 'swish' || method === 'apple_pay' && wallets.applePay || method === 'google_pay' && wallets.googlePay);
+}
+
+/** Ett startat försök fortsätter med samma metod och idempotensnyckel. */
+export function orderPaymentMethods(methods: OnlinePaymentMethod[], order: Pick<PublicOrder, 'payment_provider' | 'payment_method'>) {
+  return order.payment_provider && order.payment_method
+    ? methods.filter(method => method === order.payment_method) : methods;
 }
 
 export function canOfferDelivery(catalog: Pick<Catalog, 'payment_methods' | 'settings' | 'delivery_zones'>) {
@@ -134,12 +148,11 @@ export function orderDetailsError(input: OrderDetails, settings: Settings, zones
 }
 
 /** Visningsregel. Bara backend och signerade webhooks kan bekräfta betalningen. */
-export function canPayOrder(order: Pick<PublicOrder, 'status' | 'payment_status' | 'payment_preference' | 'checkout_url' | 'proposal'>) {
-  if (order.proposal || order.payment_preference === 'cash' ||
+export function canPayOrder(order: Pick<PublicOrder, 'status' | 'payment_status' | 'payment_preference' | 'checkout_url' | 'proposal' | 'payment_review_required'>) {
+  if (order.payment_review_required || order.proposal || order.payment_preference === 'cash' ||
       !['approved', 'preparing', 'ready'].includes(order.status) ||
       !['unpaid', 'pending', 'failed'].includes(order.payment_status)) return false;
-  const checkout = safeExternalUrl(order.checkout_url);
-  return Boolean(checkout && new URL(checkout).hostname === 'checkout.stripe.com');
+  return true;
 }
 
 /** Samma åtta kundsteg; nekade och avbrutna order har ingen aktiv framstegspunkt. */

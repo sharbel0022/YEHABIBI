@@ -152,16 +152,18 @@ test('V4.2: formulär delar kontaktvalidering och svenska felmeddelanden', () =>
   assert.match(orderContactError({ ...contact, notes: 'x'.repeat(1001) }), /1 000/);
 });
 
-test('V4.2: betalningslänk kräver godkänd order, obekräftad betalning och säker Stripe-adress', () => {
-  const order = { status: 'approved', payment_status: 'pending', payment_preference: 'card', checkout_url: 'https://checkout.stripe.com/c/pay/test', proposal: null };
+test('V4.3: betalningsinitiering kräver godkänd order utan väntande offert eller avstämningsärende', () => {
+  const order = { status: 'approved', payment_status: 'unpaid', payment_preference: 'card', checkout_url: null, proposal: null, payment_review_required: false };
   assert.equal(canPayOrder(order), true);
   for (const status of ['new', 'reviewing', 'changes_requested', 'rejected', 'cancelled', 'completed', 'dispatched']) assert.equal(canPayOrder({ ...order, status }), false);
   for (const payment_status of ['paid', 'refunded']) assert.equal(canPayOrder({ ...order, payment_status }), false);
+  for (const payment_status of ['unpaid', 'pending', 'failed']) assert.equal(canPayOrder({ ...order, payment_status }), true);
   assert.equal(canPayOrder({ ...order, payment_preference: 'cash' }), false);
   assert.equal(canPayOrder({ ...order, proposal: { revision: 2 } }), false);
-  for (const checkout_url of [null, 'javascript:alert(1)', 'http://checkout.stripe.com/pay', 'https://example.com/pay', 'https://checkout.stripe.com.evil.example/pay']) assert.equal(canPayOrder({ ...order, checkout_url }), false);
+  assert.equal(canPayOrder({ ...order, payment_review_required: true }), false);
+  // Denna regel tillåter initiering före en länk finns. URL-validering provas separat.
+  assert.equal(canPayOrder({ ...order, checkout_url: null }), true);
 });
-
 test('V4.2: gemensamt kundflöde, statusnamn, kategorier och varumärkesfärger', () => {
   const flow = [['new', 'unpaid', 1], ['reviewing', 'unpaid', 2], ['changes_requested', 'unpaid', 2],
     ['approved', 'pending', 4], ['approved', 'paid', 5], ['preparing', 'paid', 6], ['ready', 'paid', 7],

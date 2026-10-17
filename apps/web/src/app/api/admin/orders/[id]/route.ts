@@ -2,7 +2,7 @@ import { requireAdmin, checkOrigin, jsonError } from '@/lib/auth';
 import { adminDb } from '@/lib/supabase';
 import { adminActionSchema } from '@/lib/validators';
 import { canTransition } from '@/lib/domain';
-import { createCheckout, stripeClient } from '@/lib/payments';
+import { requestRefund, paymentCapabilities } from '@/lib/payments';
 import { deliverOrderNotifications } from '@/lib/mailer';
 import type { CateringOrder } from '@/types/domain';
 
@@ -13,7 +13,8 @@ export async function PATCH(request: Request,{params}:{params:Promise<{id:string
 }
 async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>}) {
   if (!checkOrigin(request)) return jsonError('Felaktigt anrop.',403);
-  if (!await requireAdmin()) return jsonError('Obehörig.',401);
+  const administrator = await requireAdmin();
+  if (!administrator) return jsonError('Obehörig.',401);
   const {id}=await params;
   if(!/^[0-9a-f-]{36}$/i.test(id)) return jsonError('Ogiltigt id.');
   const parsed=adminActionSchema.safeParse(await request.json().catch(()=>null));
@@ -33,23 +34,25 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
 
   if(action==='payment_link') {
     if(!['approved','preparing','ready'].includes(order.status)||order.payment_preference==='cash'||['paid','refunded'].includes(order.payment_status))return jsonError('Ny betalningslänk är inte tillgänglig.');
-    const checkout=await createCheckout(order);
-    const {data:saved,error:updateError}=await db.rpc('attach_catering_checkout',{
-      p_order_id:id,p_expected_status:order.status,p_expected_payment_status:order.payment_status,
-      p_expected_session_id:order.stripe_checkout_session_id,p_session_id:checkout.id,p_checkout_url:checkout.url
-    });
-    if(updateError||!saved)return jsonError('Ordern ändrades under tiden. Ladda om sidan.',409);
-    await deliverOrderNotifications(id).catch(()=>console.error('Payment link saved; notifications pending'));
-    return Response.json({order:saved});
+    if(order.payment_review_required||order.proposal||(order.quote_revision||1)!==(order.accepted_revision||1))return jsonError('Betalning eller aktuellt pris behöver kontrolleras före betalningsbegäran.',409);
+    if(!(await paymentCapabilities()).length)return jsonError('Inga verifierade onlinebetalningsmetoder är aktiverade.',503);
+    const {error:queueError}=await db.rpc('queue_catering_notification',{p_order_id:id,p_kind:'payment_request'});
+    if(queueError)return jsonError('Betalningsbegäran kunde inte köas.',503);
+    await deliverOrderNotifications(id).catch(()=>console.error('Payment request queued; notifications pending'));
+    return Response.json({order,message:'Betalningsbegäran har köats. Kunden väljer bland tillgängliga betalningssätt via sin privata orderlänk.'});
   }
   if(action==='refund') {
-    if(order.payment_preference==='cash'||order.payment_status!=='paid'||!order.stripe_payment_intent_id)return jsonError('Återbetalning måste hanteras manuellt i Stripe.',400);
-    await stripeClient().refunds.create({payment_intent:order.stripe_payment_intent_id,reason:'requested_by_customer'}, {idempotencyKey:`refund-${order.id}`});
-    // Status changes only after a verified Stripe refund webhook.
-    return Response.json({order,message:'Återbetalning begärd. Avvakta bekräftelse från Stripe.'});
+    if(order.payment_preference==='cash'||order.payment_status!=='paid'||!order.payment_provider||order.payment_review_required)return jsonError('Återbetalningen behöver först kontrolleras mot den ursprungliga transaktionen.',400);
+    await requestRefund(order);
+    const {data:latest}=await db.from('orders').select('*').eq('id',id).single();
+    return Response.json({order:latest||order,message:'Återbetalning begärd. Avvakta verifierad bekräftelse från betaltjänsten.'});
   }
+  if(order.payment_review_required && ['cash_paid','preparing','ready','dispatched','complete'].includes(action))return jsonError('Betalningen behöver kontrolleras hos leverantören före fortsatt hantering.',409);
+  const fulfillmentAction = ['preparing','ready','dispatched','complete'].includes(action);
+  if(fulfillmentAction && order.payment_refund_status)return jsonError('Ordern kan inte fortsätta när återbetalning har begärts.',409);
   if(!canTransition(order.status,action,order.payment_status,order.payment_preference))return jsonError('Åtgärden är inte tillåten för orderns nuvarande status.',409);
   if(action==='dispatched' && order.fulfillment!=='delivery') return jsonError('På väg gäller bara hemleverans.');
+  if(action==='cash_paid' && order.fulfillment!=='pickup') return jsonError('Kontanter får bara registreras vid hämtning.');
   if(action==='request_changes') {
     const {data:saved,error:updateError} = await db.rpc('propose_catering_change',{
       p_order_id:id,p_expected_revision:order.quote_revision||1,p_total_ore:proposed_total_ore??order.total_ore,p_note:admin_note
@@ -62,12 +65,6 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
   if(admin_note!==undefined)changes.admin_note=admin_note;
   if(action==='approve') {
     changes.status='approved';
-    if(order.payment_preference !== 'cash') {
-      const checkout=await createCheckout({...order,status:'approved'});
-      changes.stripe_checkout_session_id=checkout.id;
-      changes.checkout_url=checkout.url;
-      changes.payment_status='pending';
-    }
   }
   if(action==='review')changes.status='reviewing';
   if(action==='reject') { changes.status='rejected'; changes.proposal=null; }
@@ -76,10 +73,17 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
   if(action==='ready')changes.status='ready';
   if(action==='dispatched')changes.status='dispatched';
   if(action==='complete')changes.status='completed';
-  if(action==='cash_paid')changes.payment_status='paid';
+  if(action==='cash_paid') {
+    const {data:cashOrder,error:cashError}=await db.rpc('record_catering_cash_payment',{p_order_id:id,p_admin_id:administrator.id});
+    if(cashError||!cashOrder)return jsonError('Kontantbetalningen kunde inte registreras. Uppdatera ordern.',409);
+    await deliverOrderNotifications(id).catch(()=>console.error('Cash recorded; notifications pending'));
+    return Response.json({order:cashOrder},{headers:{'Cache-Control':'no-store'}});
+  }
 
   // Check old status in UPDATE to prevent two administrators from overwriting changes.
-  const {data:saved,error:updateError}=await db.from('orders').update(changes).eq('id',id).eq('status',order.status).eq('payment_status',order.payment_status).eq('quote_revision',order.quote_revision||1).select('*').maybeSingle();
+  let update=db.from('orders').update(changes).eq('id',id).eq('status',order.status).eq('payment_status',order.payment_status).eq('quote_revision',order.quote_revision||1).eq('payment_review_required',order.payment_review_required||false);
+  if(fulfillmentAction)update=update.is('payment_refund_status',null);
+  const {data:saved,error:updateError}=await update.select('*').maybeSingle();
   if(updateError||!saved)return jsonError('Ordern ändrades av någon annan. Ladda om sidan.',409);
   await deliverOrderNotifications(id).catch(()=>console.error('Order updated; notifications pending'));
   return Response.json({order:saved},{headers:{'Cache-Control':'no-store'}});

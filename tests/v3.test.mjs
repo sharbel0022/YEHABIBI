@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { calcDishTotal, findDeliveryZone, canTransition, isTestStripeKey, newOrderSchema, campaignSchema, zoneSchema } from '../packages/shared/index.ts';
-import { resolveCheckout } from '../apps/web/src/lib/checkout.ts';
+import { calcDishTotal, findDeliveryZone, canTransition, newOrderSchema, campaignSchema, zoneSchema } from '../packages/shared/index.ts';
+
 
 const dishId = '44444444-4444-4444-8444-000000000001';
 const otherDishId = '44444444-4444-4444-8444-000000000002';
@@ -67,42 +67,14 @@ test('förberedelse kräver godkännande och obetalda kortorder kan inte slutfö
   assert.equal(canTransition('preparing','complete','paid','card'),true);
   assert.equal(canTransition('rejected','ready','paid','card'),false);
 });
-test('kampanjperiod valideras och testnycklar skiljs från live',()=>{
+test('kampanjperiod valideras',()=>{
   const campaign = {title:'Julcatering',description:'',media_url:null,starts_at:'2026-12-01T00:00:00Z',ends_at:'2026-12-24T00:00:00Z',menu_ids:[menuId],active:true};
   assert.equal(campaignSchema.safeParse(campaign).success,true);
   assert.equal(campaignSchema.safeParse({...campaign,ends_at:campaign.starts_at}).success,false);
-  assert.equal(isTestStripeKey('rk_test_placeholder'),true);
-  assert.equal(isTestStripeKey('sk_test_placeholder'),true);
-  assert.equal(isTestStripeKey('rk_live_placeholder'),false);
-  assert.equal(isTestStripeKey(undefined),false);
 });
 
-test('betalningslänk återanvänder en öppen Stripe-session och blockerar slutförd session',async()=>{
-  const order = {id:menuId,total_ore:26900,stripe_checkout_session_id:'cs_previous'};
-  const session = {id:'cs_previous',status:'open',url:'https://checkout.stripe.com/previous',amount_total:26900,currency:'sek',client_reference_id:order.id,metadata:{order_id:order.id}};
-  let created = 0;
-  const gateway = {retrieve:async()=>session,create:async()=>{created++;throw new Error('Must not create another session');}};
-  assert.deepEqual(await resolveCheckout(order,gateway,{}),{id:session.id,url:session.url});
-  assert.equal(created,0);
-  session.status='complete';
-  await assert.rejects(resolveCheckout(order,gateway,{}),/behandlas redan/);
-  assert.equal(created,0);
-  session.status='open';session.amount_total=1;
-  await assert.rejects(resolveCheckout(order,gateway,{}),/matchar inte/);
-  assert.equal(created,0);
-});
-test('ny Stripe-session skapas endast efter verifierad utgång och med stabil idempotens',async()=>{
-  const order = {id:menuId,total_ore:26900,stripe_checkout_session_id:'cs_expired'};
-  const keys = [];
-  const gateway = {
-    retrieve:async id=>{assert.equal(id,'cs_expired');return {id,status:'expired'};},
-    create:async(params,options)=>{keys.push(options.idempotencyKey);return {id:'cs_next',status:'open',url:'https://checkout.stripe.com/next',amount_total:order.total_ore,currency:'sek',client_reference_id:order.id,metadata:{order_id:order.id}};}
-  };
-  assert.equal((await resolveCheckout(order,gateway,{})).id,'cs_next');
-  assert.equal((await resolveCheckout(order,gateway,{})).id,'cs_next');
-  assert.equal(keys[0],keys[1]);
-  assert.ok(keys[0].endsWith('cs_expired'));
-});
+// V4.3 ersätter de gamla Stripe-checkouttesten. Provideroberoende återförsök,
+// signerade händelser och statuskontroll provas i payments.test.mjs/payment-db.test.mjs.
 
 // PostgreSQL/WASM är endast ett utvecklingsberoende. Verklig Supabase Auth/Storage
 // och fjärrmiljön måste dessutom verifieras separat före publicering.
