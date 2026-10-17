@@ -60,6 +60,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
   const items = selected.map(dish => ({ dish_id: dish.id, quantity: quantities[dish.id] }));
   const zone = findDeliveryZone(zones, form.postal_code);
   const fee = zone?.fee_ore ?? 0;
+  const deliveryPending = form.fulfillment === 'delivery' && !zone;
   const validGuests = Number.isSafeInteger(form.guests) && form.guests >= 1 && form.guests <= 1000;
   const availableMethods = paymentMethods.filter(method => method !== 'cash' || (form.fulfillment === 'pickup' && settings.cash_enabled));
   let total: ReturnType<typeof calcTotal> | null = null;
@@ -210,11 +211,11 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
       <div className="summary-list">
         <span>Mat</span><strong>{total ? formatSek(total.subtotal_ore) : 'Ej fastställt'}</strong>
         <span>Leverans{zone ? ` (${zone.name})` : ''}</span><strong>{form.fulfillment === 'pickup' ? 'Hämtning: 0 kr' : zone ? formatSek(fee) : 'Ange postnummer'}</strong>
-        <span className="total">Totalt</span><strong className="total">{total ? formatSek(total.total_ore) : '–'}</strong>
-        <span>Per person ({form.guests})</span><strong>{total ? formatSek(Math.round(total.total_ore / form.guests)) : '–'}</strong>
+        <span className="total">{deliveryPending ? 'Mat totalt' : 'Totalt'}</span><strong className="total">{total ? formatSek(total.total_ore) : '–'}</strong>
+        <span>{deliveryPending ? 'Mat per person' : 'Per person'} ({form.guests})</span><strong>{total ? formatSek(Math.round(total.total_ore / form.guests)) : '–'}</strong>
       </div>
       {quoteError && <p className="form-error" role="alert">{quoteError}</p>}
-      <p className="field-hint">{form.fulfillment === 'delivery' && !zone ? 'Leveransavgift tillkommer när du angett postnummer. ' : ''}Det är en gemensam beställning. Ägaren bekräftar slutpriset innan betalning.</p>
+      <p className="field-hint">{deliveryPending ? 'Leveransavgift tillkommer när du angett postnummer. ' : ''}Det är en gemensam beställning. Ägaren bekräftar slutpriset innan betalning.</p>
     </aside>
   </div>;
 }

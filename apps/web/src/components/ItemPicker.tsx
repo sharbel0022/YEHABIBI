@@ -39,7 +39,7 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Pro
     <div className="dish-grid">
       {visible.map(dish => {
         const quantity = quantities[dish.id] || 0;
-        const suggestion = Math.min(1000, Math.ceil(guests * (dish.suggested_per_person || 0)));
+        const suggestion = Math.ceil(guests * (dish.suggested_per_person || 0));
         const priced = Number.isSafeInteger(dish.price_ore) && dish.price_ore > 0;
         return <article key={dish.id} className={`dish-card ${dish.image_url ? '' : 'dish-without-image'}`}>
           {dish.image_url && <img src={dish.image_url} alt={dish.title} loading="lazy" width={320} height={320}/>}
@@ -47,7 +47,7 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Pro
             <h3>{dish.title}</h3><p>{dish.description}</p>
             <strong>{priced ? `${formatSek(dish.price_ore)} / ${dish.portion_label}` : 'Pris fastställs av ägaren'}</strong>
             <small>Allergener: {dish.allergens.join(', ') || 'Fråga oss före beställning'}</small>
-            {priced && suggestion > 0 && <button type="button" className="dish-suggestion"
+            {priced && suggestion > 0 && suggestion <= 1000 && <button type="button" className="dish-suggestion"
               onClick={() => onQuantityChange(dish.id, suggestion)}>
               Förslag för {guests} personer: {suggestion} {dish.portion_label}
             </button>}
