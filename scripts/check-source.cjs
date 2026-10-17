@@ -16,4 +16,4 @@ function scan(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
     }
   }
 }}
-scan('apps');scan('packages');if(problems){process.exitCode=1}else{console.log('Syntax: alla TS/TSX-filer godkända.');}
+scan('apps');scan('packages');if(fs.existsSync('test-support'))scan('test-support');if(problems){process.exitCode=1}else{console.log('Syntax: alla TS/TSX-filer godkända.');}

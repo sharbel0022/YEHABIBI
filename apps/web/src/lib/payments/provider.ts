@@ -1,5 +1,6 @@
 /** All values originate on the server. A browser return URL is never payment evidence. */
 export type OnlinePaymentMethod = 'swish' | 'card' | 'apple_pay' | 'google_pay';
+export class InvalidPaymentEventError extends Error {}
 export type PaymentEnvironment = 'test' | 'live';
 export type PaymentAttempt = {
   id: string; order_id: string; provider: string; method: OnlinePaymentMethod;
@@ -39,3 +40,9 @@ export interface PaymentProvider {
   verifyEvents(payload: unknown): PaymentEvent[];
   refund(attempt: RefundAttempt): Promise<{id: string; status: 'pending'}>;
 }
+export type PaymentRuntime = {
+  identity: {provider: string; environment: PaymentEnvironment};
+  configured: boolean; webhooksConfigured: boolean; isSimulation: boolean;
+  validate(): Promise<void>;
+  createProvider(purpose?: 'payments' | 'verification'): PaymentProvider;
+};

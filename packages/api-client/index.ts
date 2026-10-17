@@ -2,6 +2,7 @@ import type {
   Catalog, Menu, OnlinePaymentMethod, OrderInput, OrderReceipt, OrderReference, OrderStatusResponse,
   PaymentSessionResponse, PushRegistrationResponse, Settings,
 } from '@yehabibi/shared';
+import { safePaymentUrl } from '@yehabibi/shared';
 
 export type ApiErrorKind = 'configuration' | 'network' | 'timeout' | 'aborted' | 'http' | 'response';
 
@@ -36,7 +37,8 @@ function isCatalog(value: unknown): value is Catalog {
   return isObject(value) && Array.isArray(value.dishes) && Array.isArray(value.menus) &&
     Array.isArray(value.campaigns) && Array.isArray(value.delivery_zones) &&
     Array.isArray(value.payment_methods) && isObject(value.settings) &&
-    typeof value.demo === 'boolean' && typeof value.orders_enabled === 'boolean';
+    typeof value.demo === 'boolean' && typeof value.orders_enabled === 'boolean' &&
+    (value.test_mode === undefined || typeof value.test_mode === 'boolean');
 }
 
 function isOrderResponse(value: unknown): value is OrderStatusResponse {
@@ -50,13 +52,12 @@ function isReceipt(value: unknown): value is OrderReceipt {
     typeof value.tracking_url === 'string';
 }
 
-function isPaymentSession(value: unknown): value is PaymentSessionResponse {
+function isPaymentSession(value: unknown, origin: string, verifiedTestMode: boolean): value is PaymentSessionResponse {
   if (!isObject(value) || typeof value.checkout_url !== 'string' ||
       !['unpaid', 'pending', 'paid', 'failed', 'refunded'].includes(String(value.payment_status))) return false;
-  try {
-    const url = new URL(value.checkout_url);
-    return url.protocol === 'https:' && !url.username && !url.password;
-  } catch { return false; }
+  if (value.test_mode !== undefined && typeof value.test_mode !== 'boolean' ||
+      value.test_mode === true && !verifiedTestMode || verifiedTestMode && value.test_mode !== true) return false;
+  return Boolean(safePaymentUrl(value.checkout_url, origin, verifiedTestMode && value.test_mode === true));
 }
 
 function apiBase(options: ApiClientOptions) {
@@ -78,6 +79,8 @@ function apiBase(options: ApiClientOptions) {
 /** Publika kontrakt till en enda Next.js-backend. Inga databas- eller betalningsnycklar behövs. */
 export function createApiClient(options: ApiClientOptions = {}) {
   const timeoutMs = options.timeoutMs ?? 15000;
+  let verifiedTestMode = false;
+  const paymentOrigin = () => apiBase(options) || (typeof location !== 'undefined' ? location.origin : '');
 
   async function request<T>(
     path: string, valid: (value: unknown) => value is T,
@@ -126,8 +129,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
   const orderPath = ({ code, token }: OrderReference) =>
     `/api/orders/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`;
-  const getCatalog = (requestOptions?: RequestOptions) =>
-    request('/api/catalog', isCatalog, {}, requestOptions);
+  const getCatalog = async (requestOptions?: RequestOptions) => {
+    try {
+      const catalog = await request('/api/catalog', isCatalog, {}, requestOptions);
+      verifiedTestMode = catalog.test_mode === true;
+      return catalog;
+    } catch (error) { verifiedTestMode = false; throw error; }
+  };
 
   return {
     getCatalog,
@@ -145,10 +153,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
     getOrderStatus(reference: OrderReference, requestOptions?: RequestOptions) {
       return request(orderPath(reference), isOrderResponse, {}, requestOptions);
     },
-    createPayment(reference: OrderReference, method: OnlinePaymentMethod, requestOptions?: RequestOptions) {
-      return request('/api/payments/create', isPaymentSession, {
+    async createPayment(reference: OrderReference, method: OnlinePaymentMethod, requestOptions?: RequestOptions) {
+      const result = await request('/api/payments/create', (value): value is PaymentSessionResponse =>
+        isPaymentSession(value, paymentOrigin(), verifiedTestMode), {
         method: 'POST', body: JSON.stringify({ ...reference, payment_method: method }),
       }, requestOptions);
+      const url = safePaymentUrl(result.checkout_url, paymentOrigin(), verifiedTestMode && result.test_mode === true);
+      if (!url) throw new ApiError('Betalningslänken kunde inte verifieras.', 'response');
+      return { ...result, checkout_url: url };
     },
     getPaymentStatus(reference: OrderReference, requestOptions?: RequestOptions) {
       return request(`/api/payments/status?code=${encodeURIComponent(reference.code)}&token=${encodeURIComponent(reference.token)}`,

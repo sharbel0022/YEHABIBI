@@ -5,7 +5,7 @@ import { CalendarDays, Check, ShieldCheck } from 'lucide-react';
 import { ItemPicker } from '@/components/ItemPicker';
 import { parseQuantities, useMenuDraft } from '@/components/order-draft';
 import type { Catalog, Fulfillment, Occasion, PaymentPreference } from '@/types/domain';
-import { eventDateBounds, findDeliveryZone, formatSek, occasions, paymentLabels } from '@/lib/domain';
+import { eventDateBounds, findDeliveryZone, formatSek, occasions, paymentMethodLabel } from '@/lib/domain';
 import { availablePaymentMethods, buildOrderPayload, canOfferDelivery, itemsFromQuantities, minimumGuestsFor,
   newOrderSchema, orderContactError, orderDetailsError, orderLimits, orderSteps, quoteSelection, reconcileSelection } from '@yehabibi/shared';
 import { api } from '@/lib/api-client';
@@ -41,7 +41,7 @@ export function OrderForm({ initialCatalog,
   const custom = draft.mode === 'bygg';
   const menu = draft.menuId ? menus.find(item => item.id === draft.menuId) : menus[0];
   const canDeliver = canOfferDelivery(catalog);
-  const onlineMethods = usePaymentMethods(paymentMethods);
+  const onlineMethods = usePaymentMethods(paymentMethods, catalog.test_mode === true);
   const bookingDates = eventDateBounds(settings.min_advance_days);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<Contact>({
@@ -202,9 +202,10 @@ export function OrderForm({ initialCatalog,
           <button type="button" className="text-link" onClick={() => goBack(2)}>Ändra</button></div>
         <div className="order-review"><div><strong>{form.full_name}</strong><p>{form.email}<br/>{form.phone}</p>{form.notes && <p>Önskemål: {form.notes}</p>}</div>
           <button type="button" className="text-link" onClick={() => goBack(3)}>Ändra</button></div>
-        <fieldset className="plain-fieldset"><legend>Betalningssätt efter godkännande</legend>
+        <fieldset className="plain-fieldset"><legend>{catalog.test_mode === true ? 'Simulerat betalningssätt efter godkännande' : 'Betalningssätt efter godkännande'}</legend>
           <div className="form-choice">{availableMethods.map(value => <label className="choice" key={value}>
-            <input type="radio" name="payment" disabled={sending} checked={payment === value} onChange={() => set('payment_preference', value)}/>{paymentLabels[value]}</label>)}</div></fieldset>
+            <input type="radio" name="payment" disabled={sending} checked={payment === value} onChange={() => set('payment_preference', value)}/>{paymentMethodLabel(value, catalog.test_mode === true)}</label>)}</div></fieldset>
+        {catalog.test_mode === true && <p className="field-hint">Endast syntetiska testordrar. Nästa betalningssteg är en simulation; inga pengar, kort eller plånböcker används.</p>}
         {!availableMethods.length && <p className="preview-note">{catalog.payment_unavailable_reason || 'Inga betalningssätt är aktiverade. Kontakta köket för att beställa.'}</p>}
         {payment === 'unpaid' && <p className="field-hint">Köket tillåter obetalda förfrågningar. Betalningssätt avtalas efter godkännande; ingen onlinebetalning är utlovad.</p>}
         <p className="approval-note"><ShieldCheck size={20} aria-hidden="true"/>Du betalar först efter kökets godkännande. Ett nytt pris kräver ditt godkännande. Kontant gäller endast vid hämtning.</p>

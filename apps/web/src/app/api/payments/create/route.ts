@@ -1,6 +1,6 @@
 import { checkOrigin, jsonError, publicOptions, publicResponse } from '@/lib/auth';
 import { trackedOrder } from '@/lib/tracked-order';
-import { createCheckout } from '@/lib/payments';
+import { createCheckout, paymentRuntimeInfo } from '@/lib/payments';
 import { deliverOrderNotifications } from '@/lib/mailer';
 import { z } from 'zod';
 
@@ -31,7 +31,10 @@ export async function POST(request: Request) {
       return publicResponse(request, jsonError('Betalningsstatusen har uppdaterats. Uppdatera ordern innan du fortsätter.', 409));
     }
     await deliverOrderNotifications(order.id).catch(() => console.error('Payment created; notifications pending'));
-    return publicResponse(request, Response.json({ checkout_url: checkout.url, payment_status: current.payment_status },
+    const runtimeInfo = await paymentRuntimeInfo();
+    const checkoutUrl = new URL(checkout.url);
+    return publicResponse(request, Response.json({ checkout_url: runtimeInfo.isSimulation ? checkoutUrl.pathname + checkoutUrl.search : checkout.url,
+      payment_status: current.payment_status, ...(runtimeInfo.isSimulation ? {test_mode: true} : {}) },
       { headers: { 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' } }));
   } catch {
     return publicResponse(request, jsonError('Betalningen kunde inte öppnas. Uppdatera ordern och kontrollera tillgängliga betalningsmetoder.', 503));

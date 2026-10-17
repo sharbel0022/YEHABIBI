@@ -79,15 +79,25 @@ export function availablePaymentMethods(catalog: Pick<Catalog, 'payment_methods'
 }
 
 /** Kontots metoder kommer från backend. Plånböcker behöver även stöd på enheten. */
-export function onlinePaymentMethods(methods: Catalog['payment_methods'], wallets: { applePay: boolean; googlePay: boolean }): OnlinePaymentMethod[] {
+export function onlinePaymentMethods(methods: Catalog['payment_methods'], wallets: { applePay: boolean; googlePay: boolean }, testMode = false): OnlinePaymentMethod[] {
   return methods.filter((method): method is OnlinePaymentMethod =>
-    method === 'card' || method === 'swish' || method === 'apple_pay' && wallets.applePay || method === 'google_pay' && wallets.googlePay);
+    method === 'card' || method === 'swish' || method === 'apple_pay' && (wallets.applePay || testMode) || method === 'google_pay' && (wallets.googlePay || testMode));
 }
 
 /** Ett startat försök fortsätter med samma metod och idempotensnyckel. */
 export function orderPaymentMethods(methods: OnlinePaymentMethod[], order: Pick<PublicOrder, 'payment_provider' | 'payment_method'>) {
   return order.payment_provider && order.payment_method
     ? methods.filter(method => method === order.payment_method) : methods;
+}
+
+/** Lokala HTTP-backender får egna privata minnen. Befintliga HTTPS-nycklar bevaras. */
+export function localApiStorageKey(key: string, apiUrl: string) {
+  try {
+    const url = new URL(apiUrl);
+    if (url.protocol !== 'http:') return key;
+    const origin = Array.from(url.origin).map(character => character.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+    return `${key}.local-${origin}`;
+  } catch { return key; }
 }
 
 export function canOfferDelivery(catalog: Pick<Catalog, 'payment_methods' | 'settings' | 'delivery_zones'>) {

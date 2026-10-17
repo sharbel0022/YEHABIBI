@@ -23,7 +23,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import {
-  categoryLabels, designColors, formatSek, orderLimits, safeExternalUrl, suggestedQuantity, type Dish, type Menu,
+  categoryLabels, designColors, formatSek, orderLimits, safeExternalUrl, suggestedQuantity, testModeBanner, type Dish, type Menu,
 } from '@yehabibi/shared';
 import { useCatering } from './store';
 
@@ -91,7 +91,7 @@ function HeroVideo({ url, poster }: { url: string; poster: string | null }) {
 }
 
 export function Screen({ children, title, intro, footer }: PropsWithChildren<{ title?: string; intro?: string; footer?: ReactNode }>) {
-  const { loading, refresh, notice, catalogError } = useCatering();
+  const { catalog, loading, refresh, notice, catalogError } = useCatering();
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const insets = useSafeAreaInsets();
   useEffect(() => {
@@ -101,6 +101,9 @@ export function Screen({ children, title, intro, footer }: PropsWithChildren<{ t
   }, []);
   return (
     <SafeAreaView style={s.screen} edges={['left', 'right']}>
+      {catalog.test_mode === true && <View style={{ padding: 12, backgroundColor: '#fff4d6', borderBottomWidth: 1, borderBottomColor: '#d29922' }}>
+        <Text accessibilityRole="alert" style={{ color: '#533c0a', textAlign: 'center', fontWeight: '700' }}>{testModeBanner}</Text>
+      </View>}
       <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
         keyboardVerticalOffset={insets.top + 44}>
       <ScrollView

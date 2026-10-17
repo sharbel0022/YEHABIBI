@@ -1,7 +1,7 @@
 // Produktionsbyggets HTTP/SSR-kontroll. Ingen databas eller extern tjänst ansluts.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,11 +20,13 @@ const origin = `http://127.0.0.1:${port}`;
 const env = {
   ...process.env,
   NODE_ENV: 'production', NODE_OPTIONS: '', NEXT_TELEMETRY_DISABLED: '1',
+  // Even deliberate test flags cannot install the local-only source overlay.
+  APP_ENV: 'test', NEXT_PUBLIC_TEST_MODE: 'true', EXPO_PUBLIC_TEST_MODE: 'true',
   NEXT_PUBLIC_SITE_URL: origin, NEXT_PUBLIC_INDEXABLE: 'false',
   NEXT_PUBLIC_SUPABASE_URL: '', NEXT_PUBLIC_SUPABASE_ANON_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '',
   SUPABASE_URL: '', SUPABASE_ANON_KEY: '', ADMIN_EMAILS: '',
   ORDERS_ENABLED: 'false', PAYMENTS_ENABLED: 'false',
-  PAYMENT_PROVIDER: 'none', ADYEN_ENVIRONMENT: 'test', ADYEN_CAPTURE_MODE: '',
+  PAYMENT_PROVIDER: 'local_test', ADYEN_ENVIRONMENT: 'test', ADYEN_CAPTURE_MODE: '',
   ADYEN_API_KEY: '', ADYEN_MERCHANT_ACCOUNT: '', ADYEN_HMAC_KEY: '', ADYEN_ENABLED_METHODS: '',
   RESEND_API_KEY: '', EMAIL_FROM: '', OWNER_NOTIFICATION_EMAIL: '',
   ORDER_LINK_SECRET: '', ORDER_RATE_LIMIT_SECRET: '',
@@ -103,6 +105,27 @@ try {
   assert.ok(catalog.dishes.every(dish => dish.price_ore === 0), 'Demorätter ska sakna fastställda priser.');
   assert.ok(catalog.menus.length > 0 && catalog.menus.every(menu => menu.price_ore === 0), 'Demopaket ska sakna fastställda priser.');
   assert.deepEqual(catalog.payment_methods, [], 'Inget betalsätt ska vara aktiverat.');
+  assert.notEqual(catalog.test_mode, true, 'Testflaggor får inte göra produktion till en simulator.');
+
+  // The test adapter and routes are copied only into an ignored local workspace.
+  function checkProductionFiles(directory) {
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, item.name);
+      if (item.isDirectory()) checkProductionFiles(filename);
+      else if (/\.(?:js|json|html)$/.test(item.name)) {
+        const content = readFileSync(filename, 'utf8');
+        assert.equal(/TestPaymentProvider|TEST_PAYMENT_SIMULATOR_OVERLAY|TEST_PAYMENT_SECRET|test_environment_guard|local-test-payment-v1/.test(content), false,
+          'Produktionsbygget får inte innehålla testadaptern eller simuleringsservern.');
+      }
+    }
+  }
+  checkProductionFiles(path.join(web, '.next/server'));
+  for (const route of ['/__test/payment/missing', '/__test/payment/missing/simulate', '/__test/ready']) {
+    for (const method of ['GET', 'POST']) {
+      const response = await request(route, { method });
+      assert.equal(response.status, 404, 'Produktionsappen får inte exponera någon betalsimulator.');
+    }
+  }
 
   const disabledOrder = await request('/api/orders', { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: '{}' });

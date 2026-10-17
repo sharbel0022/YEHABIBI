@@ -27,10 +27,11 @@ function loadGooglePay() {
 }
 
 /** Visa plånboken först när webbläsarens officiella API har bekräftat stöd. */
-export function usePaymentMethods(methods: Catalog['payment_methods']) {
+export function usePaymentMethods(methods: Catalog['payment_methods'], testMode = false) {
   const [wallets, setWallets] = useState({ applePay: false, googlePay: false });
   const enabled = methods.join(',');
   useEffect(() => {
+    if (testMode) return;
     let active = true;
     const browser = window as WalletWindow;
     let applePay = false;
@@ -50,6 +51,6 @@ export function usePaymentMethods(methods: Catalog['payment_methods']) {
       }).catch(() => { /* Behåll Google Pay dolt vid osäkert stöd. */ });
     }
     return () => { active = false; };
-  }, [enabled]);
-  return onlinePaymentMethods(methods, wallets);
+  }, [enabled, testMode]);
+  return onlinePaymentMethods(methods, wallets, testMode);
 }

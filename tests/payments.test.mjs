@@ -57,7 +57,7 @@ test('production configuration requires explicit approval and a safe merchant pr
 test('status and refund service reject a different stored environment before any provider request',async()=>{
   const a={...attempt(),provider_payment_id:'PL_fixture'}, refund={...a,id:'refund-id',status:'pending',provider_refund_id:'REF_fixture'};
   let requests=0;
-  const provider={environment:'live',getPayment:async()=>{requests++;assert.fail('Cross-environment status network call.');},refund:async()=>{requests++;assert.fail('Cross-environment refund network call.');}};
+  const provider={name:'adyen',environment:'live',getPayment:async()=>{requests++;assert.fail('Cross-environment status network call.');},refund:async()=>{requests++;assert.fail('Cross-environment refund network call.');}};
   await assert.rejects(readProviderPayment(provider,a),/annan leverantörsmiljö/);
   await assert.rejects(refundPayment({reserveRefund:async()=>refund},provider,a.order_id),/annan leverantörsmiljö/);
   assert.equal(requests,0);
@@ -141,7 +141,7 @@ test('durable reservation is reused after concurrent retry and after provider/DB
   const a=attempt(), keys=[], requests=[], log=[];
   let stored=null, failAttach=true;
   const store={reserve:async()=>{log.push('reserve');return {...a,provider_payment_id:stored};},attach:async(_,payment)=>{log.push('attach');if(failAttach){failAttach=false;throw Error('simulated crash');}stored=payment.id;},expire:async()=>assert.fail('not expired')};
-  const provider={environment:'test',availableMethods:async()=>['card'],createPayment:async(reserved)=>{log.push('provider');keys.push(reserved.idempotency_key);requests.push(reserved.provider_reference);return hosted(a);},getPayment:async()=>hosted(a)};
+  const provider={name:'adyen',environment:'test',availableMethods:async()=>['card'],createPayment:async(reserved)=>{log.push('provider');keys.push(reserved.idempotency_key);requests.push(reserved.provider_reference);return hosted(a);},getPayment:async()=>hosted(a)};
   const input={orderId:a.order_id,method:'card',revision:2,amount:a.amount_ore,returnUrl:'https://example.test/order'};
   await assert.rejects(startPayment(store,provider,input),/crash/);
   assert.equal((await startPayment(store,provider,input)).id,'PL_fixture');
@@ -155,7 +155,7 @@ test('wrong amounts/revisions, completed links and expired/ambiguous attempts ne
   const a=attempt();let attaches=0,expires=0,creates=0;
   const store={reserve:async()=>a,attach:async()=>attaches++,expire:async()=>expires++};
   let value=hosted(a);
-  const provider={environment:'test',availableMethods:async()=>['card'],createPayment:async()=>{creates++;return value;},getPayment:async()=>value};
+  const provider={name:'adyen',environment:'test',availableMethods:async()=>['card'],createPayment:async()=>{creates++;return value;},getPayment:async()=>value};
   const input={orderId:a.order_id,method:'card',revision:2,amount:a.amount_ore,returnUrl:'https://example.test'};
   for(const patch of [{amount_ore:a.amount_ore+1},{currency:'EUR'},{reference:'other-revision'}]) {
     value={...hosted(a),...patch};await assert.rejects(startPayment(store,provider,input),/matchar/);
@@ -171,7 +171,7 @@ test('refund request remains pending, exact persisted key survives crash, confir
   const r={id:randomUUID(),order_id:randomUUID(),attempt_id:randomUUID(),provider:'adyen',environment:'test',amount_ore:40000,currency:'SEK',provider_reference:'refund-reference',idempotency_key:randomUUID(),transaction_reference:'AUTH_fixture',provider_refund_id:null,status:'creating',created_at:new Date().toISOString()};
   const keys=[];let crash=true;
   const store={reserveRefund:async()=>r,attachRefund:async(_,id)=>{if(crash){crash=false;throw Error('crash');}r.provider_refund_id=id;r.status='pending';}};
-  const provider={environment:'test',refund:async attempt=>{keys.push(attempt.idempotency_key);return {id:'REF_fixture',status:'pending'};}};
+  const provider={name:'adyen',environment:'test',refund:async attempt=>{keys.push(attempt.idempotency_key);return {id:'REF_fixture',status:'pending'};}};
   await assert.rejects(refundPayment(store,provider,r.order_id),/crash/);
   assert.equal((await refundPayment(store,provider,r.order_id)).status,'pending');
   assert.equal((await refundPayment(store,provider,r.order_id)).status,'pending');

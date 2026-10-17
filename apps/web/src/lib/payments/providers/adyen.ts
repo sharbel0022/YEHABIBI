@@ -1,11 +1,12 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { InvalidPaymentEventError } from '../provider.ts';
 import type { HostedPayment, OnlinePaymentMethod, PaymentAttempt, PaymentEnvironment, PaymentEvent, PaymentProvider, RefundAttempt } from '../provider.ts';
 
 type Environment = Record<string, string | undefined>;
 type Fetcher = typeof fetch;
 const METHOD_TYPES: Record<OnlinePaymentMethod, string> = { swish: 'swish', card: 'scheme', apple_pay: 'applepay', google_pay: 'googlepay' };
 const METHODS = Object.keys(METHOD_TYPES) as OnlinePaymentMethod[];
-export class InvalidPaymentEventError extends Error {}
+export { InvalidPaymentEventError };
 
 /** Fixed official European endpoint structure. No configurable origin, port, path or protocol. */
 export function adyenApiBaseUrl(env: Environment): string | null {
