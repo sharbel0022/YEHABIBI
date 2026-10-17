@@ -2,7 +2,9 @@
 
 En cateringplattform med **Expo för Android/iPhone**, en Next.js-webbplats och samma beställningssystem i Supabase/PostgreSQL. V2:s webbplats och adminpanel finns kvar i `apps/web`. Appens arbetsnamn är **Cedar Mezze**.
 
-Mobilappen är ett riktigt Expo-projekt med Expo Router, Expo Go och stöd för egna development builds. Det riktiga [EAS-projektet](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) har skapats under `sharbel1423` och lagts in i konfigurationen. Signering och faktiska molnbyggen verifieras separat. Se [EXPO.md](docs/EXPO.md).
+Mobilappen använder **Expo SDK 57 för din iPhone i Expo Go**, med Expo Router och samma backend som webben. Det riktiga [EAS-projektet](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) är kopplat till `sharbel1423`. SDK 57 har passerat samtliga kodkontroller och export för Android/iOS/webb; faktisk telefonkörning följs upp i [TESTER.md](docs/TESTER.md). Tidigare SDK 58-byggen sparas som historiska tester.
+
+Kodgranskning finns i [PR #2](https://github.com/sharbel0022/YEHABIBI/pull/2) på [branchen expo-mobile-v3](https://github.com/sharbel0022/YEHABIBI/tree/expo-mobile-v3). Den [tidigare gröna CI-körningen](https://github.com/sharbel0022/YEHABIBI/actions/runs/39033639715) gäller SDK 58-källan. Lokal `npm run verify` är godkänd även för SDK 57 och Next.js 16.4.2; ny CI och native-körning redovisas separat.
 
 ## Starta
 
@@ -12,20 +14,22 @@ Installera Node.js **22.13 eller senare**, npm och Android Studio om du vill kö
 npm install
 Copy-Item apps/web/.env.example apps/web/.env.local
 Copy-Item apps/mobile/.env.example apps/mobile/.env.local
-npm run dev
 ```
 
-Kopiera miljöfilerna bara första gången. Webben och API:t finns på `http://localhost:3000`. Öppna en andra terminal i roten:
+Kopiera miljöfilerna bara första gången. Anslut iPhone och dator till samma Wi-Fi. Kör `ipconfig` och sätt `EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000` i `apps/mobile/.env.local`. Android-emulatorns `10.0.2.2` fungerar inte på din iPhone.
+
+Starta webben/API:t i en terminal och Expo i en andra, båda från repots rot:
 
 ```powershell
+# Terminal 1
+npm run dev
+# Terminal 2
 npm run dev:mobile
 ```
 
-Starta Android-emulatorn. Första gången installeras din egen **Cedar Mezze Dev** med `npm run build:android`; därefter öppnar `npm run android` appen mot utvecklingsservern. Exakta SDK-/Java-kommandon finns i [EXPO.md](docs/EXPO.md).
+`npm run dev:mobile` visar **Expo Go-QR för SDK 57**. Skanna med iPhones Kamera och öppna Expo Go. Logga in på samma Expo-konto i CLI och telefonen, här `sharbel1423`; vid behov kör du `npx expo login` från `apps/mobile`. [EXPO.md](docs/EXPO.md) beskriver Wi-Fi, inloggning och felsökning.
 
-Lokal Android-kompilering på denna Windows-dator har stoppats av CMake/Ninja-sökvägar, både från Downloads-mappen och med `subst Y:`. En kort sökväg är alltså ingen verifierad lösning här. [EXPO.md](docs/EXPO.md) beskriver EAS-alternativet för en development-APK som kan installeras i samma Android-emulator.
-
-Expo Go är ett separat alternativ: `npm run go --workspace @yehabibi/mobile`. Dess SDK-version måste passa projektet. Standardkommandona använder development build så att appens riktiga identitet kan verifieras.
+Androids egna development build testas separat och måste också byggas för SDK 57. Den äldre SDK 58-APK:n är historik. Lokal native-kompilering i nuvarande Windows-checkout stoppades av sökvägsproblem; använd EAS för egen APK enligt [EXPO.md](docs/EXPO.md).
 
 `EXPO_PUBLIC_API_URL` i `apps/mobile/.env.local` är:
 
@@ -73,14 +77,14 @@ Kör från repots rot:
 | Kommando | Gör |
 | --- | --- |
 | `npm run dev` | Startar Next.js och API på port 3000 |
-| `npm run dev:mobile` | Startar Expo för installerad development build |
-| `npm run android` | Öppnar Cedar Mezze Dev på Android |
-| `npm run build:android` | Bygger och installerar Android development build lokalt |
-| `npm run go --workspace @yehabibi/mobile` | Startar alternativet Expo Go |
+| `npm run dev:mobile` | Startar Expo Go-QR för iPhone, SDK 57 |
+| `npm run android` | Öppnar separat installerad SDK 57 development build på Android |
+| `npm run build:android` | Försöker lokalt Android-bygge; Windows-sökvägsfelet kvarstår i denna checkout |
+| `npm run go --workspace @yehabibi/mobile` | Startar Expo Go uttryckligt |
 | `npm run export:mobile` | Exporterar Expo för konfigurerade plattformar |
 | `npm run verify` | Syntax, TypeScript, enhetstester, webbbygge och Expo-export |
 
-Installera alla workspaces från roten. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel. Mobil och webb har var sin React-version eftersom Expo och Next.js kräver olika versioner.
+Installera alla workspaces från roten. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel. Delade typer/prisregler ligger i `packages/shared`, medan Expo och Next.js har egna paketfiler.
 
 Hemliga nycklar hör endast hemma i `apps/web/.env.local` eller serverns miljövariabler. Allt som börjar med `EXPO_PUBLIC_` kan läsas ur appen. Skicka aldrig Supabase service-role, Stripe secret eller Resend-nycklar till mobilen.
 

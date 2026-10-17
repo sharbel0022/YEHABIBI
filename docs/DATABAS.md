@@ -34,7 +34,7 @@ V3-migrationen byter namn på `menu_items` till `dishes`, `unit_price_ore` till 
 
 Gamla `orders.items_snapshot` ändras inte. Giltiga historiska rader kopieras också till `order_items` med snapshotens titel, enhet och pris, inte dagens katalogpris. Historiska rätt-id:n bevaras även om den ursprungliga rätten hunnit tas bort. Nya egna cateringorder får både normaliserade rader och en kompatibel snapshot för befintlig order-/mejlhistorik.
 
-V2:s leveranszoner och kampanjfält i `business_settings` kopieras till `delivery_zones` och `campaigns`. `getSettings` kan fortfarande visa V2-formatet, härlett från de normaliserade tabellerna. När V2:s inställningsformulär sparar översätter en atomär server-RPC dess gamla JSON-format tillbaka till tabellerna. Expo och båda webbgränssnitten använder alltså samma data efter ändringar.
+V2:s leveranszoner och kampanjfält i `business_settings` kopieras till `delivery_zones` och `campaigns`; originalfälten finns kvar. `getSettings` visar V2-formatet härlett från de normaliserade tabellerna. RPC:n `update_catering_settings` översätter V2-formulärets gamla JSON-format tillbaka till tabellerna atomärt. Ersatta zoner/kampanjer avpubliceras i stället för att raderas, så orderrelationer bevaras. Den ursprungliga inställningskampanjen känns igen med `legacy_key='settings'`. Expo och båda webbgränssnitten använder samma data efter ändringar.
 
 Admin tar normalt bort något från katalogen genom **avpublicering**, `active=false`. Det bevarar orderhistoriken. SQL-relationerna hindrar att använda menyer/maträtter raderas så att historiska order tappar sin anknytning.
 

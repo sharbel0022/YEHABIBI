@@ -38,7 +38,7 @@ Sex kundskärmar och tre små stödfiler delar på samma katalog och regler. Ing
 | `assets/icon.png` | Appikon och grund för splash/favikon |
 | `assets/{hero,mezze,grill,fest}.webp` | Återanvända demobilder från V2; ersätts med företagets material |
 
-Expo använder React 19.3, webben React 19.2. Shared innehåller ingen React-kod, så apparna behöver inte dela samma React-instans.
+Expo SDK 57 och webben använder båda React 19.2.3; Next.js är uppdaterad till 16.4.2. Shared innehåller ingen React-kod. Standardens `npm run dev:mobile` startar Expo Go för iPhone; mobilens `dev` och `android` använder egen development build.
 
 ## Gemensamt – `packages/shared/`
 

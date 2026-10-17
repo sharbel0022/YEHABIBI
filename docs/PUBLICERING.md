@@ -2,6 +2,8 @@
 
 Byggning och publicering är skilda steg. V3 innehåller EAS-profiler och en webbackend, men företagets konton, innehåll, identiteter och betalningsflöden måste verifieras före release. Ingen automatisk butiksuppladdning sker.
 
+Aktuell appkälla använder SDK 57 för iPhone/Expo Go. Skapa och verifiera nya SDK 57-artefakter för egna development-/butiksbyggen; de tidigare färdiga SDK 58-byggena är historiska testresultat.
+
 ## Separera miljöerna
 
 | Miljö | App | Backend och betalningar |

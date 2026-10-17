@@ -16,9 +16,9 @@ flowchart LR
 
 ## Tre koddelar
 
-**`apps/mobile`** är TypeScript 6.0.3 och React Native med Expo SDK 58, React 19.3 och Expo Router. Router kopplar filer i `app/` till skärmar. React Native ger mobilvyer. Expo sköter native-moduler, utveckling, export och byggkonfiguration. React Native Web gör även en webbförhandsvisning möjlig. Webbens verktyg använder TypeScript 5.9.3 separat.
+**`apps/mobile`** använder Expo SDK 57 för användarens iPhone: React Native 0.86.3, React 19.2.3, TypeScript 6.0.3 och Expo Router. Standardstarten ger Expo Go-QR; en egen development build är ett separat alternativ. Router kopplar filer i `app/` till skärmar. React Native ger mobilvyer. Expo sköter native-moduler, utveckling, export och byggkonfiguration. React Native Web ger en webbförhandsvisning. Webbens verktyg använder TypeScript 5.9.3 separat.
 
-**`apps/web`** är den bevarade Next.js 16-webben med React 19.2. Den renderar publika SEO-sidor och skyddad admin. API-rutter i samma app hanterar databas, inloggning, order, media, mejl och Stripe. Webben behöver därför en servermiljö; en statisk Expo-export ersätter inte backend.
+**`apps/web`** är den bevarade webben, uppdaterad till Next.js 16.4.2 och samma React 19.2.3 som mobilen. Den renderar publika SEO-sidor och skyddad admin. API-rutter i samma app hanterar databas, inloggning, order, media, mejl och Stripe. Webben behöver därför en servermiljö; en statisk Expo-export ersätter inte backend.
 
 **`packages/shared`** innehåller typer, vanliga funktioner och Zod-scheman. Det importerar varken React, databasanslutningar eller hemligheter. UI kan visa ett pris med samma regel som servern; servern hämtar ändå priserna från databasen på nytt.
 
@@ -60,7 +60,7 @@ En öppen Checkout-session återanvänds när ägaren skickar betalningslänken 
 | Stripe | Checkout, återbetalning och signerade betalningshändelser |
 | Resend | Mejl till kunden och ägaren |
 | QRCode | SVG-koder till beställning och officiell Google-recensionslänk |
-| Tailwind / Lucide | Befintlig webbstyling och ikoner |
+| Lucide | Webbens ikoner; utseendet styrs av vanlig CSS |
 
 CSS sköter webbens design; mobilens färger och små gemensamma UI-delar ligger i `lib/ui.tsx`. Korta skärmfiler och tre delade ämnesfiler håller strukturen begriplig.
 
