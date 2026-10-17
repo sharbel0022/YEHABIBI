@@ -27,6 +27,40 @@ export function calcTotal(priceOre: number, guests: number, fulfillment: Fulfill
   return { subtotal_ore: subtotal, delivery_fee_ore: delivery, total_ore: total };
 }
 
+/** Live calculation shared by the customer, admin and server. Amounts are whole öre. */
+export function calcItemsTotal(
+  items: Array<{ unit_price_ore:number; quantity:number }>,
+  guests:number, fulfillment:Fulfillment, deliveryFeeOre:number
+) {
+  if (!Number.isSafeInteger(guests) || guests < 1 || guests > 1000 ||
+      !Number.isSafeInteger(deliveryFeeOre) || deliveryFeeOre < 0 ||
+      items.length < 1 || items.length > 40) throw new Error('Ogiltigt antal eller avgift');
+  let subtotal = 0;
+  for (const item of items) {
+    if (!Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 100 ||
+        !Number.isSafeInteger(item.unit_price_ore) || item.unit_price_ore < 0) throw new Error('Ogiltig maträtt');
+    subtotal += item.quantity * item.unit_price_ore;
+    if (!Number.isSafeInteger(subtotal) || subtotal > 100000000) throw new Error('Belopp för högt');
+  }
+  const fee = fulfillment === 'delivery' ? deliveryFeeOre : 0;
+  const total = subtotal + fee;
+  if (!Number.isSafeInteger(total) || total > 100000000) throw new Error('Belopp för högt');
+  return {subtotal_ore:subtotal,delivery_fee_ore:fee,total_ore:total,per_person_ore:Math.round(total/guests)};
+}
+
+/** Match the most specific delivery zone by postal-code prefix; fallback to the base price. */
+export function deliveryFeeFor(
+  postCode:string, baseFee:number, zones:Array<{postal_prefix:string;fee_ore:number}>
+) {
+  const normal = postCode.replace(/\s/g,'');
+  const matching = zones.filter(zone => normal.startsWith(zone.postal_prefix))
+    .sort((a,b) => b.postal_prefix.length-a.postal_prefix.length);
+  return matching[0]?.fee_ore ?? baseFee;
+}
+export function campaignIsActive(enabled:boolean, start:string|null, end:string|null, today:string) {
+  return enabled && (!start || today>=start) && (!end || today<=end);
+}
+
 export function canUseCash(preference: PaymentPreference, fulfillment: Fulfillment, enabled: boolean) {
   return preference !== 'cash' || (fulfillment === 'pickup' && enabled);
 }
@@ -60,7 +94,9 @@ export function findDeliveryZone(zones: DeliveryZone[], postalCode: string, zone
   const postal = postalCode.replace(/\s/g, '');
   if (!/^\d{5}$/.test(postal)) return null;
   const matching = zones.filter(zone => zone.active && zone.postal_prefixes.some(prefix => postal.startsWith(prefix)));
-  return zoneId ? matching.find(zone => zone.id === zoneId) || null : matching.sort((a,b) => a.fee_ore - b.fee_ore)[0] || null;
+  const specificity = (zone:DeliveryZone) => Math.max(...zone.postal_prefixes.filter(prefix=>postal.startsWith(prefix)).map(prefix=>prefix.length));
+  const best = matching.sort((a,b) => specificity(b)-specificity(a) || a.fee_ore-b.fee_ore || a.id.localeCompare(b.id))[0] || null;
+  return zoneId && best?.id!==zoneId ? null : best;
 }
 
 export function isTestStripeKey(key: string | undefined) { return /^(sk|rk)_test_/.test(key || ''); }

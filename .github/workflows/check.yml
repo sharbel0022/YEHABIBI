@@ -4,14 +4,27 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+permissions:
+  contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - run: npm ci --no-audit --no-fund
+        with:
+          node-version: '22'
+      # Endast versionshanterade filer. Inga hemligheter eller kunddata arkiveras.
+      - name: Archive source for reproducible verification
+        run: git archive --format=zip HEAD -o "$RUNNER_TEMP/yehabibi-source.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-source-${{ github.sha }}
+          path: ${{ runner.temp }}/yehabibi-source.zip
+          retention-days: 3
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
       - run: npm run syntax
       - run: npm run test
       - run: npm run typecheck

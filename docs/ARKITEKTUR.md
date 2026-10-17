@@ -22,6 +22,8 @@ flowchart LR
 
 **`packages/shared`** innehåller typer, vanliga funktioner och Zod-scheman. Det importerar varken React, databasanslutningar eller hemligheter. UI kan visa ett pris med samma regel som servern; servern hämtar ändå priserna från databasen på nytt.
 
+V2:s kategorier, portionshjälp, menykatalog och admin för styckrätter är kvar. Uppgraderingen använder samma rätt-id:n och en SQL-kompatibilitetsvy för gamla kolumnnamn. Gamla ordersnapshots och JSON-inställningar följer med till V3:s normaliserade struktur enligt [DATABAS.md](DATABAS.md). Ingen parallell separat V2-databas behövs.
+
 ## En förfrågan från början till slut
 
 1. Mobilen läser `/api/catalog`: aktiva paket, maträtter, aktuella kampanjer, publika företagsinställningar och leveranszoner.

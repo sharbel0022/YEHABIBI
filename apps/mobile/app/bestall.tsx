@@ -143,7 +143,7 @@ export default function OrderScreen() {
         <Button secondary title="Ändra meny eller rätter" onPress={() => router.push(selection.menuId ? '/menyer' : '/bygg')} />
         <View style={s.row}>
           <Text style={s.label}>Antal personer</Text>
-          <Stepper label="personer" min={menu?.min_people || 1} value={selection.guests} onChange={(difference) => setGuests(selection.guests + difference)} />
+          <Stepper label="personer" min={menu?.min_people || settings.custom_min_people} value={selection.guests} onChange={(difference) => setGuests(selection.guests + difference)} />
         </View>
         <Choices values={Object.entries(occasions).map(([value, label]) => ({ value: value as typeof selection.occasion, label, }))} selected={selection.occasion} onSelect={setOccasion} />
       </View>

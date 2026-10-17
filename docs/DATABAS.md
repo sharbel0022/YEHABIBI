@@ -4,10 +4,11 @@ Supabase kör PostgreSQL. Webben, mobilappen och admin använder samma server-AP
 
 ## Migrationer
 
-1. `supabase/migrations/0001_cedar_mezze.sql` är V2:s grund: inställningar, paket, order, betalningshändelser, spamgräns och mediabucket.
-2. `supabase/migrations/20261017121516_v3_catalog_and_orders.sql` lägger till maträtter, orderrader, leveranszoner, kampanjer och frivilliga ägar-pushtokens. Den lägger också till orderstatusen `preparing`.
+1. `supabase/migrations/0001_cedar_mezze.sql` är grunden: inställningar, paket, order, betalningshändelser, spamgräns och mediabucket.
+2. `supabase/migrations/0002_cedar_mezze_v2.sql` är V2:s ursprungliga tillägg: `menu_items`, ordernas JSON-snapshot och företagsinställningar för kampanjer/leverans.
+3. `supabase/migrations/20261017121516_v3_catalog_and_orders.sql` uppgraderar vidare till delad katalog, atomära orderrader, leveranszoner, kampanjer och frivilliga ägar-pushtokens. Den lägger också till orderstatusen `preparing` och behåller V2-data.
 
-På en tom testdatabas körs båda i ordning. På en befintlig V2-databas körs bara den nya migrationen efter backup. Kör inte V3-filen upprepade gånger: den är en versionsändring, inte en seed som ska köras vid varje start. Använd företagets Supabase SQL Editor eller projektets ordinarie migrationsflöde. Lokal skapad SQL är inte bevis på att den har applicerats; se [TESTER.md](TESTER.md).
+På en tom testdatabas körs alla tre i ordning. På en befintlig V2-databas där 0001 och 0002 redan körts tillämpas bara V3-migrationen efter backup. Kör inte filerna upprepade gånger: de är versionsändringar, inte seed som ska köras vid varje start. Använd företagets Supabase SQL Editor eller projektets ordinarie migrationsflöde. Lokalt testad SQL är inte bevis på att den har applicerats i företagets databas; se [TESTER.md](TESTER.md).
 
 ## Tabeller och relationer
 
@@ -15,16 +16,25 @@ På en tom testdatabas körs båda i ordning. På en befintlig V2-databas körs 
 | --- | --- |
 | `business_settings` | En rad, `id=1`: namn, kontakt, media, officiella länkar, hämtning och beställningsregler |
 | `menus` | Cateringpaket med pris per person, minsta antal, innehåll, allergener och bild |
-| `dishes` | Enskilda maträtter med styckpris, portionsetikett, allergener och bild |
+| `dishes` | V2:s omdöpta `menu_items`: samma rätt-id:n, priser, kategori, portionshjälp, allergener och bild |
+| `menu_items` | Kompatibilitetsvy med V2:s kolumnnamn mot samma maträtter, inte en andra separat katalog |
 | `delivery_zones` | Namn, svenska postnummerprefix, avgift och aktiv/inaktiv |
 | `campaigns` | Rubrik, text, media, start/slut och array med marknadsförda meny-id:n |
-| `orders` | Kundförfrågan, kontakt, leverans, frysta belopp, orderstatus och separat betalningsstatus |
-| `order_items` | Rader kopplade till ordern; varje rad avser ett paket eller en maträtt |
+| `orders` | Kundförfrågan, kontakt, leverans, frysta belopp, status och bevarad V2-`items_snapshot` |
+| `order_items` | Normaliserade orderrader med historisk titel/pris och koppling till ordern |
 | `payment_events` | Unika Stripe-händelser kopplade till order, för idempotent webhookhantering |
 | `order_rate_limits` | HMAC-hashade spamnycklar, timfönster och antal försök |
 | `owner_push_tokens` | Expo-token kopplad till verifierad administratör i `auth.users`, med senaste leveransticket/tid |
 
-`orders.menu_id` pekar på paketet, eller är `null` för egen catering. `orders.delivery_zone_id` pekar på vald zon vid leverans. `order_items.order_id` är en foreign key till ordern. En orderrad har exakt en av `menu_id` och `dish_id`. Historiska titlar och priser sparas på raderna, så senare menyändringar ändrar inte redan skapade order.
+`orders.menu_id` pekar på paketet, eller är `null` för egen catering. `orders.delivery_zone_id` pekar på vald zon vid leverans. `order_items.order_id` är en foreign key till ordern. Historiska titlar, enheter och priser sparas på raderna, så senare menyändringar ändrar inte redan skapade order.
+
+## Så bevaras V2-data
+
+V3-migrationen byter namn på `menu_items` till `dishes`, `unit_price_ore` till `price_ore` och `unit_label` till `portion_label`. Samma UUID:n och ursprungliga data finns kvar. `category` och `suggested_per_person` behålls. En uppdateringsbar `menu_items`-vy med `security_invoker` visar de gamla namnen för V2:s `/admin/ratter` och `/api/admin/items`. Båda adminvägarna redigerar därmed samma rätter som Expo läser.
+
+Gamla `orders.items_snapshot` ändras inte. Giltiga historiska rader kopieras också till `order_items` med snapshotens titel, enhet och pris, inte dagens katalogpris. Historiska rätt-id:n bevaras även om den ursprungliga rätten hunnit tas bort. Nya egna cateringorder får både normaliserade rader och en kompatibel snapshot för befintlig order-/mejlhistorik.
+
+V2:s leveranszoner och kampanjfält i `business_settings` kopieras till `delivery_zones` och `campaigns`. `getSettings` kan fortfarande visa V2-formatet, härlett från de normaliserade tabellerna. När V2:s inställningsformulär sparar översätter en atomär server-RPC dess gamla JSON-format tillbaka till tabellerna. Expo och båda webbgränssnitten använder alltså samma data efter ändringar.
 
 Admin tar normalt bort något från katalogen genom **avpublicering**, `active=false`. Det bevarar orderhistoriken. SQL-relationerna hindrar att använda menyer/maträtter raderas så att historiska order tappar sin anknytning.
 
@@ -34,7 +44,7 @@ Alla belopp lagras som heltalsöre: `12500` betyder 125 kr. Paket har pris per p
 
 `packages/shared/pricing/index.ts` ger samma regler i UI och server. API:t hämtar sedan aktuella databaspriser och validerar igen. Databasfunktionen `create_catering_order` läser och låser inställningar, zon och valda produkter, räknar om belopp och sparar order + rader i **en transaktion**. Om någon ändrar pris samtidigt stoppas ett oförenligt belopp i stället för att delvis spara ordern.
 
-Leverans kräver en aktiv zon som matchar början av det normaliserade femsiffriga svenska postnumret. Exempel: prefix `721` matchar `72130`. V2:s allmänna leveransavgift finns kvar i inställningarna; V3-order använder den valda zonens avgift. Lägg därför in riktiga zoner före leveransbeställningar.
+Leverans kräver en aktiv zon som matchar början av det normaliserade femsiffriga svenska postnumret. Exempel: prefix `721` matchar `72130`. Som i V2 vinner längst matchande prefix, därefter lägsta avgift vid lika specifika zoner. V2:s allmänna leveransavgift importeras som bred reservzon för att befintlig leverans inte ska försvinna. Ägaren behöver granska att den faktiskt motsvarar företagets godkända leveransområde före produktion.
 
 ## Två separata statusar
 
@@ -49,7 +59,7 @@ En order kan alltså vara godkänd men fortfarande vänta på betalning. Onlineo
 
 ## RLS, administratörer och privata länkar
 
-RLS är aktiverat på affärstabellerna. Direkta rättigheter för `anon` och `authenticated` är borttagna där kund- och admindata ligger. API:t använder serverns service-role och ansvarar därför för uttrycklig validering och behörighet. Det är avsiktligt att en vanlig Supabase-klient inte kan lista order.
+RLS är aktiverat på affärstabellerna. Direkta rättigheter för `anon` och `authenticated` är borttagna där kund- och admindata ligger. Kompatibilitetsvyn `menu_items` är också begränsad till serverrollen och använder `security_invoker`. API:t använder serverns service-role och ansvarar därför för uttrycklig validering och behörighet. Det är avsiktligt att en vanlig Supabase-klient inte kan lista order.
 
 Ägaren finns i Supabase Auth. `requireAdmin` verifierar användaren med `getUser`, kräver bekräftad e-post och jämför den mot serverns `ADMIN_EMAILS`. En egen admin-tabell behövs inte för denna enkla allowlist. Inloggad betyder inte automatiskt administratör.
 

@@ -144,6 +144,7 @@ export function getQuote(
         price_per_person_ore: menu.price_ore,
       };
     }
+    if (selection.guests < catalog.settings.custom_min_people) return null;
     return calcDishTotal(items, catalog.dishes, selection.guests, fulfillment, fee);
   } catch {
     return null;

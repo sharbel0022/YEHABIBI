@@ -66,7 +66,7 @@ Variablerna gäller den aktuella terminalen. Använd Studio-JDK:n; Java-genväge
 
 Om emulatorn inte startar: kör `emulator -accel-check`. Den första kontrollen upptäckte Hyper-V men bad om kontroll av Windows-funktionerna **Hyper-V** och **Windows Hypervisor Platform**. Det är inget bevis på att appen har körts. Aktuellt faktiskt testresultat står i [TESTER.md](TESTER.md).
 
-Emulatorn har därefter startats och verifierats som `emulator-5554`, `sys.boot_completed=1`. Android-prebuild har lyckats. Gradle-bygget installerar SDK 37/NDK automatiskt och är ännu inte rapporterat klart. Android 36 är emulatorns systembild; SDK-versionen som bygget använder kan vara högre.
+Emulatorn har därefter startats och verifierats som `emulator-5554`, `sys.boot_completed=1`. Android-prebuild har lyckats. Gradle installerade SDK 37, NDK 27.1 och CMake 3.22.1. Android 36 är emulatorns systembild; SDK-versionen som bygget använder kan vara högre. Ingen ny Android Studio-installation behövdes.
 
 ## Egen Android development build
 
@@ -82,6 +82,12 @@ Detta genererar Android-projektet och bygger/installerar appen lokalt. För fort
 ```powershell
 npm run dev --workspace @yehabibi/mobile
 ```
+
+### Lokal Windows-kompilering: två försök stoppade
+
+Första Gradle-försöket från `C:\Users\sharbel\Downloads\YEHABIBI` stoppades av Windows `MAX_PATH` i Reanimateds CMake/Ninja-bygge. SDK-/Java-installationen fungerade. Ett andra försök mappade samma projekt till `Y:` med `subst` och genererade om native-projektet, men codegen blandade `Y:` med ursprungliga `C:`-sökvägar och kompileringen stoppades igen.
+
+Kortare fysiska sökvägar kan vara en felsökningsåtgärd, men `subst` har inte verifierats som lösning här. Ingen extra hjälparfil eller ny Android Studio-installation behövs för att använda EAS-molnbygget nedan. Android-emulatorn fungerar separat från dessa kompileringsfel.
 
 Vid behov kan `adb reverse tcp:8081 tcp:8081` hjälpa emulatorn att nå Metro. Native-projekt genereras från `app.config.ts`; ändra i första hand den filen. Byte mellan miljöidentiteter kan kräva att native-projektet genereras på nytt enligt [Expos variantguide](https://docs.expo.dev/build-reference/variants/).
 
@@ -117,7 +123,19 @@ npx eas-cli@latest build --platform android --profile development
 npx eas-cli@latest build --platform ios --profile development
 ```
 
-För simulatorartefakt utan fysisk iPhone används `npx eas-cli@latest build --platform ios --profile ios-simulator`. Ett riktigt [iOS-simulatorbygge har startats i EAS](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/1753e7c0-e7db-4627-adb1-0d6ed520def0) och är fortfarande pågående. Det använder en snapshot före senaste mediefallbacken; senaste källa har verifierats separat med export/typkontroll. En simulatorartefakt installeras på en Mac med iOS Simulator och är inte en App Store-release.
+### Android development-APK från EAS
+
+En APK från EAS kan installeras i samma Windows-AVD. `developmentClient:true` väljer Androids debugbygge; `android.withoutCredentials:true` hoppar över EAS-hanterade releaseuppgifter. Det används tillsammans med `:app:assembleDebug`, inte för en butikssignerad release. Se [Expos profilschema](https://docs.expo.dev/eas/json/) och [APK-guiden](https://docs.expo.dev/build-reference/apk/).
+
+När sammanslagen källa och profil har verifierats startas bygget från `apps/mobile`:
+
+```powershell
+npx eas-cli@latest build --platform android --profile development --non-interactive --no-wait
+```
+
+Ingen Apple- eller Play Console-anslutning behövs för en Android debug-APK. När den är klar installeras den via EAS:s `build:run --platform android` eller `adb install` från den nedladdade APK-filen. Därefter startas Metro med `npm run dev:mobile` från roten. Aktuell status finns i [TESTER.md](TESTER.md); ett förberett kommando är ingen rapporterad build.
+
+För simulatorartefakt utan fysisk iPhone används `npx eas-cli@latest build --platform ios --profile ios-simulator`. Ett riktigt [iOS-simulatorbygge har slutförts i EAS](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/1753e7c0-e7db-4627-adb1-0d6ed520def0), version 3.0.0 (1). Det använder en snapshot före senaste mediefallbacken, systemwebbläsarändringen och V2-sammanslagningen. Slutkällans separata verifieringar redovisas i [TESTER.md](TESTER.md). En simulatorartefakt installeras på en Mac med iOS Simulator och är inte en App Store-release.
 
 En development build för fysisk iPhone kräver Apples rätta behörigheter, signering och enhetsregistrering. Windows kan starta en iOS-molnbyggning men kör inte Apples iOS Simulator eller Xcode lokalt. Se [Expos byggguide](https://docs.expo.dev/build/setup/) och [PUBLICERING.md](PUBLICERING.md).
 

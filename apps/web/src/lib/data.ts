@@ -1,7 +1,7 @@
 import 'server-only';
 import { adminDb } from '@/lib/supabase';
-import { isSupabaseReady, previewMenus, previewSettings } from '@/lib/config';
-import type { Campaign, Catalog, DeliveryZone, Dish, Menu, PaymentPreference, Settings } from '@/types/domain';
+import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
+import type { Campaign, Catalog, DeliveryZone, Dish, Menu, MenuItem, PaymentPreference, Settings } from '@/types/domain';
 import { isTestStripeKey } from '@/lib/domain';
 
 export async function getMenus(): Promise<Menu[]> {
@@ -12,9 +12,29 @@ export async function getMenus(): Promise<Menu[]> {
 }
 export async function getSettings(): Promise<Settings> {
   if (!isSupabaseReady()) return previewSettings;
-  const { data, error } = await adminDb().from('business_settings').select('*').eq('id',1).single();
-  if (error || !data) throw new Error('Kunde inte läsa inställningar');
-  return data as Settings;
+  const db = adminDb();
+  const [settings,zones,campaign] = await Promise.all([
+    db.from('business_settings').select('*').eq('id',1).single(),
+    db.from('delivery_zones').select('name,postal_prefixes,fee_ore,active,legacy_key'),
+    db.from('campaigns').select('title,description,media_url,starts_at,ends_at,active').eq('legacy_key','settings').maybeSingle()
+  ]);
+  if(settings.error || !settings.data || zones.error || campaign.error) throw new Error('Kunde inte läsa inställningar. Kontrollera migrationerna.');
+  const legacy = campaign.data;
+  const swedishDate = (value:string) => new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+  const start = legacy ? swedishDate(legacy.starts_at) : '';
+  const end = legacy ? swedishDate(legacy.ends_at) : '';
+  return {...settings.data,delivery_fee_ore:zones.data?.find(zone=>zone.legacy_key==='base')?.fee_ore ?? settings.data.delivery_fee_ore,
+    delivery_zones:(zones.data||[]).filter(zone=>zone.active && zone.legacy_key!=='base').flatMap(zone=>zone.postal_prefixes.map((prefix:string)=>({name:zone.name,postal_prefix:prefix,fee_ore:zone.fee_ore}))),
+    campaign_title:legacy?.title||'',campaign_description:legacy?.description||'',campaign_image_url:legacy?.media_url||null,
+    campaign_start_date:start && !start.startsWith('1970')?start:null,campaign_end_date:end && !end.startsWith('9999')?end:null,campaign_enabled:legacy?.active||false} as Settings;
+}
+
+/** V2-läsare använder kompatibilitetsvyn; samma priser/rätter som Expo. */
+export async function getMenuItems(): Promise<MenuItem[]> {
+  if(!isSupabaseReady()) return previewItems;
+  const {data,error} = await adminDb().from('menu_items').select('*').eq('active',true).order('sort_order');
+  if(error) throw new Error('Kunde inte läsa maträtter. Kontrollera migrationerna.');
+  return (data||[]) as MenuItem[];
 }
 
 const dishNames = ['Hummus','Tabbouleh','Ostrullar','Kebbe','Falafel','Vinblad','Kafta','Kycklingspett','Grillmix','Bröd och såser','Dessert'];
@@ -49,7 +69,7 @@ export async function getCatalog(): Promise<Catalog> {
     const db = adminDb();
     const now = new Date().toISOString();
     const [dishResult,campaignResult] = await Promise.all([
-      db.from('dishes').select('id,slug,title,description,allergens,price_ore,portion_label,image_url,active,sort_order').eq('active',true).order('sort_order'),
+      db.from('dishes').select('id,slug,title,description,allergens,price_ore,portion_label,image_url,active,sort_order,category,suggested_per_person').eq('active',true).order('sort_order'),
       db.from('campaigns').select('id,title,description,media_url,starts_at,ends_at,menu_ids,active').eq('active',true).lte('starts_at',now).gte('ends_at',now).order('starts_at')
     ]);
     if(dishResult.error || campaignResult.error) throw new Error('Kunde inte läsa katalogen. Kör V3-migrationen.');

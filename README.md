@@ -23,6 +23,8 @@ npm run dev:mobile
 
 Starta Android-emulatorn. Första gången installeras din egen **Cedar Mezze Dev** med `npm run build:android`; därefter öppnar `npm run android` appen mot utvecklingsservern. Exakta SDK-/Java-kommandon finns i [EXPO.md](docs/EXPO.md).
 
+Lokal Android-kompilering på denna Windows-dator har stoppats av CMake/Ninja-sökvägar, både från Downloads-mappen och med `subst Y:`. En kort sökväg är alltså ingen verifierad lösning här. [EXPO.md](docs/EXPO.md) beskriver EAS-alternativet för en development-APK som kan installeras i samma Android-emulator.
+
 Expo Go är ett separat alternativ: `npm run go --workspace @yehabibi/mobile`. Dess SDK-version måste passa projektet. Standardkommandona använder development build så att appens riktiga identitet kan verifieras.
 
 `EXPO_PUBLIC_API_URL` i `apps/mobile/.env.local` är:
@@ -61,6 +63,8 @@ docs/            Korta svenska förklaringar
 | [EXPO.md](docs/EXPO.md) | Expo Go, Android Studio, development build och EAS |
 | [PUBLICERING.md](docs/PUBLICERING.md) | Webb, miljöer, Google Play och App Store |
 | [TESTER.md](docs/TESTER.md) | Kommandon, faktiska resultat och återstående tester |
+
+V2:s styckrätter, portionshjälp, menykatalog, admin och gamla orderdata bevaras i uppgraderingen. Databasen kör migrationerna **0001 → 0002 → 20261017121516** i ordning; befintlig V2 hoppar över redan körda migrationer. Se [DATABAS.md](docs/DATABAS.md) för kompatibiliteten. [FIL_FOR_FIL_V2.md](docs/FIL_FOR_FIL_V2.md) och [V2_ACCEPTANS.md](docs/V2_ACCEPTANS.md) finns kvar som V2-historik, med webbens flyttade sökvägar.
 
 ## Vanliga kommandon
 

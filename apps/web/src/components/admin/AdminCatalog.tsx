@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import type { Campaign, DeliveryZone, Dish, Menu } from '@/types/domain';
+import type { Campaign, DeliveryZone, Dish, ItemCategory, Menu } from '@/types/domain';
 import { formatSek } from '@/lib/domain';
 import { uploadAdminFile } from '@/lib/browser-upload';
 
@@ -9,6 +9,7 @@ type CatalogItem = Dish | Campaign | DeliveryZone;
 type Draft = {
   id?:string; title:string; description:string; price:string; allergens:string; portion_label:string;
   media_url:string; active:boolean; sort_order:number; starts_at:string; ends_at:string; menu_ids:string[]; postal_prefixes:string;
+  category:ItemCategory; suggested_per_person:number;
 };
 function localDate(value:string) { const date = new Date(value); return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
 function draftFor(item?:CatalogItem):Draft {
@@ -19,7 +20,8 @@ function draftFor(item?:CatalogItem):Draft {
     sort_order:item && 'sort_order' in item ? item.sort_order : 10,
     starts_at:localDate(item && 'starts_at' in item ? item.starts_at : new Date().toISOString()),
     ends_at:localDate(item && 'ends_at' in item ? item.ends_at : new Date(Date.now()+7*86400000).toISOString()),
-    menu_ids:item && 'menu_ids' in item ? item.menu_ids : [],postal_prefixes:item && 'postal_prefixes' in item ? item.postal_prefixes.join(', ') : ''};
+    menu_ids:item && 'menu_ids' in item ? item.menu_ids : [],postal_prefixes:item && 'postal_prefixes' in item ? item.postal_prefixes.join(', ') : '',
+    category:item && 'category' in item ? item.category||'kalla_meze' : 'kalla_meze',suggested_per_person:item && 'suggested_per_person' in item ? item.suggested_per_person||0 : 0};
 }
 const titles:Record<Kind,string> = {dishes:'Maträtter',campaigns:'Kampanjer',delivery_zones:'Leveranszoner'};
 const split = (value:string) => value.split(',').map(part=>part.trim()).filter(Boolean);
@@ -48,7 +50,7 @@ export function AdminCatalog({initialDishes,initialCampaigns,initialZones,menus}
     const amount = Number(draft.price.replace(',','.'));
     if(kind!=='campaigns' && (!Number.isFinite(amount) || amount<0 || !draft.price.trim())) { setMessage('Ange ett giltigt pris i kronor.');return; }
     const common = {active:draft.active};
-    const value = kind==='dishes' ? {...common,title:draft.title,description:draft.description,price_ore:Math.round(amount*100),allergens:split(draft.allergens),portion_label:draft.portion_label,image_url:draft.media_url||null,sort_order:draft.sort_order}
+    const value = kind==='dishes' ? {...common,title:draft.title,description:draft.description,price_ore:Math.round(amount*100),allergens:split(draft.allergens),portion_label:draft.portion_label,image_url:draft.media_url||null,sort_order:draft.sort_order,category:draft.category,suggested_per_person:draft.suggested_per_person}
       : kind==='delivery_zones' ? {...common,name:draft.title,postal_prefixes:split(draft.postal_prefixes),fee_ore:Math.round(amount*100)}
       : {...common,title:draft.title,description:draft.description,media_url:draft.media_url||null,starts_at:new Date(draft.starts_at).toISOString(),ends_at:new Date(draft.ends_at).toISOString(),menu_ids:draft.menu_ids};
     await saveItem(value,draft.id);
@@ -89,6 +91,7 @@ export function AdminCatalog({initialDishes,initialCampaigns,initialZones,menus}
       <div className="field"><label htmlFor="catalog-name">Namn / rubrik</label><input id="catalog-name" required maxLength={100} value={draft.title} onChange={event=>update('title',event.target.value)}/></div>
       {kind!=='delivery_zones'&&<div className="field"><label htmlFor="catalog-description">Beskrivning</label><textarea id="catalog-description" maxLength={kind==='dishes'?350:500} value={draft.description} onChange={event=>update('description',event.target.value)}/></div>}
       {kind!=='campaigns'&&<div className="field"><label htmlFor="catalog-price">{kind==='dishes'?'Styckpris i kronor':'Leveransavgift i kronor'}</label><input id="catalog-price" inputMode="decimal" required value={draft.price} onChange={event=>update('price',event.target.value)}/></div>}
+      {kind==='dishes'&&<div className="field-grid"><div className="field"><label htmlFor="catalog-category">Kategori</label><select id="catalog-category" value={draft.category} onChange={event=>update('category',event.target.value as ItemCategory)}>{Object.entries({kalla_meze:'Kalla meze',varma_meze:'Varma meze',grill:'Grill',vegetariskt:'Vegetariskt',brod_saser:'Bröd och såser',dessert:'Dessert'}).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div><div className="field"><label htmlFor="catalog-suggestion">Rekommenderat antal per person</label><input id="catalog-suggestion" type="number" min={0} max={20} step={0.25} value={draft.suggested_per_person} onChange={event=>update('suggested_per_person',Number(event.target.value))}/></div></div>}
       {kind==='dishes'&&<><div className="field"><label htmlFor="catalog-portion">Portionsstorlek, exempelvis 1 spett eller 250 g</label><input id="catalog-portion" required maxLength={100} value={draft.portion_label} onChange={event=>update('portion_label',event.target.value)}/></div><div className="field"><label htmlFor="catalog-allergens">Allergener (kommatecken)</label><input id="catalog-allergens" value={draft.allergens} onChange={event=>update('allergens',event.target.value)}/></div><div className="field"><label htmlFor="catalog-sort">Sortering</label><input id="catalog-sort" type="number" min={0} max={500} value={draft.sort_order} onChange={event=>update('sort_order',Number(event.target.value))}/></div></>}
       {kind==='delivery_zones'&&<div className="field"><label htmlFor="catalog-postal">Postnummerprefix (kommatecken), exempelvis 721, 722</label><input id="catalog-postal" required value={draft.postal_prefixes} onChange={event=>update('postal_prefixes',event.target.value)}/></div>}
       {kind==='campaigns'&&<><div className="field-grid"><div className="field"><label htmlFor="campaign-start">Start (lokal tid)</label><input id="campaign-start" type="datetime-local" required value={draft.starts_at} onChange={event=>update('starts_at',event.target.value)}/></div><div className="field"><label htmlFor="campaign-end">Slut (lokal tid)</label><input id="campaign-end" type="datetime-local" required value={draft.ends_at} onChange={event=>update('ends_at',event.target.value)}/></div></div><fieldset><legend>Marknadsförda cateringpaket</legend>{menus.map(menu=><label className="checkbox-label" key={menu.id}><input type="checkbox" checked={draft.menu_ids.includes(menu.id)} onChange={event=>update('menu_ids',event.target.checked?[...draft.menu_ids,menu.id]:draft.menu_ids.filter(id=>id!==menu.id))}/>{menu.title}</label>)}</fieldset></>}

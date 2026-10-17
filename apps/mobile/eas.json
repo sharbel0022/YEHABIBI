@@ -6,7 +6,7 @@
       "distribution": "internal",
       "environment": "development",
       "env": { "APP_ENV": "development" },
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk", "withoutCredentials": true, "gradleCommand": ":app:assembleDebug" }
     },
     "ios-simulator": {
       "extends": "development",

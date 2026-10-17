@@ -69,6 +69,7 @@ V2:s URL:er finns kvar. Mapparnas flytt ändrar inte adressen `/bestall`, `/admi
 | `admin/page.tsx` | Skyddad adminöversikt |
 | `admin/orders/page.tsx` | Order, orderrader, åtgärder och betalstatus |
 | `admin/menus/page.tsx` | Paket och paketpriser |
+| `admin/ratter/page.tsx` | Bevarad V2-admin med kategori och portionshjälp för samma maträtter |
 | `admin/catalog/page.tsx` | Maträtter, kampanjer och leveranszoner i en vy |
 | `admin/settings/page.tsx` | Företagsinställningar, media och QR-länkar |
 | `auth/callback/route.ts` | Slutför Supabase-inloggningen |
@@ -82,6 +83,7 @@ V2:s URL:er finns kvar. Mapparnas flytt ändrar inte adressen `/bestall`, `/admi
 | `orders/[code]/route.ts` | Begränsad JSON-status när kod och token stämmer |
 | `admin/orders/[id]/route.ts` | Skyddade orderåtgärder, Checkout och återbetalning |
 | `admin/menus/route.ts`, `admin/menus/[id]/route.ts` | Skapar/ändrar paket |
+| `admin/items/route.ts`, `admin/items/[id]/route.ts` | Bevarat V2-API mot kompatibilitetsvyn för samma rättkatalog |
 | `admin/catalog/route.ts` | Skapar, ändrar eller avpublicerar maträtter, kampanjer och zoner |
 | `admin/settings/route.ts` | Sparar företagsinställningar |
 | `admin/upload/route.ts` | Behörighetskontrollerad mediauppladdning |
@@ -112,12 +114,13 @@ V2:s URL:er finns kvar. Mapparnas flytt ändrar inte adressen `/bestall`, `/admi
 | Fil eller grupp | Ansvar |
 | --- | --- |
 | `src/components/OrderForm.tsx` | V2:s webbformulär för cateringpaket |
+| `src/components/MenuCatalog.tsx`, `src/components/ItemPicker.tsx` | Bevarad V2-menykatalog, kategorier, portionshjälp och plus/minus |
 | `src/components/HeroMedia.tsx` | Ljudlös video, paus, minskad rörelse och bildfallback |
 | `src/components/LocalStructuredData.tsx` | Strukturerad företagsdata när indexering är aktiverad |
 | `src/components/PwaRegister.tsx` | Registrerar webbens service worker |
 | `src/components/{Brand,Header,Footer,Cta,MenuCard,SectionHeading}.tsx` | Små befintliga visuella webbdelar |
 | `src/components/admin/AdminLogin.tsx` | Begär engångslänk för inloggning |
-| `src/components/admin/{AdminNav,AdminOrders,AdminMenus,AdminSettings,AdminCatalog}.tsx` | Mobilvänliga adminvyer, formulär och serveranrop |
+| `src/components/admin/{AdminNav,AdminOrders,AdminMenus,AdminSettings,AdminCatalog,AdminItems}.tsx` | Mobilvänliga adminvyer och bevarat V2-gränssnitt för maträtter |
 | `public/images/`, `public/brand-mark.svg`, `public/icon-*.png` | Publika webb-/demobilder, logo och PWA-ikoner |
 | `public/manifest.webmanifest`, `public/sw.js` | Befintlig PWA; service worker cachar publika bildresurser, inte order/admin/API |
 | `.env.example` | Serverinställningar utan hemliga värden |
@@ -126,3 +129,5 @@ V2:s URL:er finns kvar. Mapparnas flytt ändrar inte adressen `/bestall`, `/admi
 | `postcss.config.mjs`, `package.json` | Webbens CSS-verktyg, beroenden och start-/buildkommandon |
 
 Databasmigrationerna förklaras i [DATABAS.md](DATABAS.md), kommandona i [EXPO.md](EXPO.md) och faktiska tester i [TESTER.md](TESTER.md). Konfiguration skrivs i källfilerna; genererade `.next`, `.expo`, `dist`, `android` och `ios` ska inte läsas som handskriven affärslogik.
+
+V2:s ursprungliga filguide och acceptanskrav finns kvar i [FIL_FOR_FIL_V2.md](FIL_FOR_FIL_V2.md) och [V2_ACCEPTANS.md](V2_ACCEPTANS.md). De är historik och regressionsunderlag; V3-guiden ovan beskriver den gemensamma app-/webbstrukturen.

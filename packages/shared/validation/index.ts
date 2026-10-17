@@ -1,8 +1,11 @@
 import { z } from 'zod';
 
 export const newOrderSchema = z.object({
-  menu_id: z.string().uuid().optional(),
-  items: z.array(z.object({ dish_id: z.string().uuid(), quantity: z.number().int().min(1).max(1000) })).min(1).max(50).optional(),
+  menu_id: z.string().uuid().nullish().transform(value=>value??undefined),
+  items: z.array(z.union([
+    z.object({dish_id:z.string().uuid(),quantity:z.number().int().min(1).max(1000)}),
+    z.object({item_id:z.string().uuid(),quantity:z.number().int().min(1).max(100)}).transform(({item_id,quantity})=>({dish_id:item_id,quantity}))
+  ])).max(50).optional().transform(value=>value?.length?value:undefined),
   delivery_zone_id: z.string().uuid().optional(),
   guests: z.number().int().min(1).max(1000),
   occasion: z.enum(['hemma','fest','foretag']),
@@ -21,6 +24,15 @@ export const newOrderSchema = z.object({
   website: z.string().max(0).optional() // hidden bot honeypot
 }).refine(value => Boolean(value.menu_id) !== Boolean(value.items), 'Välj ett paket eller egna maträtter.')
   .refine(value => !value.items || new Set(value.items.map(item => item.dish_id)).size === value.items.length, 'Samma maträtt får inte förekomma två gånger.');
+
+export const itemSchema = z.object({
+  title:z.string().trim().min(2).max(90),description:z.string().trim().max(350),
+  category:z.enum(['kalla_meze','varma_meze','grill','vegetariskt','brod_saser','dessert']),
+  unit_label:z.string().trim().min(1).max(35),unit_price_ore:z.number().int().min(0).max(1000000),
+  suggested_per_person:z.number().min(0).max(20),allergens:z.array(z.string().trim().max(80)).max(30),
+  image_url:z.union([z.url(),z.string().regex(/^\/images\/[\w.-]+$/),z.literal(''),z.null()]).optional(),
+  active:z.boolean(),sort_order:z.number().int().min(0).max(500)
+});
 
 export const menuSchema = z.object({
   title:z.string().trim().min(2).max(100), description:z.string().trim().max(350),
@@ -47,7 +59,19 @@ export const settingsSchema = z.object({
   tiktok_url:z.union([z.url(),z.literal(''),z.null()]).optional(),
   delivery_enabled:z.boolean(), pickup_enabled:z.boolean(),cash_enabled:z.boolean(),
   delivery_fee_ore:z.number().int().min(0).max(10000000),
-  min_advance_days:z.number().int().min(0).max(90)
+  min_advance_days:z.number().int().min(0).max(90),
+  custom_min_people:z.number().int().min(1).max(100),
+  delivery_zones:z.array(z.object({
+    name:z.string().trim().min(2).max(80),
+    postal_prefix:z.string().regex(/^\d{1,5}$/),
+    fee_ore:z.number().int().min(0).max(1000000)
+  })).max(100).refine(zones=>new Set(zones.map(zone=>zone.postal_prefix)).size===zones.length,'Samma postnummerprefix får inte upprepas.'),
+  campaign_title:z.string().trim().max(120),
+  campaign_description:z.string().trim().max(350),
+  campaign_image_url:z.union([z.url(),z.string().regex(/^\/images\/[\w.-]+$/),z.literal(''),z.null()]).optional(),
+  campaign_start_date:z.union([z.iso.date(),z.literal(''),z.null()]).optional(),
+  campaign_end_date:z.union([z.iso.date(),z.literal(''),z.null()]).optional(),
+  campaign_enabled:z.boolean()
 });
 export const adminActionSchema = z.object({
   action: z.enum(['approve','reject','request_changes','preparing','ready','complete','cash_paid','refund','payment_link']),
@@ -59,7 +83,9 @@ export const dishSchema = z.object({
   title:z.string().trim().min(2).max(100), description:z.string().trim().max(350),
   allergens:z.array(z.string().trim().min(1).max(80)).max(30),
   price_ore:z.number().int().min(0).max(10000000), portion_label:z.string().trim().min(1).max(100),
-  image_url:mediaUrl, active:z.boolean(), sort_order:z.number().int().min(0).max(500)
+  image_url:mediaUrl, active:z.boolean(), sort_order:z.number().int().min(0).max(500),
+  category:z.enum(['kalla_meze','varma_meze','grill','vegetariskt','brod_saser','dessert']).optional(),
+  suggested_per_person:z.number().min(0).max(20).optional()
 });
 export const zoneSchema = z.object({
   name:z.string().trim().min(2).max(100), postal_prefixes:z.array(z.string().regex(/^\d{1,5}$/)).min(1).max(100),

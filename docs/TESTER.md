@@ -17,6 +17,10 @@ npm run export:mobile
 
 Här skiljs körda kontroller från pågående byggen och tester som behöver externa konton. **Pågående är inte ett godkänt resultat.**
 
+**Versionsgräns:** Resultaten nedan gäller V3-källan före den senaste sammanslagningen av V2 från `origin/main`, om inget annat anges. Den sammanslagna slutversionen behöver en ny full kontrollomgång; tidigare gröna resultat förs inte automatiskt över.
+
+**Sammanslagen V2 + V3:** Ny full `npm run verify` och databasmigreringstest är ännu inte rapporterade klara.
+
 | Kontroll | Resultat |
 | --- | --- |
 | `npm install` | Godkänd utan `--force` eller `--legacy-peer-deps` |
@@ -30,17 +34,20 @@ Här skiljs körda kontroller från pågående byggen och tester som behöver ex
 | Expo Doctor | 20 av 20 kontroller godkända |
 | Android prebuild | Godkänd |
 | Android-emulator | `emulator-5554` startad, `sys.boot_completed=1` |
-| Android `assembleDebug` | Pågår; Gradle installerar SDK 37/NDK |
+| Lokal Android `assembleDebug` | Båda försöken stoppade: först `MAX_PATH`, sedan blandade `Y:`/`C:`-sökvägar med `subst` |
+| Android EAS development-APK | Förberedelse verifierad i docs/CLI-schema; build ännu inte startad |
 | Appens UI i Android-emulator | Ännu ej verifierat; startad emulator är ett separat resultat |
 | EAS-konto och projekt | `whoami` och `project:info` godkända; rätt konto `sharbel1423` och projekt-id |
-| iOS EAS simulatorbuild | Startad, `IN_PROGRESS`; [öppna bygget](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/1753e7c0-e7db-4627-adb1-0d6ed520def0) |
+| iOS EAS simulatorbuild | **FINISHED**, Expo SDK 58, app 3.0.0 (1), `se.cedarmezze.app.dev`; [öppna bygget](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/1753e7c0-e7db-4627-adb1-0d6ed520def0) |
 | SQL/RLS lokalt | Godkänt i PGlite med Supabase-plattformens roller/scheman ersatta i testet |
 | Stripe sandbox, mejl, riktig Supabase | Ännu ej verifierade mot företagets tjänster |
 | Fysisk iPhone/Android, Apple Pay och Swish | Ännu ej verifierade |
 
 Miljögranskningen hittade Android Studio, Android 36-AVD och Studio-JDK. Första nätverkskontrollerna i begränsad miljö fick DNS-fel; installation och EAS-inloggning lyckades sedan med fungerande nätverksåtkomst. Första Expo-exporten fick ett behörighetsfel för Hermes temporära filer. Omkörning med `TEMP` och `TMP` till appens `.expo/tmp` lyckades. Emulatorn startade senare korrekt trots den inledande varningen från `emulator -accel-check`.
 
-iOS-bygget ovan har id `1753e7c0-e7db-4627-adb1-0d6ed520def0` och bygger en snapshot från före den senaste mediefallbacken. Senaste källan har exporterats och typkontrollerats separat. Ett lyckat äldre molnbygge bekräftar därför inte automatiskt senaste ändringarna.
+Android-försöket installerade SDK 37, NDK 27.1 och CMake 3.22.1 korrekt men nådde Windows sökvägsgräns i Reanimateds native-bygge. Projektet mappades därför till korta `Y:` och prebuild därifrån lyckades. Även Gradle-omkörningen stoppades när codegen blandade `Y:` och `C:`. `subst` är alltså ingen verifierad fix. Inga globala Java-miljövariabler ändrades. Android EAS-debugbygge för emulatorn förbereds separat.
+
+iOS-bygget ovan har id `1753e7c0-e7db-4627-adb1-0d6ed520def0` och slutfördes 2026-10-17 kl. 14:29 svensk tid. Det bygger en snapshot före den senaste mediefallbacken, bytet till systemwebbläsare för Checkout och V2-sammanslagningen. Medie-/webbläsarändringarna exporterades och typkontrollerades separat. Ett lyckat äldre molnbygge bekräftar därför inte automatiskt slutkällan efter V2-sammanslagningen.
 
 ### Lokala HTTP-kontroller som körts
 
@@ -84,6 +91,8 @@ Checkout-testen använder en kontrollerad Stripe-ersättning: öppen session åt
 ## Manuell kontroll med anslutna testtjänster
 
 Använd en separat testdatabas och Stripe sandbox. Dessa kontroller bekräftar hela orderflödet.
+
+Vid uppgradering från V2: lägg först in representativa rätter, kategorier, portionshjälp, order med `items_snapshot`, postnummerzoner och kampanj i en testdatabas med 0001 + 0002. Kör sedan V3-migrationen och kontrollera att id:n, historiska belopp och inställningar finns kvar. Redigera en rätt via V2-admin och kontrollera samma värde i Expo och V3-admin. Den gamla ordern ska behålla sitt historiska pris.
 
 1. Öppna webben och Expo. Kontrollera demo när backend saknas och att formuläret då är stängt.
 2. Lägg in ett testpaket och enskilda maträtter. Ändra serverpriset efter klientens kataloghämtning och kontrollera att ordern får serverns aktuella pris.

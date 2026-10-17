@@ -163,5 +163,13 @@ export const demoCatalog: Catalog = {
     cash_enabled: false,
     delivery_fee_ore: 0,
     min_advance_days: 2,
+    custom_min_people: 5,
+    delivery_zones: [],
+    campaign_title: '',
+    campaign_description: '',
+    campaign_image_url: null,
+    campaign_start_date: null,
+    campaign_end_date: null,
+    campaign_enabled: false,
   },
 };

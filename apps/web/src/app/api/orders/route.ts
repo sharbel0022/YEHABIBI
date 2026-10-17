@@ -48,6 +48,7 @@ async function createOrder(request: Request) {
     if(input.guests < menu.min_people) return jsonError(`Den här menyn kräver minst ${menu.min_people} personer.`);
     prices = calcTotal(menu.price_ore,input.guests,input.fulfillment,fee);
   } else {
+    if(input.guests < settings.custom_min_people) return jsonError(`Minst ${settings.custom_min_people} personer krävs för en egen meny.`);
     const {data:dishes,error} = await db.from('dishes').select('id,title,price_ore,active').in('id',input.items!.map(item=>item.dish_id)).eq('active',true);
     if(error) return jsonError('Kunde inte läsa maträtter.',503);
     try { prices = calcDishTotal(input.items!,dishes as Dish[],input.guests,input.fulfillment,fee); }

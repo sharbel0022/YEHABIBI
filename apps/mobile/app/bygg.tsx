@@ -17,13 +17,13 @@ export default function Builder() {
           <Text style={s.heading}>Antal personer</Text>
           <Stepper
             value={selection.guests}
-            min={1}
+            min={catalog.settings.custom_min_people}
             label="personer"
             onChange={(difference) => setGuests(selection.guests + difference)}
           />
         </View>
         <Choices
-          values={[5, 8, 10, 20].map((value) => ({ value: String(value), label: `${value} personer` }))}
+          values={[5, 8, 10, 20].filter(value => value >= catalog.settings.custom_min_people).map((value) => ({ value: String(value), label: `${value} personer` }))}
           selected={String(selection.guests)}
           onSelect={(value) => setGuests(Number(value))}
         />
