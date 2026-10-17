@@ -1,25 +1,37 @@
 import { z } from 'zod';
+import { orderLimits } from '../limits.ts';
+
+export const eventTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+export function isValidEventTime(value: string) { return eventTimePattern.test(value); }
+
+const contactFields = {
+  full_name: z.string().trim().min(2).max(120),
+  email: z.email().max(200),
+  phone: z.string().trim().min(7).max(30).regex(/^[+\d()\s-]+$/),
+  notes: z.string().trim().max(1000).default(''),
+};
+export const orderContactSchema = z.object(contactFields);
 
 export const newOrderSchema = z.object({
   request_id:z.string().uuid().optional(),
   menu_id: z.string().uuid().nullish().transform(value=>value??undefined),
   items: z.array(z.union([
-    z.object({dish_id:z.string().uuid(),quantity:z.number().int().min(1).max(1000)}),
+    z.object({dish_id:z.string().uuid(),quantity:z.number().int().min(1).max(orderLimits.maxQuantity)}),
     z.object({item_id:z.string().uuid(),quantity:z.number().int().min(1).max(100)}).transform(({item_id,quantity})=>({dish_id:item_id,quantity}))
-  ])).max(50).optional().transform(value=>value?.length?value:undefined),
+  ])).max(orderLimits.maxDishes).optional().transform(value=>value?.length?value:undefined),
   delivery_zone_id: z.string().uuid().optional(),
-  guests: z.number().int().min(1).max(1000),
+  guests: z.number().int().min(orderLimits.minGuests).max(orderLimits.maxGuests),
   occasion: z.enum(['hemma','fest','foretag']),
   event_date: z.iso.date(),
-  event_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  event_time: z.string().regex(eventTimePattern),
   fulfillment: z.enum(['delivery','pickup']),
   address: z.string().trim().max(220).default(''),
   postal_code: z.string().trim().max(15).default(''),
   city: z.string().trim().max(100).default(''),
-  full_name: z.string().trim().min(2).max(120),
-  email: z.email().max(200),
-  phone: z.string().trim().min(7).max(30).regex(/^[+\d()\s-]+$/),
-  notes: z.string().trim().max(1000).default(''),
+  full_name: contactFields.full_name,
+  email: contactFields.email,
+  phone: contactFields.phone,
+  notes: contactFields.notes,
   payment_preference: z.enum(['swish','card','apple_pay','cash']),
   terms_accepted: z.literal(true),
   website: z.string().max(0).optional() // hidden bot honeypot

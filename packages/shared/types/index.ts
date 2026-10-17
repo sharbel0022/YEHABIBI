@@ -54,6 +54,21 @@ export type OrderInput = {
   full_name: string; email: string; phone: string; notes: string;
   payment_preference: PaymentPreference; terms_accepted: true; website?: string;
 };
+/** Bara menyval sparas i ett utkast. Priser läses alltid från den aktuella katalogen. */
+export type MenuSelection = {
+  menuId: string | null;
+  quantities: Record<string, number>;
+  guests: number;
+  occasion: Occasion;
+};
+export type OrderContactInput = Omit<OrderInput, 'request_id' | 'menu_id' | 'items' | 'guests' | 'occasion' | 'terms_accepted'> & {
+  terms_accepted: boolean;
+};
+export type OrderPayload = Omit<OrderInput, 'terms_accepted'> & { terms_accepted: boolean };
+export type OrderReference = { code: string; token: string };
+export type OrderReceipt = OrderReference & { tracking_url: string };
+export type OrderStatusResponse = { order: PublicOrder };
+export type PushRegistrationResponse = { registered: true };
 /** Ursprungliga rader bevaras. Förslaget visar en uttrycklig prisjustering. */
 export type OrderProposal = {
   revision:number; message:string; subtotal_ore:number; delivery_fee_ore:number;

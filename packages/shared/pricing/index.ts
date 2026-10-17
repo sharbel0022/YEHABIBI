@@ -1,4 +1,5 @@
 import type { DeliveryZone, Dish, DishSelection, Fulfillment, Occasion, OrderLine, OrderStatus, PaymentPreference, PaymentStatus } from '../types/index.ts';
+import { orderLimits } from '../limits.ts';
 
 export const occasions: Record<Occasion, string> = {
   hemma: 'Hemma', fest: 'Fest', foretag: 'Företag'
@@ -23,7 +24,7 @@ export function calcTotal(priceOre: number, guests: number, fulfillment: Fulfill
   const subtotal = priceOre * guests;
   const delivery = fulfillment === 'delivery' ? deliveryFeeOre : 0;
   const total = subtotal + delivery;
-  if (!Number.isSafeInteger(total) || total > 100000000) throw new Error('Belopp för högt');
+  if (!Number.isSafeInteger(total) || total > orderLimits.maxOrderTotalOre) throw new Error('Belopp för högt');
   return { subtotal_ore: subtotal, delivery_fee_ore: delivery, total_ore: total };
 }
 
@@ -40,11 +41,11 @@ export function calcItemsTotal(
     if (!Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 100 ||
         !Number.isSafeInteger(item.unit_price_ore) || item.unit_price_ore < 0) throw new Error('Ogiltig maträtt');
     subtotal += item.quantity * item.unit_price_ore;
-    if (!Number.isSafeInteger(subtotal) || subtotal > 100000000) throw new Error('Belopp för högt');
+    if (!Number.isSafeInteger(subtotal) || subtotal > orderLimits.maxOrderTotalOre) throw new Error('Belopp för högt');
   }
   const fee = fulfillment === 'delivery' ? deliveryFeeOre : 0;
   const total = subtotal + fee;
-  if (!Number.isSafeInteger(total) || total > 100000000) throw new Error('Belopp för högt');
+  if (!Number.isSafeInteger(total) || total > orderLimits.maxOrderTotalOre) throw new Error('Belopp för högt');
   return {subtotal_ore:subtotal,delivery_fee_ore:fee,total_ore:total,per_person_ore:Math.round(total/guests)};
 }
 
@@ -80,11 +81,11 @@ export function canTransition(status: OrderStatus, action: string, payment: Paym
 
 /** Alla belopp lagras i heltalsöre. Delbelopp per person kan behöva avrundas. */
 export function calcDishTotal(items: DishSelection[], dishes: Dish[], guests: number, fulfillment: Fulfillment, deliveryFeeOre: number) {
-  if (!Number.isSafeInteger(guests) || guests < 1 || guests > 1000 || !items.length || items.length > 50) throw new Error('Ogiltigt antal');
+  if (!Number.isSafeInteger(guests) || guests < orderLimits.minGuests || guests > orderLimits.maxGuests || !items.length || items.length > orderLimits.maxDishes) throw new Error('Ogiltigt antal');
   const seen = new Set<string>();
   const lines: OrderLine[] = items.map(item => {
     const dish = dishes.find(row => row.id === item.dish_id && row.active);
-    if (!dish || seen.has(item.dish_id) || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 1000 || !Number.isSafeInteger(dish.price_ore) || dish.price_ore <= 0) throw new Error('Ogiltig maträtt eller mängd');
+    if (!dish || seen.has(item.dish_id) || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > orderLimits.maxQuantity || !Number.isSafeInteger(dish.price_ore) || dish.price_ore <= 0) throw new Error('Ogiltig maträtt eller mängd');
     seen.add(item.dish_id);
     return { dish_id: dish.id, menu_id: null, title: dish.title, quantity: item.quantity, unit_price_ore: dish.price_ore, total_ore: dish.price_ore * item.quantity };
   });
