@@ -1,6 +1,5 @@
-import { stripeClient } from '@/lib/payments';
 import { adminDb } from '@/lib/supabase';
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import { deliverPaymentNotifications } from '@/lib/mailer';
 
 export const runtime='nodejs';
@@ -12,7 +11,7 @@ export async function POST(request:Request) {
   const secret=process.env.STRIPE_WEBHOOK_SECRET;
   if(!signature||!secret)return new Response('Webhook not configured',{status:400});
   let event: Stripe.Event;
-  try{event=stripeClient().webhooks.constructEvent(await request.text(),signature,secret);}
+  try{event=Stripe.webhooks.constructEvent(await request.text(),signature,secret);}
   catch{return new Response('Bad Stripe signature',{status:400});}
   if(event.livemode && process.env.STRIPE_LIVE_ENABLED!=='true') return new Response('Live payments disabled',{status:400});
   const db=adminDb();

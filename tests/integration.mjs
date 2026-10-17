@@ -40,14 +40,23 @@ async function run() {
   const command=(file,args,input)=>{
     const result=spawnSync(file,args,{env,input,encoding:'utf8',windowsHide:true,
       ...(path.basename(file).startsWith('pg_ctl')?{stdio:'ignore'}:{})});
-    assert.equal(result.status,0,`${path.basename(file)}: ${result.stderr||result.stdout||result.error}`);
+    const pgLog=path.join(directory,'postgres.log');
+    const diagnostics=result.status!==0&&path.basename(file).startsWith('pg_ctl')&&fs.existsSync(pgLog)?fs.readFileSync(pgLog,'utf8').slice(-8000):'';
+    assert.equal(result.status,0,`${path.basename(file)}: ${result.stderr||result.stdout||result.error||''}\n${diagnostics}`);
     return (result.stdout||'').trim();
   };
   const sql=text=>command(executable('psql'),['-h','127.0.0.1','-p',String(pgPort),'-U','postgres','-d','postgres','-X','-qAt','-v','ON_ERROR_STOP=1'],text);
   const background=(file,args,extraEnv={},cwd=root)=>{
     const child=spawn(file,args,{cwd,env:{...env,...extraEnv},windowsHide:true,stdio:['ignore','pipe','pipe']});
-    const log=fs.createWriteStream(path.join(directory,`process-${processes.length}.log`));
+    const log=fs.createWriteStream(path.join(directory,`process-${logs.length}.log`));
     child.stdout.pipe(log);child.stderr.pipe(log);processes.push(child);logs.push(log);return child;
+  };
+  const stopProcess=async child=>{
+    if(child.exitCode!==null||child.signalCode!==null)return;
+    const exited=new Promise(resolve=>child.once('exit',resolve));
+    if(process.platform==='win32')spawnSync('taskkill',['/pid',String(child.pid),'/t','/f'],{windowsHide:true,stdio:'ignore'});
+    else child.kill('SIGTERM');
+    await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,5000).unref())]);
   };
   const wait=async url=>{
     for(let attempt=0;attempt<180;attempt++) {
@@ -76,7 +85,7 @@ async function run() {
   const json=(response,status,data)=>{response.writeHead(status,{'Content-Type':'application/json'});response.end(JSON.stringify(data));};
   try {
     command(executable('initdb'),['-D',pgData,'-U','postgres','--auth=trust','--no-locale','-E','UTF8']);
-    command(executable('pg_ctl'),['-D',pgData,'-l',path.join(directory,'postgres.log'),'-o',`-p ${pgPort} -h 127.0.0.1 -c shared_buffers=16MB -c max_connections=40`,'-w','start']);pgStarted=true;
+    command(executable('pg_ctl'),['-D',pgData,'-l',path.join(directory,'postgres.log'),'-o',`-p ${pgPort} -h 127.0.0.1 -c shared_buffers=16MB -c max_connections=40${process.platform==='win32'?'':' -c unix_socket_directories='}`,'-w','start']);pgStarted=true;
     sql(`create role anon;create role authenticated;create role service_role bypassrls;
       create schema auth;create table auth.users(id uuid primary key);
       create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -124,13 +133,14 @@ async function run() {
       } catch(error){json(response,500,{error:error.message});}
     });
     await new Promise(resolve=>bridge.listen(bridgePort,'127.0.0.1',resolve));
-    background(process.execPath,[path.join(root,'node_modules/next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port',String(webPort)],{
+    const startWeb=(payments='true')=>background(process.execPath,[path.join(root,'node_modules/next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port',String(webPort)],{
       NODE_OPTIONS:`--import=${import.meta.url}`,YEHABIBI_TEST_BRIDGE:bridgeUrl,NEXT_TELEMETRY_DISABLED:'1',
       NEXT_PUBLIC_SITE_URL:origin,NEXT_PUBLIC_SUPABASE_URL:bridgeUrl,NEXT_PUBLIC_SUPABASE_ANON_KEY:anon,SUPABASE_SERVICE_ROLE_KEY:service,
-      ORDERS_ENABLED:'true',PAYMENTS_ENABLED:'true',STRIPE_SECRET_KEY:'sk_test_isolated_fixture',STRIPE_WEBHOOK_SECRET:webhookSecret,STRIPE_SWISH_ENABLED:'false',STRIPE_LIVE_ENABLED:'false',
+      ORDERS_ENABLED:'true',PAYMENTS_ENABLED:payments,STRIPE_SECRET_KEY:'sk_test_isolated_fixture',STRIPE_WEBHOOK_SECRET:webhookSecret,STRIPE_SWISH_ENABLED:'false',STRIPE_LIVE_ENABLED:'false',
       RESEND_API_KEY:'re_isolated_fixture',EMAIL_FROM:'Yehabibi Test <orders@example.test>',OWNER_NOTIFICATION_EMAIL:ownerEmail,ADMIN_EMAILS:ownerEmail,
       ORDER_LINK_SECRET:'isolated-order-link-secret-minimum-32-characters',ORDER_RATE_LIMIT_SECRET:'isolated-order-rate-secret-minimum-32-characters',OWNER_PUSH_ENABLED:'false',CUSTOMER_PUSH_ENABLED:'false'
     },path.join(root,'apps/web'));
+    let webProcess=startWeb();
     await wait(`${origin}/api/health`);
     const call=async(url,method='GET',value,auth=false)=>{const response=await fetch(`${origin}${url}`,{method,headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{} )},...(value?{body:JSON.stringify(value)}:{})});return {status:response.status,data:await response.json()};};
     const event=async(type,session,id=`evt_${randomUUID()}`)=>{
@@ -227,10 +237,21 @@ async function run() {
     assert.equal(sql(`select payment_status from public.orders where id='${expiringId}'`),'pending');
     const denied=await fetch(`${bridgeUrl}/rest/v1/orders`,{headers:{Authorization:`Bearer ${anon}`,apikey:anon}});assert.ok([401,403].includes(denied.status));
     const deniedAuthenticated=await fetch(`${bridgeUrl}/rest/v1/orders`,{headers:{Authorization:`Bearer ${admin}`,apikey:anon}});assert.equal(deniedAuthenticated.status,403);
+    // Stäng av nya betalningar i en ny serverprocess; gamla signerade händelser ska ändå avstämmas.
+    await stopProcess(webProcess);processes.splice(processes.indexOf(webProcess),1);
+    webProcess=startWeb('false');await wait(`${origin}/api/health`);
+    const sessionCount=sessions.size;
+    assert.equal((await call('/api/admin/orders/'+expiringId,'PATCH',{action:'payment_link'},true)).status,503);
+    assert.equal((await call('/api/orders','POST',{...input,request_id:randomUUID(),email:'disabled@example.test'})).status,503);
+    assert.equal(sessions.size,sessionCount);assert.equal((await call('/api/catalog')).data.payment_methods.includes('card'),false);
+    const finalSession=sessions.get(sql(`select stripe_checkout_session_id from public.orders where id='${expiringId}'`));
+    await event('checkout.session.completed',{...finalSession,status:'complete',payment_status:'paid',payment_intent:'pi_disabled_issuance_fixture'});
+    assert.equal(sql(`select payment_status from public.orders where id='${expiringId}'`),'paid');
+    assert.equal((await fetch(`${origin}/api/stripe/webhook`,{method:'POST',headers:{'stripe-signature':'invalid'},body:'{}'})).status,400);
     process.stdout.write(`LOCAL INTEGRATION PASSED ${JSON.stringify({orders:Number(sql('select count(*) from public.orders')),mailDeliveries:mails.size,externalAuth:false,externalStripe:false,externalEmail:false})}\n`);
     if(process.argv.includes('--keep')) await new Promise(resolve=>{stopKeeping=resolve;process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   } finally {
-    for(const child of processes.reverse()){if(process.platform==='win32')spawnSync('taskkill',['/pid',String(child.pid),'/t','/f'],{windowsHide:true,stdio:'ignore'});else child.kill('SIGTERM');}
+    for(const child of processes.reverse())await stopProcess(child);
     if(bridge)await new Promise(resolve=>bridge.close(resolve));
     for(const log of logs)log.end();
     if(pgStarted)command(executable('pg_ctl'),['-D',pgData,'-m','fast','-w','stop']);

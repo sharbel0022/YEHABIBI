@@ -110,7 +110,7 @@ export function Screen({ children, title, intro, footer }: PropsWithChildren<{ t
   }, []);
   return (
     <SafeAreaView style={s.screen} edges={['left', 'right']}>
-      <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
         keyboardVerticalOffset={insets.top + 44}>
       <ScrollView
         keyboardShouldPersistTaps="handled"

@@ -41,3 +41,8 @@ jobs:
           echo "PG_BIN=$(dirname "$(find /usr/lib/postgresql -path '*/bin/initdb' | sort -V | tail -n 1)")" >> "$GITHUB_ENV"
       - name: Real PostgreSQL, PostgREST and Next HTTP flow
         run: npm run test:integration
+      - name: Database test diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          find .tmp -path '*/integration-*/postgres.log' -o -path '*/integration-*/process-*.log' | while IFS= read -r file; do tail -n 60 "$file"; done
