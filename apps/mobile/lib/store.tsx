@@ -20,6 +20,7 @@ type Store = {
   catalog: Catalog;
   loading: boolean;
   notice: string;
+  catalogError: string;
   refresh: () => Promise<void>;
   selection: Selection;
   setGuests: (value: number) => void;
@@ -47,6 +48,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
   const [catalog, setCatalog] = useState(demoCatalog);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
+  const [catalogError, setCatalogError] = useState('');
   const [storageNotice, setStorageNotice] = useState('');
   const [references, setReferences] = useState<OrderReference[]>([]);
   const [draftReady, setDraftReady] = useState(false);
@@ -60,20 +62,22 @@ export function CateringProvider({ children }: PropsWithChildren) {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setCatalogError('');
     try {
       const next = await getCatalog();
       setCatalog(next);
       setCatalogVerified(!next.demo);
       setNotice(
         next.demo
-          ? 'Demonstration: beställningar är stängda tills ägaren har konfigurerat och verifierat tjänsten.'
+          ? 'Förhandsvisning: köket har ännu inte publicerat verifierade priser och öppnat riktiga beställningar. Inget kan skickas eller betalas här ännu.'
           : '',
       );
     } catch (error) {
       // Gammal prislista får aldrig användas för en beställning när API:t är nere.
       setCatalog((previous) => ({ ...previous, orders_enabled: false }));
       setCatalogVerified(false);
-      setNotice(error instanceof Error ? error.message : 'Servern är inte tillgänglig.');
+      setNotice('');
+      setCatalogError(error instanceof Error ? error.message : 'Menyn kunde inte hämtas. Försök igen.');
     } finally {
       setLoading(false);
     }
@@ -136,6 +140,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
     catalog,
     loading,
     notice,
+    catalogError,
     refresh,
     selection,
     references,

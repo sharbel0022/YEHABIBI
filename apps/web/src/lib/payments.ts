@@ -6,10 +6,11 @@ import { trackingLink } from '@/lib/tracking';
 import { resolveCheckout } from '@/lib/checkout';
 
 export function stripeClient() {
+  if(process.env.PAYMENTS_ENABLED!=='true') throw new Error('Onlinebetalningar är avstängda.');
   const key = process.env.STRIPE_SECRET_KEY;
   const liveAllowed = process.env.STRIPE_LIVE_ENABLED === 'true' && /^(sk|rk)_live_/.test(key || '');
   if (!key || (!isTestStripeKey(key) && !liveAllowed)) throw new Error('Anslut en Stripe-testnyckel. Livebetalningar är avstängda.');
-  return new Stripe(key);
+  return new Stripe(key,{httpClient:Stripe.createFetchHttpClient()});
 }
 
 /** Only the owner can trigger this after manually approving an order. */

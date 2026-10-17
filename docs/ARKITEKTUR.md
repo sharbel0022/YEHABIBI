@@ -1,4 +1,4 @@
-# Arkitektur i V4
+# Arkitektur i V4.1
 
 Vi behåller en databas och ett ordersystem för Expo, webb och admin. V4 förbättrar befintlig kod i stället för att lägga till separata system.
 
@@ -41,7 +41,7 @@ Frontend visar en uppskattning med samma regler som servern. Servern läser allt
 
 ## Förfrågan och ändringsförslag
 
-Kunden väljer mat → datum/plats → kontakt/kontroll → skickar förfrågan. Menyval sparas utan kontaktuppgifter. Ett stabilt `request_id` och databaskontroll hindrar dubbla order vid dubbeltryck/återförsök.
+Kunden väljer mat → datum/leverans → kontakt → bekräftar förfrågan. Menyval sparas utan kontaktuppgifter. Ett stabilt `request_id` och databaskontroll hindrar dubbla order vid dubbeltryck/återförsök. Mobilen sparar bara SHA-256 och UUID för samma inskick efter omstart, aldrig formulärets kontakttext. Äldre native-byggen utan Expo Crypto får en sessionsnyckel och tydlig begränsning.
 
 Ägaren granskar och godkänner före betalning. Ett prisförslag sparas separat med förklaring, revisionsnummer och total. Kunden måste uttryckligen acceptera rätt revision via sin privata token. Det ursprungliga priset och orderraderna finns kvar för spårbarhet; en godkänd justering redovisas separat.
 
@@ -49,7 +49,9 @@ Order- och betalningsstatus är olika fält. Bara signerad Stripe-webhook kan ma
 
 ## Notifieringar och privata data
 
-Resend skickar order- och statusmejl när tjänsten är konfigurerad. Expo Push används för registrerade enheter. Kundens tokenregistrering skyddas av orderns privata åtkomsttoken; ägarens registrering kräver verifierad adminsession. Native registrering finns i appen men fjärrpush fungerar inte i Expo Go. FCM/APNs och faktisk leverans måste provas i företagets miljö.
+PostgreSQL köar order-, pris-, status- och betalningsbesked i samma transaktion som ändringen. Händelsens snapshot gör återförsöket stabilt; kund och ägare kvitteras var för sig med Resend-idempotens. Ordern finns kvar även om ett mejl misslyckas. Nästa relevanta anrop eller adminens återsändning försöker igen; ingen fristående bakgrundsarbetare är konfigurerad. Ägarens nya ordermejl innehåller kontakt, adress, rättmängder/paket, datum, belopp och betalningsönskemål.
+
+Expo Push används för registrerade enheter. Kundens tokenregistrering skyddas av orderns privata åtkomsttoken; ägarens registrering kräver verifierad adminsession. Fjärrpush fungerar inte i Expo Go. FCM/APNs och faktisk leverans måste provas i företagets miljö.
 
 Mobilen sparar högst 20 privata orderreferenser i SecureStore på iOS/Android; Expo Web använder sessionStorage. Webbens privata status kräver samma kod/token. Länken är en behörighetsnyckel och ska inte skickas till analysverktyg.
 

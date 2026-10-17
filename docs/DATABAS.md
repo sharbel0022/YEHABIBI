@@ -7,8 +7,10 @@ Supabase kör PostgreSQL. Webben, mobilappen och admin använder samma server-AP
 1. `supabase/migrations/0001_cedar_mezze.sql` är grunden: inställningar, paket, order, betalningshändelser, spamgräns och mediabucket.
 2. `supabase/migrations/0002_cedar_mezze_v2.sql` är V2:s ursprungliga tillägg: `menu_items`, ordernas JSON-snapshot och företagsinställningar för kampanjer/leverans.
 3. `supabase/migrations/20261017121516_v3_catalog_and_orders.sql` uppgraderar vidare till delad katalog, atomära orderrader, leveranszoner, kampanjer och frivilliga ägar-pushtokens. Den lägger också till orderstatusen `preparing` och behåller V2-data.
+4. `20261017135737_v4_order_review_and_notifications.sql` lägger till återförsök, prisrevisioner, kundacceptans och betalningsnotiser.
+5. `20261017192114_v41_notifications_and_settings.sql` köar alla orderbesked, bevarar moderna zoner/arkiverad grundzon och rättar webhookåterförsök efter sessionsbyte.
 
-På en tom testdatabas körs alla tre i ordning. På en befintlig V2-databas där 0001 och 0002 redan körts tillämpas bara V3-migrationen efter backup. Kör inte filerna upprepade gånger: de är versionsändringar, inte seed som ska köras vid varje start. Använd företagets Supabase SQL Editor eller projektets ordinarie migrationsflöde. Lokalt testad SQL är inte bevis på att den har applicerats i företagets databas; se [TESTER.md](TESTER.md).
+På en tom testdatabas körs alla fem i ordning. På en befintlig databas tillämpas endast saknade migrationer efter backup. Kör inte filerna upprepade gånger: de är versionsändringar, inte seed vid varje start. Lokalt testad SQL är inte bevis på att den har applicerats i företagets databas; se [TESTER.md](TESTER.md). Inga migrationer har körts i det anslutna inaktiva projektet.
 
 ## Tabeller och relationer
 
@@ -80,7 +82,7 @@ Migrationen `20261017135737_v4_order_review_and_notifications.sql` körs efter V
 | `proposal`, `quote_history` | Förklaring, föreslaget belopp och historik; nuvarande pris ändras först vid kundacceptans |
 | `price_adjustment_ore` | Godkänd ändring redovisas separat från ursprungliga orderrader |
 | `order_push_tokens` | Upp till fem Expo-enheter per privat order, med leveranskvitton |
-| `order_notifications` | Beständig kö för betalningsbesked; mottagare kvitteras separat och pushansvar tas en gång |
+| `order_notifications` | Beständig kö för alla orderbesked; serverprivat snapshot, separat kvittens per mottagare och ett pushansvar |
 
 `propose_catering_change` och `accept_catering_change` låser orderraden. Gamla revisioner avvisas, dubbel acceptans skapar inte ny offert och Checkout blockeras tills accepterad revision matchar. Orderraderna behåller ursprungliga priser. `subtotal_ore` innehåller därefter den godkända justeringen; när justeringen visas separat visar UI matens ursprungsbelopp så summeringen stämmer.
 
@@ -88,6 +90,8 @@ Migrationen `20261017135737_v4_order_review_and_notifications.sql` körs efter V
 
 Nya orderstatusar är `reviewing` (under granskning) och `dispatched` (på väg). Godkänd/väntar på betalning/betald visas utifrån kombinationen av `status` och `payment_status`.
 
-Betalstatus, Stripe-händelse och notifieringskö uppdateras atomärt. Köposten är unik per order, typ och prisrevision. Dubbla event skapar inte dubbla besked. Misslyckat betalningsmejl lämnas okvitterat och webhooken ber Stripe återkomma. Andra statusmejl kan skickas igen från admin vid tjänstefel.
+Orderändring, Stripe-händelse och notifieringskö uppdateras atomärt. Köposten är unik per order, typ och prisrevision; sessionen ingår också för sessionsberoende besked. Dubbla event skapar inte dubbla besked. Snapshoten innehåller serverprivata kontakt-/orderuppgifter och skyddas av samma indragna rättigheter/RLS. Misslyckade mejl förblir okvitterade. API-återförsök och adminens återsändning tömmer kön; betalwebhooken ber Stripe återkomma vid leveransfel. Ingen automatisk bakgrundsarbetare finns. Företagets gallringsrutiner ska även omfatta notifieringssnapshotar.
+
+V4.1 låter inställningsformuläret hantera V2:s äldre prefixzoner medan `/admin/catalog` behåller moderna zoners ID, avgift och aktivering. En avpublicerad bred grundzon återaktiveras inte när kontaktuppgifter sparas. Ogiltigt postnummer eller ingen aktiv matchning stoppar leverans. Lokal PostgreSQL/HTTP-verifiering hittade och kontrollerade just detta gränsfall.
 
 Nya tabeller har RLS och saknar läsrättigheter för `anon`/`authenticated`. Funktionerna är `SECURITY INVOKER` och får bara anropas av serverrollen. API:t verifierar också adminsession eller kundens privata kod/token. Webbpubliceringen kör inga migrationer i företagets fjärrdatabas.

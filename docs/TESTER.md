@@ -1,4 +1,48 @@
-# Tester och verifiering – V4
+# Tester och verifiering – V4.1
+
+## Aktuell V4.1-verifiering, 2026-10-17
+
+V4-resultaten längre ned är historik. V4.1 testas med verklig lokal PostgreSQL **18.3**, officiell PostgREST **16.4** och de riktiga Next.js-API-rutterna. Endast Supabase Auth, Stripe och Resend har isolerade HTTP-testtransporter; inga externa konton eller mejlmottagare används. Testdata är syntetiska och ligger i ett separat nytt kluster under ignorerade `.tmp`.
+
+Kör från roten:
+
+```powershell
+npm ci
+npm run syntax
+npm run test
+npm run typecheck
+npm run build
+npm run export:mobile
+npm run test:integration
+```
+
+Integrationen kräver PostgreSQLs `initdb`, `pg_ctl`, `psql` och PostgREST. Windows använder som standard `C:/Program Files/PostgreSQL/18/bin` och `.tmp/v41-tools/postgrest.exe`; sätt `PG_BIN`/`POSTGREST_BIN` om verktygen finns någon annanstans. Hämta PostgREST från [officiella version 16.4](https://github.com/PostgREST/postgrest/releases/tag/v16.4). Testet väljer lediga loopbackportar, initierar eget PGDATA och stänger sina processer efteråt. Kör inte samtidigt med en annan Next-utvecklingsserver i samma checkout. `--keep` är bara för separat lokal klient-QA, och avslutas med Ctrl+C. Inga riktiga projekt återställs eller migreras.
+
+GitHub Actions installerar PostgREST 16.4 med verifierad SHA-256 och kör samma integration mot runnerns PostgreSQL efter de vanliga kontrollerna. Testtransporten injiceras bara i testets barnprocess; produktions-API:t har ingen testinloggning eller flagga som hoppar över behörighet.
+
+| V4.1-kontroll | Faktiskt verifierat |
+| --- | --- |
+| Ren installation | `npm ci` lyckades efter att gamla projektservrars Windows-fillås släppts |
+| Full lokal slutkontroll | `npm run verify` PASS efter sista kodrättningen: syntax, båda typerna, 36 tester, Next-produktionsbygge och Expo Android/iOS/webb-export |
+| Expo-konfiguration | `expo install --check` och Expo Doctor 21/21 PASS; SDK57 och befintlig projektidentitet bevarade |
+| Affärsregler/SQL | 36 tester godkända: pengar, datum, zoner, originalpriser, återförsök, offertacceptans, webhook och RLS; även specifikationens fiktiva fempersonersexempel |
+| Riktig lokal integration | Samtidiga HTTP-inskick ger en order; order/rader/notiskö rullas tillbaka tillsammans vid fel; administratörsbehörighet, privata tokens och otillåten direktläsning kontrolleras |
+| Order-/betalflöde lokalt | Ren slutkörning: fyra syntetiska order och 26 idempotenta testmejl. Förslag/samtidig acceptans, paketoriginalpriser, signerade parallella webhookar, utgången session/nytt försök, återbetalning, statusar och kontanter passerade med providerersättningar. Efter omstart med PAYMENTS_ENABLED=false blockeras nya sessioner medan redan utfärdad signerad betalning fortfarande avstäms |
+| Notiser lokalt | Ägarens adress/rader/kontakt, misslyckat mejl med kvarvarande order, per-mottagare-återförsök och ersatta betalningsbesked kontrolleras |
+| Mobil | SDK57-typkontroll och Android/iOS/webb-export godkända. Riktig Expo Go på Android verifierade Alla-rätter-start, fast summa, native kalender/24h-klocka och inskick till samma riktiga lokala PostgreSQL-API |
+| Webbläsar-E2E lokalt | Inte verifierad. Browserns originbehörighet avvisades; ingen annan browser/adress användes som omväg |
+| Supabase security advisors lokalt | Inga ERROR; en WARN gäller V1:s `pgcrypto` i public. Ingen automatisk flytt av historisk extension |
+| Externa tjänster | Supabase Auth/Storage, Stripe-testkonto/Swish/Apple Pay, verklig Resend-leverans och APNs/FCM är inte verifierade |
+
+Webbens produktionsberoenden ger **0** npm-auditfynd. Hela monorepon ger **30** (19 high, 11 moderate), främst SDK57:s Expo/Metro-verktyg och transitiva paket. [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) och [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv) saknar publicerad rättning enligt de aktuella advisories. Ingen SDK-nedgradering eller `audit fix --force` används; detta kvarstår som ett dokumenterat beroendeproblem och får inte beskrivas som en ren säkerhetsaudit.
+
+Fysiska iPhone-prov och nya EAS-nativebyggen för V4.1 får inte antas från V4-byggena. Publik aktivering förblir spärrad. Användarens beslut är lokal testdatabas och att inte använda de tillgängliga oidentifierade Supabase-/Stripe-kontona. Se [PUBLICERING.md](PUBLICERING.md) för vad företaget behöver konfigurera.
+
+Det konkreta Android-provet skapade `CM-A2DF85D399`: sex gäster, hämtning, kontant och datum 2026-10-19 kl. 17:00. PostgreSQL bekräftade exakt en order och två rader: 12 × 25 kr + 2 × 90 kr = 480 kr, alltså 80 kr/person. Appen visade kvitto med ordernummer och privat status Mottagen/Obetald. Detta är syntetiska testpriser, inte företagets produkter. Processens aktiva paket kontrollerades som `host.exp.exponent`, så den äldre installerade V4-devappen kunde inte misstas för V4.1. Den första Metro-starten föll på en multiparttransport; efter rätt Expo Go-öppning och verifierat aktivt paket kördes V4.1-flödet.
+
+Efter Android-provet fick KeyboardAvoidingView en enradig `height`-anpassning för Androids kant-till-kant-läge. Den ingår i slutlig typkontroll/bygge/export men är inte visuellt omtestad. Alla separata testservrar och PostgreSQL-kluster stoppades efter provet. Första CI-körningen klarade vanliga kontroller men stoppade vid Linux pg_ctl-start; integrationsharness har därefter fått explicit TCP utan Unix-socket samt synlig databasdiagnostik vid fel. Ny CI måste vara grön före merge och kontrolleras på main efteråt.
+
+## Historisk verifiering av V4
 
 Resultaten avser V4-källan. Tidigare V3-byggen bevisar inte att nya native-moduler fungerar. V3-historiken finns i Git-historiken för detta dokument, bland annat commit 6575987.
 

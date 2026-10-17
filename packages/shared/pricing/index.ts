@@ -89,7 +89,7 @@ export function calcDishTotal(items: DishSelection[], dishes: Dish[], guests: nu
     return { dish_id: dish.id, menu_id: null, title: dish.title, quantity: item.quantity, unit_price_ore: dish.price_ore, total_ore: dish.price_ore * item.quantity };
   });
   const totals = calcTotal(lines.reduce((sum, line) => sum + line.total_ore, 0), 1, fulfillment, deliveryFeeOre);
-  return { ...totals, price_per_person_ore: Math.round(totals.subtotal_ore / guests), lines };
+  return { ...totals, price_per_person_ore: Math.round(totals.total_ore / guests), lines };
 }
 
 export function findDeliveryZone(zones: DeliveryZone[], postalCode: string, zoneId?: string) {
@@ -112,13 +112,18 @@ export function stripePaymentTypes(preference: PaymentPreference, swishEnabled: 
   return ['card']; // Apple Pay is a wallet on eligible Stripe card checkout devices.
 }
 
+export function eventDateBounds(minAdvanceDays:number,now=new Date()) {
+  const today = new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+  const day = Date.parse(`${today}T00:00:00Z`);
+  const dateAfter = (days:number) => new Date(day+days*86400000).toISOString().slice(0,10);
+  return {min:dateAfter(minAdvanceDays),max:dateAfter(365)};
+}
 export function isValidEventDate(date: string, minAdvanceDays: number, now = new Date()) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const candidate = new Date(`${date}T12:00:00Z`);
   if (Number.isNaN(candidate.getTime()) || candidate.toISOString().slice(0, 10) !== date) return false;
-  const swedishToday = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-  const days = (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${swedishToday}T00:00:00Z`)) / 86400000;
-  return days >= minAdvanceDays && days <= 365;
+  const bounds=eventDateBounds(minAdvanceDays,now);
+  return date>=bounds.min && date<=bounds.max;
 }
 
 export function formatSek(ore: number) {

@@ -25,6 +25,18 @@ export function MenuCatalog({ menus, dishes, initialTab, initialDish, preview, m
   } catch { error = 'Beställningen överstiger beloppsgränsen. Minska antal eller kontakta oss för en offert.'; }
   const params = new URLSearchParams({ val: 'bygg', personer: String(guests),
     varor: selected.map(dish => `${dish.id}:${quantities[dish.id]}`).join(',') });
+  const summary = <div className="builder-summary" aria-live="polite">
+    <div className="builder-summary-title"><strong>{selected.length ? `${selected.length} valda rätter` : 'Välj dina favoriter'}</strong><span>{guests} personer</span></div>
+    <div className="builder-checkout"><div><span>Mat totalt</span><strong>{total ? formatSek(total.subtotal_ore) : 'Välj maträtter'}</strong>
+      <small>{total ? `${formatSek(total.price_per_person_ore)} / person` : 'Priset visas när du väljer'}</small></div>
+      {total && !error ? <Link className="btn btn-primary" href={`/bestall?${params.toString()}`}>Fortsätt till beställning →</Link>
+        : <button type="button" className="btn btn-primary" disabled>Välj maträtter för att fortsätta</button>}</div>
+    {selected.length > 0 && <details className="builder-details"><summary>Visa dina val och styckpriser</summary>{selected.map(dish => <div className="builder-line" key={dish.id}>
+      <span>{quantities[dish.id]} × {dish.title} ({formatSek(dish.price_ore)} / {dish.portion_label})</span><strong>{formatSek(quantities[dish.id] * dish.price_ore)}</strong>
+    </div>)}</details>}
+    <p>Leverans väljer du i nästa steg. Pris per person är en jämförelse. Dina matval sparas i den här fliken.</p>
+    {error && <p className="form-error" role="alert">{error}</p>}
+  </div>;
 
   return <div>
     <div className="catalog-tabs" role="group" aria-label="Välj menyläge">
@@ -46,20 +58,7 @@ export function MenuCatalog({ menus, dishes, initialTab, initialDish, preview, m
         </label>
       </div>
       <ItemPicker dishes={dishes} guests={guests} quantities={quantities}
-        onQuantityChange={(id, quantity) => setDraft(old => ({ ...old, quantities: { ...old.quantities, [id]: quantity }, mode: 'bygg' }))}/>
-      <div className="builder-summary" aria-live="polite">
-        <div className="builder-summary-title"><strong>Din meny · {selected.length} rätter</strong><span>{guests} personer</span></div>
-        {selected.length > 0 && <details className="builder-details"><summary>Visa dina val</summary>{selected.map(dish => <div className="builder-line" key={dish.id}>
-          <span>{quantities[dish.id]} × {dish.title} ({formatSek(dish.price_ore)})</span>
-          <strong>{formatSek(quantities[dish.id] * dish.price_ore)}</strong>
-        </div>)}</details>}
-        <div><span>Mat totalt (utan leverans)</span><strong>{total ? formatSek(total.subtotal_ore) : 'Välj maträtter'}</strong></div>
-        <div><span>Pris per person / {guests} gäster</span><strong>{total ? formatSek(total.price_per_person_ore) : '–'}</strong></div>
-        <p>Dina matval sparas i den här fliken. Pris per person är en jämförelse för hela beställningen. Leverans väljer du i nästa steg.</p>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {total && !error ? <Link className="btn btn-primary" href={`/bestall?${params.toString()}`}>Fortsätt till beställning →</Link>
-          : <button type="button" className="btn btn-primary" disabled>Välj maträtter för att fortsätta</button>}
-      </div>
+        summary={summary} onQuantityChange={(id, quantity) => setDraft(old => ({ ...old, quantities: { ...old.quantities, [id]: quantity }, mode: 'bygg' }))}/>
     </>}
   </div>;
 }

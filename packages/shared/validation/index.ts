@@ -41,7 +41,7 @@ export const menuSchema = z.object({
   allergens:z.array(z.string().trim().max(80)).max(30),
   price_ore:z.number().int().min(0).max(10000000),
   min_people:z.number().int().min(1).max(1000),
-  image_url:z.union([z.url(),z.literal(''),z.null()]).optional(),
+  image_url:z.union([z.url().refine(value=>value.startsWith('https://')),z.string().regex(/^\/images\/[\w.-]+$/),z.literal(''),z.null()]).optional(),
   active:z.boolean(), sort_order:z.number().int().min(0).max(500)
 });
 

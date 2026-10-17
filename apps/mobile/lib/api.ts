@@ -8,11 +8,14 @@ export const apiUrl = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '')
 export type OrderReference = { code: string; token: string };
 const storageKey = 'cedar-mezze-orders-v1';
 const draftKey = 'cedar-mezze-selection-v4';
+const requestKey = 'cedar-mezze-request-v1';
 
 // Bara publika API-anrop här. Databas- och Stripe-nycklar finns endast på servern.
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (!apiUrl) throw new Error('API-adressen saknas. Appen visar en demonstration.');
-  const endpoint = new URL(apiUrl);
+  let endpoint: URL;
+  try { endpoint = new URL(apiUrl); }
+  catch { throw new Error('API-adressen är felaktig. Kontrollera appens konfiguration.'); }
   if (
     endpoint.protocol !== 'https:' &&
     !(typeof __DEV__ !== 'undefined' && __DEV__ && endpoint.protocol === 'http:')
@@ -27,7 +30,9 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json', ...options?.headers },
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => {
+      throw new Error('Servern svarade inte med giltiga uppgifter. Försök igen eller kontakta köket.');
+    });
     if (!response.ok)
       throw new Error(typeof data.error === 'string' ? data.error : 'Kunde inte nå servern. Försök igen.');
     return data as T;
@@ -35,13 +40,21 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Servern svarade inte i tid. Försök igen om en stund.');
     }
+    if (error instanceof TypeError) throw new Error('Kunde inte ansluta till servern. Kontrollera din anslutning och försök igen.');
     throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export const getCatalog = () => request<Catalog>('/api/catalog');
+export async function getCatalog() {
+  const catalog = await request<Catalog>('/api/catalog');
+  if (!catalog || !Array.isArray(catalog.dishes) || !Array.isArray(catalog.menus) ||
+      !Array.isArray(catalog.campaigns) || !Array.isArray(catalog.delivery_zones) ||
+      !Array.isArray(catalog.payment_methods) || !catalog.settings || typeof catalog.demo !== 'boolean' ||
+      typeof catalog.orders_enabled !== 'boolean') throw new Error('Menyn kunde inte läsas. Försök hämta den igen.');
+  return catalog;
+}
 export const getOrder = ({ code, token }: OrderReference) =>
   request<{ order: PublicOrder }>(
     `/api/orders/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`,
@@ -96,6 +109,26 @@ export function newRequestId() {
     const value = Math.floor(Math.random() * 16);
     return (character === 'x' ? value : (value & 3) | 8).toString(16);
   });
+}
+
+// Endast SHA-256 och UUID sparas, aldrig formulärets kontaktuppgifter.
+// En identisk förfrågan kan därför återförsökas även efter att appen startats om.
+export async function persistentRequestId(payload: string) {
+  const Crypto = await import('expo-crypto');
+  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, payload);
+  const previous = Platform.OS === 'web' ? sessionStorage.getItem(requestKey) : await SecureStore.getItemAsync(requestKey);
+  const saved = previous ? JSON.parse(previous) : null;
+  if (saved?.hash === hash && typeof saved.id === 'string' && /^[a-f0-9-]{36}$/i.test(saved.id)) return saved.id as string;
+  const id = Crypto.randomUUID();
+  const value = JSON.stringify({ hash, id });
+  if (Platform.OS === 'web') sessionStorage.setItem(requestKey, value);
+  else await SecureStore.setItemAsync(requestKey, value);
+  return id;
+}
+
+export async function clearRequestId() {
+  if (Platform.OS === 'web') sessionStorage.removeItem(requestKey);
+  else await SecureStore.deleteItemAsync(requestKey);
 }
 
 export async function registerOrderPush(reference: OrderReference) {

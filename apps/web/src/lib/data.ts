@@ -24,7 +24,7 @@ export async function getSettings(): Promise<Settings> {
   const start = legacy ? swedishDate(legacy.starts_at) : '';
   const end = legacy ? swedishDate(legacy.ends_at) : '';
   return {...settings.data,delivery_fee_ore:zones.data?.find(zone=>zone.legacy_key==='base')?.fee_ore ?? settings.data.delivery_fee_ore,
-    delivery_zones:(zones.data||[]).filter(zone=>zone.active && zone.legacy_key!=='base').flatMap(zone=>zone.postal_prefixes.map((prefix:string)=>({name:zone.name,postal_prefix:prefix,fee_ore:zone.fee_ore}))),
+    delivery_zones:(zones.data||[]).filter(zone=>zone.active && zone.legacy_key?.startsWith('prefix:')).flatMap(zone=>zone.postal_prefixes.map((prefix:string)=>({name:zone.name,postal_prefix:prefix,fee_ore:zone.fee_ore}))),
     campaign_title:legacy?.title||'',campaign_description:legacy?.description||'',campaign_image_url:legacy?.media_url||null,
     campaign_start_date:start && !start.startsWith('1970')?start:null,campaign_end_date:end && !end.startsWith('9999')?end:null,campaign_enabled:legacy?.active||false} as Settings;
 }
@@ -47,6 +47,7 @@ export const previewDishes: Dish[] = dishNames.map((title,index) => ({
 }));
 
 export function onlinePaymentsReady() {
+  if(process.env.PAYMENTS_ENABLED!=='true') return false;
   const key = process.env.STRIPE_SECRET_KEY;
   const validKey = isTestStripeKey(key) || (process.env.STRIPE_LIVE_ENABLED === 'true' && /^(sk|rk)_live_/.test(key || ''));
   return validKey && Boolean(process.env.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_'));
@@ -98,7 +99,7 @@ export async function publicOrderView(order:CateringOrder):Promise<PublicOrder> 
     subtotal_ore:order.subtotal_ore,delivery_fee_ore:order.delivery_fee_ore,total_ore:order.total_ore,created_at:order.created_at,
     proposal:order.proposal || null,price_adjustment_ore:order.price_adjustment_ore || 0,admin_note:order.admin_note,
     checkout_url:!order.proposal && (order.quote_revision||1)===(order.accepted_revision||1) && ['approved','preparing','ready'].includes(order.status)
-      && ['unpaid','pending','failed'].includes(order.payment_status) ? safeExternalUrl(order.checkout_url) : null,
+      && order.payment_status==='pending' ? safeExternalUrl(order.checkout_url) : null,
     items:(items || []) as OrderLine[]
   };
 }

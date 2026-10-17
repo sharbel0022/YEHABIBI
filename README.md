@@ -1,17 +1,17 @@
-# YEHABIBI V4 – Cedar Mezze
+# YEHABIBI V4.1 – Cedar Mezze
 
-Libanesisk catering för hemma, fest och företag. **Expo SDK 57** driver iPhone/Android, Next.js driver webb/admin och båda använder samma API och Supabase/PostgreSQL. V4 förbättrar de befintliga skärmarna och komponenterna: vit/sandfärgad design, tydliga rättpriser och portionsförslag, fyra beställningssteg och kundgodkännande av ändrade priser.
+Libanesisk catering för hemma, fest och företag. **Expo SDK 57** driver iPhone/Android, Next.js driver webb/admin och båda använder samma API och Supabase/PostgreSQL. V4.1 behåller designen och rättar menybyggaren, datumval, orderbekräftelse, leveransområden och notifieringarnas återförsök.
 
-Det befintliga [EAS-projektet Cedar Mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) och dess identiteter bevaras. Expo Go är standard på iPhone. Push kräver en egen development build och riktiga APNs/FCM-uppgifter; e-post är reservvägen. Verifiering av **V4**, äldre V3-byggen och externa tjänster skiljs åt i [TESTER.md](docs/TESTER.md).
+Det befintliga [EAS-projektet Cedar Mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) och dess identiteter bevaras. Expo Go är standard på iPhone. Push kräver en egen development build och riktiga APNs/FCM-uppgifter; e-post är reservvägen. Faktiska V4.1-resultat och externa begränsningar finns i [TESTER.md](docs/TESTER.md).
 
-V4 är granskad i [PR #3](https://github.com/sharbel0022/YEHABIBI/pull/3), sammanslagen till [main](https://github.com/sharbel0022/YEHABIBI/tree/main) efter grön CI och publicerad på [Sites](https://yehabibi.asdasdsa213.chatgpt.site). Utvecklingsbranchen [yehabibi-v4](https://github.com/sharbel0022/YEHABIBI/tree/yehabibi-v4) finns kvar. Ändringsöversikt och gränser finns i [V4_FÖRÄNDRINGAR.md](docs/V4_FÖRÄNDRINGAR.md).
+Källan finns på [GitHub](https://github.com/sharbel0022/YEHABIBI/tree/main) och webbplatsen på [Sites](https://yehabibi.asdasdsa213.chatgpt.site). [Felrapporten och ändringsöversikten](docs/V4_FÖRÄNDRINGAR.md) beskriver V4.1. Publika riktiga order och betalningar är fortfarande avstängda: företagskonton och godkända produktuppgifter saknas. Det anslutna inaktiva Supabase-projektet och Stripe-miljön Quick match används inte, enligt användarens beslut.
 
 ## Starta
 
 Installera Node.js **22.13 eller senare**, npm och Android Studio om du vill köra Android-emulatorn. Kör i repots rot:
 
 ```powershell
-npm install
+npm ci
 Copy-Item apps/web/.env.example apps/web/.env.local
 Copy-Item apps/mobile/.env.example apps/mobile/.env.local
 ```
@@ -44,7 +44,7 @@ Utan anslutna företagskonton visas en demonstration med stängda beställningar
 
 ## Så används plattformen
 
-Kunden väljer mat → datum/plats → kontakt/kontroll → skickar en förfrågan. Valen sparas mellan vyerna. Servern hämtar aktuella priser, kontrollerar leveranszonen och skapar ordern en gång även vid återförsök. Ägaren granskar i `/admin` före betalning. Ett ändrat pris kräver kundens uttryckliga godkännande; historiska orderrader bevaras.
+Kunden väljer paket eller **Alla rätter** → datum/leverans och gästantal → kontakt → kontrollerar och skickar en förfrågan. Valen sparas mellan vyerna. Servern hämtar aktuella priser, kontrollerar leveranszonen och skapar order och rader atomärt en gång även vid återförsök. Bekräftelsen ger ordernummer och en privat statuslänk; förfrågan är ännu obetald och inte godkänd. Ägaren granskar i `/admin` före betalning. Ett ändrat pris kräver kundens uttryckliga godkännande; historiska orderrader bevaras.
 
 Stripe Checkout öppnas i systemwebbläsaren för kontots tillgängliga betalningsmetoder. Betald status kommer från en signerad webhook. Kontant gäller hämtning och registreras av ägaren. Faktura, Klarna och delbetalning är inte aktiverade. Se [BETALNINGAR.md](docs/BETALNINGAR.md).
 
@@ -55,7 +55,7 @@ apps/mobile/      Expo: skärmar, API-anrop och säkert orderminne
 apps/web/         Next.js: webb, admin, API och betalningar
 packages/shared/ TypeScript-typer, priser, statusregler och validering
 supabase/        SQL-migrationer som bevarar V2:s databas
-tests/           Tester av gemensamma affärsregler
+tests/           Affärsregler, SQL och isolerat riktigt PostgreSQL/API-test
 docs/            Korta svenska förklaringar
 ```
 
@@ -69,7 +69,7 @@ docs/            Korta svenska förklaringar
 | [PUBLICERING.md](docs/PUBLICERING.md) | Webb, miljöer, Google Play och App Store |
 | [TESTER.md](docs/TESTER.md) | Kommandon, faktiska resultat och återstående tester |
 
-Gamla orderdata och katalog-ID:n bevaras. Kör migrationerna i filnamnsordning; hoppa över redan körda migrationer. V4 är en tilläggsmigration ovanpå V3. Se [DATABAS.md](docs/DATABAS.md). V2:s filguide och acceptansdokument finns kvar som historik.
+Gamla orderdata och katalog-ID:n bevaras. Kör migrationerna i filnamnsordning; hoppa över redan körda migrationer. V4.1 lägger till en migration efter V4. Se [DATABAS.md](docs/DATABAS.md). V2:s filguide och acceptansdokument finns kvar som historik.
 
 ## Vanliga kommandon
 
@@ -84,6 +84,7 @@ Kör från repots rot:
 | `npm run go --workspace @yehabibi/mobile` | Startar Expo Go uttryckligt |
 | `npm run export:mobile` | Exporterar Expo för konfigurerade plattformar |
 | `npm run verify` | Syntax, TypeScript, enhetstester, webbbygge och Expo-export |
+| `npm run test:integration` | Eget tillfälligt PostgreSQL/PostgREST/Next-kluster; kräver lokala testverktyg enligt TESTER.md |
 
 Installera alla workspaces från roten. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel. Delade typer/prisregler ligger i `packages/shared`, medan Expo och Next.js har egna paketfiler.
 

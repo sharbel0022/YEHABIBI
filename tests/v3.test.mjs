@@ -17,9 +17,18 @@ test('egna maträtter: styckpris, radpris, leverans och pris per person',()=>{
   const totals = calcDishTotal(selections,dishes,5,'delivery',9900);
   assert.equal(totals.subtotal_ore,17000);
   assert.equal(totals.total_ore,26900);
-  assert.equal(totals.price_per_person_ore,3400);
+  assert.equal(totals.price_per_person_ore,5380);
   assert.deepEqual(totals.lines.map(line=>line.total_ore),[5000,12000]);
   assert.equal(calcDishTotal(selections,dishes,5,'pickup',9900).delivery_fee_ore,0);
+});
+test('fiktiv catering för fem: 12×25 + 2×90 + 8×65 + 100 leverans = 1100 kr',()=>{
+  const sample=[{id:dishId,title:'Testostrullar',price_ore:2500,active:true},{id:otherDishId,title:'Testhummus',price_ore:9000,active:true},{id:menuId,title:'Testkafta',price_ore:6500,active:true}];
+  const choices=sample.map((dish,index)=>({dish_id:dish.id,quantity:[12,2,8][index]}));
+  const total=calcDishTotal(choices,sample,5,'delivery',10000);
+  assert.deepEqual(total.lines.map(line=>line.total_ore),[30000,18000,52000]);
+  assert.equal(total.subtotal_ore,100000);assert.equal(total.delivery_fee_ore,10000);
+  assert.equal(total.total_ore,110000);assert.equal(total.price_per_person_ore,22000);
+  assert.equal(calcDishTotal(choices,sample,5,'pickup',10000).price_per_person_ore,20000);
 });
 test('egna maträtter avvisar dubbla rader, dolda rätter, saknat pris och fel antal',()=>{
   assert.throws(()=>calcDishTotal([...selections,selections[0]],dishes,5,'pickup',0));

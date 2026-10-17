@@ -3,10 +3,7 @@ import { adminDb } from '@/lib/supabase';
 import { adminActionSchema } from '@/lib/validators';
 import { canTransition } from '@/lib/domain';
 import { createCheckout, stripeClient } from '@/lib/payments';
-import { trackingLink } from '@/lib/tracking';
-import { deliverPaymentNotifications, notifyCompletedOrder, notifyNewOrder, notifyOrderDecision, notifyOrderProgress } from '@/lib/mailer';
-import { getSettings } from '@/lib/data';
-import { safeExternalUrl } from '@/lib/domain';
+import { deliverOrderNotifications } from '@/lib/mailer';
 import type { CateringOrder } from '@/types/domain';
 
 export const dynamic='force-dynamic';
@@ -28,21 +25,10 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
   const order=data as CateringOrder;
 
   if(action==='resend_notifications') {
-    const queued = await deliverPaymentNotifications(id);
-    if(queued) return Response.json({order,message:'Väntande betalningsuppdateringar har skickats.'});
-    let delivered;
-    if(['new','reviewing'].includes(order.status)) delivered=await notifyNewOrder(order,trackingLink(order));
-    else if(order.payment_status==='refunded' || (order.status==='approved' && ['paid','failed'].includes(order.payment_status))) {
-      const result=await notifyOrderProgress(order,order.payment_status);
-      delivered=result.customer && result.owner;
-    }
-    else if(['approved','changes_requested','rejected'].includes(order.status)) delivered=await notifyOrderDecision(order,trackingLink(order));
-    else if(order.status==='completed') delivered=await notifyCompletedOrder(order,safeExternalUrl((await getSettings()).google_review_url));
-    else {
-      const result=await notifyOrderProgress(order,order.status);
-      delivered=result.customer && result.owner;
-    }
-    return delivered ? Response.json({order,message:'Uppdateringen har skickats.'}) : jsonError('E-post kunde inte levereras. Kontrollera inställningarna och försök igen.',502);
+    try {
+      const count=await deliverOrderNotifications(id);
+      return Response.json({order,message:count?'Väntande meddelanden har behandlats.':'Det finns inga väntande meddelanden.'});
+    } catch { return jsonError('Ordern är sparad. E-post väntar på nytt försök; kontrollera e-postinställningarna.',502); }
   }
 
   if(action==='payment_link') {
@@ -53,7 +39,7 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
       p_expected_session_id:order.stripe_checkout_session_id,p_session_id:checkout.id,p_checkout_url:checkout.url
     });
     if(updateError||!saved)return jsonError('Ordern ändrades under tiden. Ladda om sidan.',409);
-    await notifyOrderDecision(saved as CateringOrder,trackingLink(order));
+    await deliverOrderNotifications(id).catch(()=>console.error('Payment link saved; notifications pending'));
     return Response.json({order:saved});
   }
   if(action==='refund') {
@@ -69,7 +55,7 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
       p_order_id:id,p_expected_revision:order.quote_revision||1,p_total_ore:proposed_total_ore??order.total_ore,p_note:admin_note
     });
     if(updateError||!saved)return jsonError('Förslaget kunde inte sparas. Kontrollera beloppet och ladda om.',409);
-    await notifyOrderDecision(saved as CateringOrder,trackingLink(order));
+    await deliverOrderNotifications(id).catch(()=>console.error('Proposal saved; notifications pending'));
     return Response.json({order:saved});
   }
   const changes:Record<string,unknown>={updated_at:new Date().toISOString()};
@@ -95,11 +81,6 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
   // Check old status in UPDATE to prevent two administrators from overwriting changes.
   const {data:saved,error:updateError}=await db.from('orders').update(changes).eq('id',id).eq('status',order.status).eq('payment_status',order.payment_status).eq('quote_revision',order.quote_revision||1).select('*').maybeSingle();
   if(updateError||!saved)return jsonError('Ordern ändrades av någon annan. Ladda om sidan.',409);
-  if(['approve','reject'].includes(action)) await notifyOrderDecision(saved as CateringOrder,trackingLink(order));
-  if(['review','preparing','ready','dispatched','cancel','cash_paid'].includes(action)) await notifyOrderProgress(saved as CateringOrder,action==='cash_paid'?'paid':String(changes.status));
-  if(action === 'complete') {
-    const settings = await getSettings();
-    await notifyCompletedOrder(saved as CateringOrder, safeExternalUrl(settings.google_review_url));
-  }
+  await deliverOrderNotifications(id).catch(()=>console.error('Order updated; notifications pending'));
   return Response.json({order:saved},{headers:{'Cache-Control':'no-store'}});
 }

@@ -30,3 +30,19 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run export:mobile
+      - name: Install pinned PostgREST for isolated database tests
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/yehabibi-test-tools"
+          curl --fail --location --retry 3 https://github.com/PostgREST/postgrest/releases/download/v16.4/postgrest-v16.4-linux-static-x86-64.tar.xz --output "$RUNNER_TEMP/yehabibi-test-tools/postgrest.tar.xz"
+          echo "b47ecc82fce1dcebbbc4183d839e52f07f7630c9d7ad0f54db753d1939299354  $RUNNER_TEMP/yehabibi-test-tools/postgrest.tar.xz" | sha256sum --check
+          tar -xJf "$RUNNER_TEMP/yehabibi-test-tools/postgrest.tar.xz" -C "$RUNNER_TEMP/yehabibi-test-tools"
+          echo "POSTGREST_BIN=$RUNNER_TEMP/yehabibi-test-tools/postgrest" >> "$GITHUB_ENV"
+          echo "PG_BIN=$(dirname "$(find /usr/lib/postgresql -path '*/bin/initdb' | sort -V | tail -n 1)")" >> "$GITHUB_ENV"
+      - name: Real PostgreSQL, PostgREST and Next HTTP flow
+        run: npm run test:integration
+      - name: Database test diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          find .tmp -path '*/integration-*/postgres.log' -o -path '*/integration-*/process-*.log' | while IFS= read -r file; do tail -n 60 "$file"; done
