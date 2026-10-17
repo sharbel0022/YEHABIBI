@@ -50,7 +50,7 @@ Leverans kräver en aktiv zon som matchar början av det normaliserade femsiffri
 
 | Fält | Värden |
 | --- | --- |
-| `status` | `new`, `changes_requested`, `approved`, `preparing`, `ready`, `completed`, `rejected`, `cancelled` |
+| `status` | `new`, `reviewing`, `changes_requested`, `approved`, `preparing`, `ready`, `dispatched`, `completed`, `rejected`, `cancelled` |
 | `payment_status` | `unpaid`, `pending`, `paid`, `failed`, `refunded` |
 
 En order kan alltså vara godkänd men fortfarande vänta på betalning. Onlineorder blir inte betald av att kunden återvänder från Checkout. `apply_stripe_event` matchar rätt order/session och sparar händelse-id atomärt med betalningsändringen. Dubbla webhookleveranser räknas inte som nya betalningar. Kontant registreras manuellt av ägaren efter verklig betalning vid hämtning.

@@ -30,7 +30,7 @@ flowchart LR
 
 | Del | Ansvar |
 | --- | --- |
-| `apps/mobile` | Sex kundskärmar och tre stödfiler; Expo SDK57, React Native0.86.3 och React19.2.3 |
+| `apps/mobile` | Sex kundskärmar och tre stödfiler; Expo SDK 57, React Native 0.86.3 och React 19.2.3 |
 | `apps/web` | Next.js16.4.2: responsiv webb, SEO, admin, API, serveråtkomst och betalningar |
 | `packages/shared/types` | Samma katalog-, order-, förslags- och betalningstyper överallt |
 | `packages/shared/pricing` | Rena funktioner för priser, datum, leveranszoner och tillåtna statusbyten |
@@ -51,7 +51,7 @@ Order- och betalningsstatus är olika fält. Bara signerad Stripe-webhook kan ma
 
 Resend skickar order- och statusmejl när tjänsten är konfigurerad. Expo Push används för registrerade enheter. Kundens tokenregistrering skyddas av orderns privata åtkomsttoken; ägarens registrering kräver verifierad adminsession. Native registrering finns i appen men fjärrpush fungerar inte i Expo Go. FCM/APNs och faktisk leverans måste provas i företagets miljö.
 
-Mobilen sparar högst20 privata orderreferenser i SecureStore på iOS/Android; Expo Web använder sessionStorage. Webbens privata status kräver samma kod/token. Länken är en behörighetsnyckel och ska inte skickas till analysverktyg.
+Mobilen sparar högst 20 privata orderreferenser i SecureStore på iOS/Android; Expo Web använder sessionStorage. Webbens privata status kräver samma kod/token. Länken är en behörighetsnyckel och ska inte skickas till analysverktyg.
 
 API:t kontrollerar admin med Supabase `getUser`, bekräftad e-post och serverns allowlist. Inga service-role-, Stripe- eller mejlnycklar finns i appen. RLS och indragna publika rättigheter skyddar databasen. CORS tillåter bara angivna webborigins.
 
