@@ -4,15 +4,8 @@ import { useState } from 'react';
 import { Check, ShieldCheck } from 'lucide-react';
 import type { PublicOrder } from '@/types/domain';
 import { formatSek, paymentLabels, paymentStatusLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
-
-function progress(order: PublicOrder) {
-  if (order.status === 'completed') return 8;
-  if (order.status === 'ready' || order.status === 'dispatched') return 7;
-  if (order.status === 'preparing') return 6;
-  if (order.status === 'approved') return order.payment_status === 'paid' ? 5 : 4;
-  if (order.status === 'reviewing' || order.status === 'changes_requested') return 2;
-  return 1;
-}
+import { api } from '@/lib/api-client';
+import { canPayOrder, orderProgress, orderTimelineLabels } from '@yehabibi/shared';
 
 /** Endast kundens token-skyddade publika ordervy skickas till webbläsaren. */
 export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrder; token: string }) {
@@ -21,20 +14,17 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const checkout = safeExternalUrl(order.checkout_url);
-  const endpoint = `/api/orders/${encodeURIComponent(order.code)}?token=${encodeURIComponent(token)}`;
-  const current = progress(order);
-  const labels = ['Mottagen', 'Under granskning', 'Godkänd', order.payment_preference === 'cash' ? 'Betalning vid hämtning' : 'Väntar på betalning',
-    'Betald', 'Under förberedelse', order.fulfillment === 'pickup' ? 'Klar för hämtning' : 'På väg', 'Slutförd'];
+  const checkout = canPayOrder(order) ? safeExternalUrl(order.checkout_url) : null;
+  const current = orderProgress(order);
+  const labels = orderTimelineLabels(order);
 
   async function update(accept = false) {
     if (busy || (accept && (!accepted || !order.proposal))) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      const response = await fetch(endpoint, accept ? { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'accept_changes', revision: order.proposal!.revision }) } : { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Kunde inte uppdatera förfrågan.');
+      const reference = { code: order.code, token };
+      const result = accept ? await api.acceptPriceChange(reference, order.proposal!.revision)
+        : await api.getOrderStatus(reference);
       setOrder(result.order); setAccepted(false);
       setMessage(accept ? 'Ändringen är godkänd. Betalningsinformationen är uppdaterad.' : 'Statusen är uppdaterad.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Försök igen senare.'); }

@@ -1,111 +1,103 @@
-# Fil för fil – V4.1
+# Fil för fil – V4.2
 
-Börja med mobilen `app/index.tsx` → `lib/store.tsx` → `lib/api.ts` → webbens `api/orders/route.ts` → SQL. Då följer du kundens val hela vägen till databasen.
+Följ en förfrågan från `OrderForm.tsx` eller `bestall.tsx` → `packages/shared/ordering` → `packages/api-client` → `api/orders/route.ts` → SQL-funktionen `create_catering_order`. Det är samma kontrakt på webb och mobil.
 
-**Språk:** `.tsx` är TypeScript med React-vyer, `.ts` är TypeScript, `.sql` är PostgreSQL, `.mjs/.cjs/.js` är JavaScript och `.json/.yml` är konfiguration. Genererade `.next`, `.expo`, `dist`, `android`, `ios` och `node_modules` ska inte redigeras som handskriven affärskod.
+`.tsx` är TypeScript med React-vyer, `.ts` är TypeScript, `.sql` är PostgreSQL och `.mjs/.cjs` är JavaScript. Genererade `node_modules`, `.next`, `.expo`, `dist`, `android` och `ios` ska inte redigeras som affärskod.
 
-Tabellerna nedan beskriver varför varje viktig fil finns, dess funktioner, kontakter och var du gör ändringar. Filändelsen visar språket enligt ovan.
+## Gemensam kod
+
+| Fil | Varför den finns och var du ändrar |
+| --- | --- |
+| `packages/shared/types/index.ts` | Gemensamma katalog-, order-, matvals- och svarstyper. Lägg till ett fält här och hantera det i server och berörda vyer. |
+| `packages/shared/pricing/index.ts` | Heltalsöre, paket/styckpriser, leveranszoner, datum, statusövergångar och svenska kronor. Ändra gemensamma pris- och statusregler här. |
+| `packages/shared/ordering/index.ts` | `quoteSelection`, `suggestedQuantity`, `buildOrderPayload`, minimiantal, betalval, formulärfel, utkast och kundens orderförlopp. Här ska webb och mobil få samma beteende. |
+| `packages/shared/validation/index.ts` | Zod-scheman för kund, admin och katalog. Servern validerar även när ett gränssnitt kringgås. |
+| `packages/shared/limits.ts` | En källa för gästantal, antal olika rätter, mängder och högsta totalbelopp. |
+| `packages/shared/design/index.ts` | `designColors`, `categoryLabels` och `orderSteps`. Delade värden, inga React-komponenter. |
+| `packages/shared/catalog/index.ts` | `previewCatalog`, paket, rätter och grundinställningar för avstängd förhandsvisning. Riktiga produkter/priser kommer från databasen. |
+| `packages/shared/index.ts` | Paketets publika exporter. Inga databasnycklar, React- eller Expo-beroenden. |
+| `packages/api-client/index.ts` | `createApiClient`, typade katalog-/orderanrop, URL-kodning, timeout och `ApiError`. Ny publik HTTP-hantering placeras här. |
+| `packages/api-client/tsconfig.json` | Kontrollerar klienten självständigt utan Next.js eller Expo. |
+| `packages/*/package.json` | Workspaces och beroenden. Installera och uppdatera låsfil från roten. |
+
+`getMenu` och `getSettings` i API-klienten läser ur `/api/catalog`; de inför inga parallella rutter. `getOrderStatus` returnerar serverns `PublicOrder`, inklusive eventuell godkänd Checkout-länk. Prisacceptans och pushregistrering använder befintlig PATCH på samma orderresurs.
 
 ## Mobil – `apps/mobile/`
 
-Vi behåller sex skärmfiler och tre stödfiler. Fyra synliga bottenflikar håller navigationen enkel; beställning och kontakt öppnas från relevanta knappar.
+Sex kundskärmar, en layout och tre stödfiler behåller Expo som native frontend.
 
-| Fil | Ansvar och funktioner | Pratar med | Ändra själv |
-| --- | --- | --- | --- |
-| `app/_layout.tsx` | Router, flikar och CateringProvider | Alla skärmar, store/ui | Fliknamn och ikoner |
-| `app/index.tsx` | Hero, tillfällen, populära rätter, datumstyrda kampanjer | store, ui, Router | Rubriker och startsidans ordning |
-| `app/menyer.tsx` | Paket och kategoriserade styckrätter | store, ui | Kategorier och kortens presentation |
-| `app/bygg.tsx` | Gästantal, rättmängder, portionsförslag och radtotaler | store, shared, ui | Presentation av summeringen; prisregler ändras i shared |
-| `app/bestall.tsx` | Fyra steg, native datum/tid, kontakt, styckpriser/kontroll och beständig återförsöksnyckel | store, api, shared | Fälttexter och steg; servervalidering måste fortfarande gälla |
-| `app/ordrar.tsx` | Privat status, godkänna förslag, öppna Checkout och aktivera push | api, store, shared | Statuspresentation och förklaringar |
-| `app/kontakt.tsx` | Verklig kontakt, Maps, recensioner och sociala länkar | store, api, ui | Layout; företagets länkar ändras i admin |
-| `lib/store.tsx` | Context, katalog, menyutkast, getQuote och orderreferenser | api, shared, alla skärmar | Hur val sparas eller uppdateras |
-| `lib/api.ts` | HTTP med timeout, SecureStore, utkast, privat token, säkra externa länkar, native pushregistrering | API, Expo-moduler | API-adress i `.env.local`; behåll HTTPS/Stripe-kontrollerna |
-| `lib/ui.tsx` | Screen med tangentbord/retry/fast summering, datumväljare, reglage och rättkort | Alla skärmar | Gemensamt utseende, avstånd och tillgänglighet |
-| `app.config.ts` | Appnamn/version, ikon, plugins, EAS-projekt och miljöidentitet | Expo/EAS | Varumärke; byt inte projekt-id av misstag |
-| `eas.json` | Android/iOS development-, simulator-, preview- och produktionsprofiler | EAS | Byggmiljö eller profil; inga hemliga värden |
-| `package.json`, `tsconfig.json` | SDK57-beroenden, kommandon och typkontroll | npm, Expo, TypeScript | Installera native-paket med `expo install` |
-| `.env.example`, `assets/` | Publik API-konfiguration och befintliga bildresurser | api, ui, app config | Kopiera env första gången; ersätt bilder med godkänt material |
+| Fil | Ansvar |
+| --- | --- |
+| `app/_layout.tsx` | Navigation, flikar och `CateringProvider`. |
+| `app/index.tsx` | Startsida, tillfällen, favoriter, kampanjer och cateringpaket. |
+| `app/menyer.tsx`, `app/bygg.tsx` | Kategorier, matval, gäster och löpande summering med delade regler. |
+| `app/bestall.tsx` | Formulärsteg, native datum/tid, kontakt, granskning och submit genom API-klienten. |
+| `app/ordrar.tsx` | Privata order, delat statusförlopp, prisacceptans, Checkout och pushknapp. |
+| `app/kontakt.tsx` | Företagets verkliga kontaktuppgifter och externa länkar. |
+| `lib/store.tsx` | React Context, matval, kataloghämtning vid start/återkomst/refresh och lagringskoppling. `getQuote` återexporterar shared. |
+| `lib/api.ts` | Mobilens API-basadress, SecureStore/webblagring, beständig återförsöksnyckel och native länk/pushfunktioner. HTTP-regler ligger i API-paketet. |
+| `lib/ui.tsx` | Återanvända native vyer: `Screen`, `Button`, `Field`, `DateTimeField`, `MenuCard`, `DishCard`, `Stepper` och `Amount`. Färger och portionsregler hämtas från shared. |
+| `app.config.ts`, `eas.json` | Befintlig Expo-identitet, plugins och EAS-profiler. Välj API-miljö separat; ändra inte projekt-ID av misstag. |
+| `.env.example`, `assets/` | Publik API-konfiguration och befintliga bilder. Hemligheter hör inte hit. |
 
-## Gemensamt – `packages/shared/`
+Native navigation, tangentbord, datumväljare, enhetslagring och pushbehörighet stannar i mobilen. Samma `DishCard` och `Stepper` används på flera mobilskärmar.
 
-| Fil | Ansvar och funktioner | Pratar med | Ändra själv |
-| --- | --- | --- | --- |
-| `types/index.ts` | Katalog, order, betalstatus, prisförslag och API-typer | Mobil, webb, API | Lägg till ett fält och hantera det i båda gränssnitten |
-| `pricing/index.ts` | Öresberäkning, formatSek, datum, zoner och canTransition | Alla gränssnitt, API, tester | Ändra en affärsregel här och testa gränsfallen |
-| `validation/index.ts` | Zod-scheman för kund, admin och katalog | Formulär och API | Ändra fältgränser och motsvarande test |
-| `index.ts` | Export av de tre ämnesfilerna | `@yehabibi/shared`-importer | Exportera bara sådant apparna behöver |
-| `package.json` | Workspace-namn, version och Zod | Rotens npm workspaces | Håll beroendet i webb synkroniserat |
+## Webb – `apps/web/src/`
 
-Shared får inte importera React, databas eller hemligheter. Samma funktion kan då köras i både mobil och server.
+| Fil eller grupp | Ansvar |
+| --- | --- |
+| `app/layout.tsx`, `app/globals.css` | Dynamisk serverrenderad sidram, metadata och responsiv V4-design. Sidramen sätter CSS-variabler från `designColors`. |
+| `app/page.tsx`, `app/menyer/page.tsx`, `app/bestall/page.tsx` | Serverrenderat publikt innehåll. Serverkatalogen kommer direkt från `lib/data.ts`. |
+| `components/use-catalog.ts` | Uppdaterar katalog när fliken åter blir aktiv/synlig, anslutningen återkommer eller kunden uppdaterar manuellt. |
+| `components/CatalogRefresh.tsx` | Gemensam uppdateringsknapp och katalogfel för webbens kundvyer. |
+| `components/MenuCatalog.tsx` | Paket/egen meny, gäster och summering. Återanvänder `ItemPicker` och shared-regler. |
+| `components/ItemPicker.tsx` | Återanvända rättkort, kategorier och antalsreglage i katalog och orderformulär. |
+| `components/OrderForm.tsx` | Fyrstegsformulär, delad validering, granskning och `api.createOrder`. |
+| `components/order-draft.ts` | Webbens URL-/lagringsadapter för matval och beständig återförsöksnyckel. Kontaktuppgifter sparas inte. |
+| `components/OrderTracking.tsx` | Kundens delade statusförlopp och uttryckliga acceptans av rätt prisrevision. |
+| `app/order/[code]/page.tsx` | Privat serverläst orderöversikt som kräver rätt kod/token. |
+| `components/{Brand,Header,Footer,Cta,MenuCard,SectionHeading,HeroMedia}.tsx` | Befintliga små återanvända webbkomponenter. |
+| `components/{LocalStructuredData,PwaRegister}.tsx` | Företagets strukturerade data och PWA. Privata API-anrop ska inte cachas. |
+| `app/{kontakt,om-oss,villkor,integritet}` | Företagsinformation och juridiska sidor. |
+| `app/{festcatering-vasteras,foretagscatering-vasteras}`, `app/{sitemap,robots}.ts` | Lokala landningssidor och sökmotorernas publika adresser. |
+| `app/admin/**`, `components/admin/**` | En responsiv, serverkontrollerad adminpanel för båda kundplattformarna. |
+| `app/{global-error,loading}.tsx` | Begripliga laddnings-/felvyer även vid serverfel. |
 
-## Webb – `apps/web/`
+### API och server – `apps/web/src/`
 
-Alla följande sökvägar utgår från `src/`.
+| Fil eller grupp | Ansvar |
+| --- | --- |
+| `app/api/catalog/route.ts` | Säker publik katalog för samtliga plattformar. |
+| `app/api/orders/route.ts` | Validering, rate-limit, serverpriser och atomär orderskapning. |
+| `app/api/orders/[code]/route.ts` | Privat status, prisacceptans och kundpush. |
+| `app/api/admin/orders/[id]/route.ts` | Skyddade ägaråtgärder, prisförslag, Checkout, kontanter och återbetalning. |
+| `app/api/admin/{catalog,items,menus,settings}` | Ändra/avpublicera i samma katalog. `items` bevarar V2-kompatibilitet. |
+| `app/api/admin/{upload,push}` | Kontrollerade mediafiler och ägarens notisregistrering. |
+| `app/api/stripe/webhook/route.ts` | Verifierad Stripe-signatur, belopp, valuta, session och idempotent avstämning. |
+| `app/api/health/route.ts`, `app/api/qr/[kind]/route.ts` | Beredskapskontroller och företagets riktiga QR-länkar. |
+| `lib/api-client.ts` | Webbens same-origin-instans av `createApiClient`. |
+| `lib/data.ts` | Gemensamma databasläsningar och uttryckligt begränsade publika svar. |
+| `lib/config.ts` | Serverkonfiguration och återexport av delad förhandsvisning. |
+| `lib/supabase.ts`, `lib/auth.ts` | Serverklient, cookies, verifierad admin, origin och CORS. |
+| `lib/tracking.ts` | Privat ordertoken, HMAC och säker jämförelse. |
+| `lib/payments.ts`, `lib/checkout.ts` | Serverns enda Stripe-flöde och återanvändning av rätt Checkout-session. |
+| `lib/mailer.ts`, `lib/push.ts` | Köade besked och separat leveranskvittens till kund/ägare. |
+| `lib/browser-upload.ts` | Återanvänt uppladdningsanrop i admin. |
+| `lib/domain.ts`, `lib/validators.ts`, `types/domain.ts` | Tunna kompatibilitetsexporter av shared. Lägg ny gemensam logik i paketet. |
 
-| Fil eller befintlig grupp | Ansvar och funktioner | Pratar med | Ändra själv |
-| --- | --- | --- | --- |
-| `app/layout.tsx`, `app/globals.css` | Sidram, metadata och gemensam responsiv V4-design | Header, Footer, alla sidor | Färger/avstånd i CSS-variabler, sidmetadata i layout |
-| `app/page.tsx` | Hero, tillfällen, populärt, kampanjer och beställningssteg | data, visuella komponenter | Startsidesordning och text |
-| `app/menyer/page.tsx`, `app/bestall/page.tsx` | Läser serverkatalog och visar katalog/formulär | data, MenuCatalog, OrderForm | Sidrubriker; kundinteraktion i komponenterna |
-| `components/MenuCatalog.tsx` | Paket eller egen meny, gästantal, summering | ItemPicker, menyutkast, shared | Katalogens kundflöde |
-| `components/ItemPicker.tsx` | Kategorier, bilder, plus/minus och kökets portionsförslag | Catalog/Form, shared | Rättkort och reglage; priser från data |
-| `components/OrderForm.tsx` | Fyra steg, validering, summering och API-submit | API, shared, menyutkast | Formulär och stegnavigation |
-| `components/order-draft.ts` | Gemensamt sparande av menyval utan kundens kontaktuppgifter | Catalog, Form, webblagring | Utkastets format och återställning |
-| `app/order/[code]/page.tsx` | Privat serverläst orderöversikt | data, tracking, OrderTracking | Sidram; inga kontaktuppgifter i publikt svar |
-| `components/OrderTracking.tsx` | Statusförlopp och uttrycklig acceptans av prisförslag | Privat order-API | Kundens status och acceptansvyn |
-| `app/global-error.tsx`, `app/loading.tsx` | Små laddnings-/felvyer med återförsök även vid fel i sidramens databasläsning | App-router | Begripliga texter; dölj tekniska fel för besökaren |
-| `components/{Brand,Header,Footer,Cta,MenuCard,SectionHeading}.tsx` | Befintliga små återanvända vyer | Sidor, CSS | Logo, navigering, paketkort och rubriker |
-| `components/HeroMedia.tsx` | Bild/video, paus och minskad rörelse | Home, inställningar | Mediapresentation; materialet väljs i admin |
-| `components/LocalStructuredData.tsx`, `components/PwaRegister.tsx` | Riktig företags-JSON-LD och service worker | Layout, settings | Metadata/caching; privata API-anrop får inte cachas |
-| `app/kontakt`, `om-oss`, `villkor`, `integritet` | Kontakt och juridiska sidor | data, settings | Faktiska företagsuppgifter och granskade villkor |
-| `app/festcatering-vasteras`, `foretagscatering-vasteras` | Tillfällessidor | data, visuella komponenter | Relevant innehåll för verksamheten |
-| `app/sitemap.ts`, `robots.ts` | Sökmotorernas publika adresser | config | Aktivera indexering först efter godkänd lansering |
-| `app/admin/**/page.tsx` | Serverkontrollerad adminöversikt/katalog/order/inställningar | auth, data, admin-komponenter | Få tydliga adminvyer; återanvänd befintliga API:er |
-| `components/admin/AdminOrders.tsx` | Filtrera, granska, godkänna, föreslå pris, kontanter och status | Admin order-API, shared | Åtgärdernas UI; regler gäller också på servern |
-| `components/admin/{AdminLogin,AdminNav,AdminMenus,AdminItems,AdminCatalog,AdminSettings}.tsx` | Inloggning, paket, samma rättkatalog, zoner, kampanjer/media | Admin API, browser-upload | Fält och tydlighet; V2:s rättvy är kompatibilitet |
+## Databas, tester och drift
 
-Om en komponent får ett annat filnamn vid vidareutveckling följer du importen från sidan. Det behövs ingen komponentfil per liten text eller knapp.
+| Fil/grupp | Varför den finns |
+| --- | --- |
+| `supabase/migrations/*.sql` | Befintlig historik för tabeller, transaktioner, lås och RLS. V4.2 tillför ingen migration. |
+| `tests/unified-domain.test.mjs`, `tests/api-client.test.mjs` | Gemensamma regler, båda plattformarnas kontrakt, uppdaterade priser och nätverksfel. |
+| `tests/domain.test.mjs`, `tests/v2.test.mjs`, `tests/v3.test.mjs`, `tests/v4.test.mjs` | Regressionsskydd för priser, validering, Checkout och SQL. |
+| `tests/integration.mjs` | Isolerat PostgreSQL/PostgREST/Next-HTTP-flöde; se TESTER.md för verktyg och verkliga resultat. |
+| `scripts/check-source.cjs` | Syntaxkontroll för appar och paket. |
+| `scripts/sync-sites.mjs` | Kopierar granskad main-källa till ett öppnat befintligt Sites-projekt och bevarar dess bygglager. Publicerar inte i sig. |
+| `package.json`, `package-lock.json` | Workspaces, kommandon och låsta versioner. |
+| `.github/workflows/check.yml` | CI-kontroller; se TESTER.md för aktuell körning. |
+| `apps/web/next.config.ts` | Pakettranspilering, monorepo-sökvägar och säkerhetsheaders. |
+| `apps/web/.env.example`, `apps/web/public/` | Konfigurationsnamn utan hemligheter och befintliga publika resurser. |
 
-### API-rutter – `src/app/api/`
-
-| Fil/grupp | Ansvar och funktioner | Pratar med | Ändra själv |
-| --- | --- | --- | --- |
-| `catalog/route.ts` | Publik aktiv katalog och faktiskt tillgängliga metoder | data, auth | Vilka säkra katalogfält som publiceras |
-| `orders/route.ts` | Validera, prisberäkna, rate-limit och skapa en order atomärt | shared, DB-RPC, mailer/push | Inkommande orderflöde; bevara idempotensen |
-| `orders/[code]/route.ts` | Privat status, acceptera rätt prisrevision och registrera kundpush | tracking, DB-RPC, push | Kundåtgärder; kod+token måste alltid kontrolleras |
-| `admin/orders/[id]/route.ts` | Behörighet, status, prisförslag, Checkout och återbetalning | auth, payments, DB, notiser | Adminåtgärder med SQL-kontroll |
-| `stripe/webhook/route.ts` | Verifiera och tillämpa en Stripe-händelse en gång | Stripe, DB-RPC, mailer/push | Nya händelser efter dokumentationskontroll och test |
-| `admin/catalog`, `admin/items`, `admin/menus`, `admin/settings` | Skapa/ändra/avpublicera i samma katalog | auth, shared, DB | Adminfält; behåll gamla orderdata |
-| `admin/upload`, `admin/push` | Kontrollerade mediafiler och ägarens pushtoken | auth, Storage/DB | Tillåtna filer eller tokenvalidering |
-| `qr/[kind]/route.ts`, `health/route.ts` | Verkliga QR-länkar och serverhälsa | settings, config | Officiella mål/beredskapskontroller |
-
-### Serverkod – `src/lib/`
-
-| Fil | Ansvar och funktioner | Pratar med | Ändra själv |
-| --- | --- | --- | --- |
-| `config.ts` | Varumärke, grundvärden och stängd demo | data, sidor | Demotext; riktiga priser sparas i databasen |
-| `data.ts` | Databasläsning, säker publik projektion och tjänstens beredskap | supabase, shared | Gemensamma serverfrågor och publicerade fält |
-| `supabase.ts` | Serverklient och sessionsklient | Supabase, auth | Anslutning/cookies; exponera inte servernycklar |
-| `auth.ts` | Verifierad admin, origin och CORS | API, Supabase Auth | Allowlist via servermiljö; inga publika wildcard |
-| `tracking.ts` | HMAC, tokenhash, jämförelse och privat länk | Order-API, mailer | Behörighetsnycklar kräver extra granskning |
-| `payments.ts`, `checkout.ts` | Stripe efter godkännande och återanvändning av session | Stripe, admin-API | Betalregler och retries med test |
-| `mailer.ts`, `push.ts` | Leverera köade snapshot-besked och kvittera mottagare; kund-/ägarpush | Resend, Expo, DB | Meddelandetext och tjänstekonfiguration; behåll idempotens |
-| `browser-upload.ts` | Återanvänt adminuppladdningsanrop | Admin, upload-API | Klientens filvalidering |
-| `domain.ts`, `validators.ts`, `../types/domain.ts` | Tunna kompatibilitetsexporter av shared | Gammal V2-kod | Lägg ny affärslogik i shared, inte här |
-
-## Databas, tester och konfiguration
-
-| Fil/grupp | Varför/språk och funktioner | Pratar med | Ändra själv |
-| --- | --- | --- | --- |
-| `supabase/migrations/*.sql` | SQL i filnamnsordning; tabeller, priser, lås, RPC och RLS | Serverns Supabase-klient | Skapa en ny additiv migration, ändra inte körd historik |
-| `tests/*.test.mjs` | Node-tester för priser, validering, Checkout och riktiga SQL-transaktioner i PGlite | Shared, testbar serverlogik, migrationer | Lägg till beteendet och relevanta gränsfall |
-| `tests/integration.mjs` | Separat riktigt PostgreSQL/PostgREST/Next-HTTP-test; endast Auth/Stripe/Resend har lokal testtransport | Installerade PG/PostgREST-verktyg, produktionsrutter | Kör enligt TESTER.md; ingen testbypass finns i produktionskoden |
-| `scripts/check-source.cjs` | JavaScript som syntaxkontrollerar TypeScript | Källmappar, TypeScript | Utöka bara om nya källmappar tillkommer |
-| `package.json`, `package-lock.json` | Workspaces, kommandon och låsta versioner | npm, CI, apparna | Ändra paketfil, låt npm uppdatera låsfil |
-| `.github/workflows/check.yml` | YAML för CI-installation/test/bygge/export | GitHub Actions | Samma kontroller som lokalt |
-| `apps/web/next.config.ts` | Säkra headers och monorepo-sökvägar | Next.js | Nödvändiga ramverksinställningar |
-| `apps/web/.env.example` | Konfigurationsnamn utan nycklar | Servermiljön | Kopiera första gången; committa aldrig `.env.local` |
-| `apps/web/public/` | Godkända befintliga bilder, SVG-logo och PWA | Webbläsaren | Byt material utan att bryta använda URL:er |
-
-Fler instruktioner: [ARKITEKTUR](ARKITEKTUR.md), [DATABAS](DATABAS.md), [BETALNINGAR](BETALNINGAR.md), [EXPO](EXPO.md) och [TESTER](TESTER.md). V2-dokumenten är historiskt regressionsunderlag.
+Det finns inget `packages/ui`. Domänregler och designvärden delas; plattformarnas befintliga små komponenter fortsätter återanvändas där de passar.

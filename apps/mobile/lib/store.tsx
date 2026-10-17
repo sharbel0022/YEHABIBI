@@ -1,5 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useState, type PropsWithChildren } from 'react';
-import { calcDishTotal, calcTotal, type Catalog, type Fulfillment, type Occasion } from '@yehabibi/shared';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { AppState } from 'react-native';
+import {
+  minimumGuestsFor, orderLimits, parseSelectionDraft, reconcileSelection,
+  type Catalog, type MenuSelection, type Occasion,
+} from '@yehabibi/shared';
 import {
   demoCatalog,
   getCatalog,
@@ -10,12 +14,8 @@ import {
   type OrderReference,
 } from './api';
 
-export type Selection = {
-  menuId: string | null;
-  quantities: Record<string, number>;
-  guests: number;
-  occasion: Occasion;
-};
+export type Selection = MenuSelection;
+export { quoteSelection as getQuote } from '@yehabibi/shared';
 type Store = {
   catalog: Catalog;
   loading: boolean;
@@ -34,16 +34,6 @@ type Store = {
 };
 const Context = createContext<Store | null>(null);
 
-// Bara en verifierad katalog får rensa utkastet; demo/offline ska aldrig radera val.
-export function reconcileSelection(catalog: Catalog, selection: Selection): Selection {
-  if (catalog.demo) return selection;
-  const available = new Set(catalog.dishes.filter(dish => dish.active).map(dish => dish.id));
-  const quantities = Object.fromEntries(Object.entries(selection.quantities).filter(([id]) => available.has(id)));
-  const menuId = catalog.menus.some(menu => menu.active && menu.id === selection.menuId) ? selection.menuId : null;
-  return menuId === selection.menuId && Object.keys(quantities).length === Object.keys(selection.quantities).length
-    ? selection : { ...selection, menuId, quantities };
-}
-
 export function CateringProvider({ children }: PropsWithChildren) {
   const [catalog, setCatalog] = useState(demoCatalog);
   const [loading, setLoading] = useState(true);
@@ -53,6 +43,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
   const [references, setReferences] = useState<OrderReference[]>([]);
   const [draftReady, setDraftReady] = useState(false);
   const [catalogVerified, setCatalogVerified] = useState(false);
+  const catalogRequest = useRef<Promise<void> | null>(null);
   const [selection, setSelection] = useState<Selection>({
     menuId: null,
     quantities: {},
@@ -60,27 +51,32 @@ export function CateringProvider({ children }: PropsWithChildren) {
     occasion: 'hemma',
   });
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setCatalogError('');
-    try {
-      const next = await getCatalog();
-      setCatalog(next);
-      setCatalogVerified(!next.demo);
-      setNotice(
-        next.demo
+  const refresh = useCallback(() => {
+    // Uppdateringsgest och återkomst till appen delar samma pågående hämtning.
+    if (catalogRequest.current) return catalogRequest.current;
+    const pending = (async () => {
+      setLoading(true);
+      setCatalogError('');
+      try {
+        const next = await getCatalog();
+        setCatalog(next);
+        setCatalogVerified(!next.demo);
+        setNotice(next.demo
           ? 'Förhandsvisning: köket har ännu inte publicerat verifierade priser och öppnat riktiga beställningar. Inget kan skickas eller betalas här ännu.'
-          : '',
-      );
-    } catch (error) {
-      // Gammal prislista får aldrig användas för en beställning när API:t är nere.
-      setCatalog((previous) => ({ ...previous, orders_enabled: false }));
-      setCatalogVerified(false);
-      setNotice('');
-      setCatalogError(error instanceof Error ? error.message : 'Menyn kunde inte hämtas. Försök igen.');
-    } finally {
-      setLoading(false);
-    }
+          : '');
+      } catch (error) {
+        // Behåll utkast och meny vid nätverksfel, men tillåt ingen beställning.
+        setCatalog(previous => ({ ...previous, orders_enabled: false }));
+        setCatalogVerified(false);
+        setNotice('');
+        setCatalogError(error instanceof Error ? error.message : 'Menyn kunde inte hämtas. Försök igen.');
+      } finally {
+        setLoading(false);
+        catalogRequest.current = null;
+      }
+    })();
+    catalogRequest.current = pending;
+    return pending;
   }, []);
   useEffect(() => {
     if (!draftReady || !catalogVerified) return;
@@ -95,23 +91,21 @@ export function CateringProvider({ children }: PropsWithChildren) {
     void refresh();
   }, [refresh]);
   useEffect(() => {
+    let previous = AppState.currentState;
+    const listener = AppState.addEventListener('change', next => {
+      if (next === 'active' && previous !== 'active') void refresh();
+      previous = next;
+    });
+    return () => listener.remove();
+  }, [refresh]);
+  useEffect(() => {
     readOrderReferences()
       .then(setReferences)
       .catch(() => setStorageNotice('Det säkra orderminnet kunde inte öppnas på enheten.'));
   }, []);
   useEffect(() => {
     readMenuDraft().then(value => {
-      if (!value || typeof value !== 'object') return;
-      const draft = value as Partial<Selection>;
-      const quantities = Object.fromEntries(Object.entries(draft.quantities || {})
-        .filter(([id, quantity]) => id.length <= 100 && Number.isInteger(quantity) && quantity > 0 && quantity <= 1000)
-        .slice(0, 50));
-      setSelection({
-        menuId: typeof draft.menuId === 'string' && draft.menuId.length <= 100 ? draft.menuId : null,
-        quantities,
-        guests: Number.isInteger(draft.guests) && draft.guests! > 0 && draft.guests! <= 1000 ? draft.guests! : 10,
-        occasion: ['hemma', 'fest', 'foretag'].includes(draft.occasion || '') ? draft.occasion! : 'hemma',
-      });
+      if (value) setSelection(parseSelectionDraft(value));
     }).catch(() => setStorageNotice('Menyutkastet kunde inte öppnas. Välj dina rätter igen.'))
       .finally(() => setDraftReady(true));
   }, []);
@@ -150,7 +144,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
     setGuests: (guests) =>
       setSelection((previous) => ({
         ...previous,
-        guests: Math.max(1, Math.min(1000, Math.floor(guests) || 1)),
+        guests: Math.max(orderLimits.minGuests, Math.min(orderLimits.maxGuests, Math.floor(guests) || orderLimits.minGuests)),
       })),
     setOccasion: (occasion) => setSelection((previous) => ({ ...previous, occasion })),
     chooseMenu: (menuId) =>
@@ -158,7 +152,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
         ...previous,
         menuId,
         quantities: {},
-        guests: Math.max(previous.guests, catalog.menus.find((menu) => menu.id === menuId)?.min_people || 1),
+        guests: Math.max(previous.guests, minimumGuestsFor(catalog.menus.find(menu => menu.id === menuId), orderLimits.minGuests)),
       })),
     changeDish: (id, difference) =>
       setSelection((previous) => ({
@@ -166,7 +160,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
         menuId: null,
         quantities: {
           ...previous.quantities,
-          [id]: Math.max(0, Math.min(1000, (previous.quantities[id] || 0) + difference)),
+          [id]: Math.max(0, Math.min(orderLimits.maxQuantity, (previous.quantities[id] || 0) + difference)),
         },
       })),
   };
@@ -177,30 +171,4 @@ export function useCatering() {
   const store = useContext(Context);
   if (!store) throw new Error('CateringProvider saknas.');
   return store;
-}
-
-// Samma heltalsregler som webb och server. En ogiltig eller obekräftad prislista ger ingen offert.
-export function getQuote(
-  catalog: Catalog,
-  selection: Selection,
-  fulfillment: Fulfillment = 'pickup',
-  fee = 0,
-) {
-  const menu = catalog.menus.find((item) => item.id === selection.menuId && item.active);
-  const items = Object.entries(selection.quantities)
-    .filter(([, quantity]) => quantity > 0)
-    .map(([dish_id, quantity]) => ({ dish_id, quantity }));
-  try {
-    if (selection.menuId) {
-      if (!menu || menu.price_ore <= 0 || selection.guests < menu.min_people) return null;
-      return {
-        ...calcTotal(menu.price_ore, selection.guests, fulfillment, fee),
-        price_per_person_ore: menu.price_ore,
-      };
-    }
-    if (selection.guests < catalog.settings.custom_min_people) return null;
-    return calcDishTotal(items, catalog.dishes, selection.guests, fulfillment, fee);
-  } catch {
-    return null;
-  }
 }

@@ -29,6 +29,8 @@ jobs:
       - run: npm run test
       - run: npm run typecheck
       - run: npm run build
+      - name: Production HTTP, server rendering and disabled demo checks
+        run: npm run test:web
       - run: npm run export:mobile
       - name: Install pinned PostgREST for isolated database tests
         shell: bash

@@ -22,22 +22,13 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { formatSek, safeExternalUrl, type Dish, type ItemCategory, type Menu } from '@yehabibi/shared';
+import {
+  categoryLabels, designColors, formatSek, orderLimits, safeExternalUrl, suggestedQuantity, type Dish, type Menu,
+} from '@yehabibi/shared';
 import { useCatering } from './store';
 
-export const colors = {
-  green: '#155A43',
-  text: '#202B27',
-  red: '#B63842',
-  line: '#DEE6E1',
-  soft: '#F7F5F2',
-  muted: '#6B7280',
-  mint: '#E8F2ED',
-};
-export const categories: Record<ItemCategory, string> = {
-  kalla_meze: 'Kalla meze', varma_meze: 'Varma meze', grill: 'Grill',
-  vegetariskt: 'Vegetariskt', brod_saser: 'Bröd & såser', dessert: 'Dessert',
-};
+export const colors = designColors;
+export const categories = categoryLabels;
 const photos: Record<string, ImageSourcePropType> = {
   '/images/hero.webp': require('../assets/hero.webp'),
   '/images/mezze.webp': require('../assets/mezze.webp'),
@@ -267,7 +258,7 @@ export function Stepper({
   onChange,
   label,
   min = 0,
-  max = 1000,
+  max = orderLimits.maxQuantity,
 }: {
   value: number;
   onChange: (difference: number) => void;
@@ -358,7 +349,7 @@ export function DishCard({ dish, compact = false }: { dish: Dish; compact?: bool
   const { selection, changeDish } = useCatering();
   const { width } = useWindowDimensions();
   const quantity = selection.quantities[dish.id] || 0;
-  const suggested = Math.min(1000, Math.ceil(selection.guests * (dish.suggested_per_person || 0)));
+  const suggested = suggestedQuantity(selection.guests, dish.suggested_per_person);
   return (
     <View style={[s.card, compact && (width < 360 ? { flexBasis: '100%' } : s.dishCard)]}>
       <View style={compact && { height: 140, overflow: 'hidden' }}>
@@ -376,7 +367,7 @@ export function DishCard({ dish, compact = false }: { dish: Dish; compact?: bool
           <Text style={s.detail}>Kökets förslag: {dish.suggested_per_person} per person → {suggested} för {selection.guests} gäster.</Text>
           <Button secondary title={`Välj förslaget: ${suggested}`} disabled={dish.price_ore <= 0} onPress={() => changeDish(dish.id, suggested - quantity)} />
         </>}
-        <Stepper label={dish.title} value={quantity} max={dish.price_ore > 0 ? 1000 : quantity}
+        <Stepper label={dish.title} value={quantity} max={dish.price_ore > 0 ? orderLimits.maxQuantity : quantity}
           onChange={difference => changeDish(dish.id, difference)} />
         {!!quantity && dish.price_ore > 0 && <Text style={s.detail}>
           {quantity} × {formatSek(dish.price_ore)} = {formatSek(quantity * dish.price_ore)}

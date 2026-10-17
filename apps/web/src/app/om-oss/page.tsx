@@ -1,4 +1,4 @@
 import type { Metadata } from 'next';
 import { Cta } from '@/components/Cta';
-export const metadata: Metadata = { title:'Om vår libanesiska catering', description:'Cedar Mezze – mat, gemenskap och libanesiska smaker för hem och fest i Västerås.' };
+export const metadata: Metadata = { alternates: { canonical: '/om-oss' }, title:'Om vår libanesiska catering', description:'Cedar Mezze – mat, gemenskap och libanesiska smaker för hem och fest i Västerås.' };
 export default function About() {return <section className="shell section inner-page"><span className="eyebrow">VÅR IDÉ</span><h1>Mat som samlar människor.</h1><div className="simple-two"><div><p className="intro">Cedar Mezze är ett arbetsnamn för catering med inspiration från Libanons rika matkultur. Vi vill göra det enkelt att samlas runt en riktigt god måltid.</p><p>Välj ett paket, berätta om ditt tillfälle och få ett personligt svar innan din beställning bekräftas.</p><Cta href="/bestall">Skicka förfrågan</Cta></div><img src="/images/mezze.webp" alt="Mezzerätter på ett generöst bord"/></div></section>}

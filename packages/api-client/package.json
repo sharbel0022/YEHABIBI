@@ -1,0 +1,13 @@
+{
+  "name": "@yehabibi/api-client",
+  "version": "4.2.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@yehabibi/shared": "4.2.0"
+  }
+}

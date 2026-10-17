@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View, type TextInputProps } from 'react-native';
 import { router } from 'expo-router';
 import {
-  eventDateBounds, findDeliveryZone, formatSek, isValidEventDate, newOrderSchema, occasions, paymentLabels,
+  availablePaymentMethods, buildOrderPayload, eventDateBounds, findDeliveryZone, formatSek,
+  itemsFromQuantities, minimumGuestsFor, newOrderSchema, occasions, orderContactError,
+  orderDetailsError, orderSteps, paymentLabels,
   type Fulfillment, type PaymentPreference,
 } from '@yehabibi/shared';
-import { apiUrl, clearRequestId, newRequestId, openPolicy, persistentRequestId, request, type OrderReference } from '../lib/api';
+import { api, apiUrl, clearRequestId, newRequestId, openPolicy, persistentRequestId } from '../lib/api';
 import { getQuote, useCatering } from '../lib/store';
 import { Amount, Button, Choices, colors, DateTimeField, Field, Notice, Screen, Stepper, s } from '../lib/ui';
 
@@ -13,10 +15,10 @@ const emptyForm = {
   event_date: '', event_time: '', full_name: '', email: '', phone: '',
   address: '', postal_code: '', city: '', notes: '',
 };
-const steps = ['Välj mat', 'Datum & plats', 'Kontakt', 'Skicka'];
+const steps = orderSteps;
 
 export default function OrderScreen() {
-  const { catalog, selection, setGuests, setOccasion, rememberOrder, storageNotice } = useCatering();
+  const { catalog, loading, catalogError, selection, setGuests, setOccasion, rememberOrder, storageNotice } = useCatering();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(emptyForm);
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
@@ -31,15 +33,13 @@ export default function OrderScreen() {
   const settings = catalog.settings;
   const dates = eventDateBounds(settings.min_advance_days);
   const menu = catalog.menus.find(item => item.id === selection.menuId);
-  const items = Object.entries(selection.quantities).filter(([, quantity]) => quantity > 0)
-    .map(([dish_id, quantity]) => ({ dish_id, quantity }));
+  const items = itemsFromQuantities(selection.quantities);
   const zone = fulfillment === 'delivery' ? findDeliveryZone(catalog.delivery_zones, form.postal_code) : null;
   const quote = getQuote(catalog, selection, fulfillment, zone?.fee_ore || 0);
   const foodQuote = getQuote(catalog, { ...selection,
-    guests: Math.max(selection.guests, menu?.min_people || settings.custom_min_people) });
-  const methods = catalog.payment_methods.filter(value =>
-    value !== 'cash' || (fulfillment === 'pickup' && settings.cash_enabled));
-  const canSubmit = catalog.orders_enabled && !catalog.demo && !!quote && methods.includes(payment) &&
+    guests: Math.max(selection.guests, minimumGuestsFor(menu, settings.custom_min_people)) });
+  const methods = availablePaymentMethods(catalog, fulfillment);
+  const canSubmit = !loading && !catalogError && catalog.orders_enabled && !catalog.demo && !!quote && methods.includes(payment) &&
     (fulfillment === 'pickup' ? settings.pickup_enabled : settings.delivery_enabled && !!zone);
 
   useEffect(() => {
@@ -54,28 +54,23 @@ export default function OrderScreen() {
       onChangeText={value => setForm(previous => ({ ...previous, [name]: value }))} {...props} />;
   }
   function payload(accepted: boolean) {
-    return {
-      ...form, ...(selection.menuId ? { menu_id: selection.menuId } : { items }),
-      guests: selection.guests, occasion: selection.occasion, fulfillment,
+    return buildOrderPayload(selection, {
+      ...form, fulfillment,
       delivery_zone_id: zone?.id, payment_preference: payment, terms_accepted: accepted,
-    };
+    });
   }
   function next() {
     setError('');
     if (step === 1 && !foodQuote) return setError('Välj mat med bekräftade priser.');
     if (step === 2) {
       if (!quote) return setError('Kontrollera minsta antal personer och att rätterna har bekräftade priser.');
-      if (!isValidEventDate(form.event_date, settings.min_advance_days) ||
-          !/^([01]\d|2[0-3]):[0-5]\d$/.test(form.event_time)) {
-        return setError(`Ange en giltig tid och ett datum minst ${settings.min_advance_days} dagar framåt, inom ett år.`);
-      }
-      if (fulfillment === 'delivery' && (!zone || !form.address.trim() || !form.city.trim())) {
-        return setError('Fyll i en fullständig adress inom en aktiv leveranszon.');
-      }
-      if (fulfillment === 'pickup' && !settings.pickup_enabled) return setError('Hämtning är inte tillgänglig.');
+      const detailsError = orderDetailsError(payload(true), settings, catalog.delivery_zones);
+      if (detailsError) return setError(detailsError);
     }
-    if (step === 3 && !newOrderSchema.safeParse(payload(true)).success) {
-      return setError('Kontrollera namn, e-post, telefon och dina beställningsuppgifter.');
+    if (step === 3) {
+      const contactError = orderContactError(form);
+      if (contactError) return setError(contactError);
+      if (!newOrderSchema.safeParse(payload(true)).success) return setError('Kontrollera dina beställningsuppgifter.');
     }
     setStep(step + 1);
   }
@@ -86,8 +81,9 @@ export default function OrderScreen() {
   async function submit() {
     if (inFlight.current || !canSubmit || !terms) return;
     const parsed = newOrderSchema.safeParse(payload(terms));
-    if (!parsed.success || !isValidEventDate(form.event_date, settings.min_advance_days)) {
-      setError('Kontrollera alla uppgifter före förfrågan.'); return;
+    const detailsError = orderDetailsError(payload(terms), settings, catalog.delivery_zones);
+    if (!parsed.success || detailsError) {
+      setError(detailsError || 'Kontrollera alla uppgifter före förfrågan.'); return;
     }
     inFlight.current = true;
     setSending(true);
@@ -104,9 +100,7 @@ export default function OrderScreen() {
         }
         retry.current = { payload: encoded, id };
       }
-      const reference = await request<OrderReference>('/api/orders', {
-        method: 'POST', body: JSON.stringify({ ...parsed.data, request_id: retry.current.id }),
-      });
+      const reference = await api.createOrder({ ...parsed.data, request_id: retry.current.id });
       await rememberOrder(reference);
       setSubmitted(reference.code);
       await clearRequestId().catch(() => setRetryNotice('Förfrågan är mottagen, men enhetens återförsöksminne kunde inte tömmas. Behåll ditt ordernummer.'));
@@ -175,9 +169,9 @@ export default function OrderScreen() {
       </>}
       {step === 2 && <View style={s.section}>
         <Text style={s.label}>Antal personer</Text>
-        <Stepper label="personer" min={menu?.min_people || settings.custom_min_people} value={selection.guests}
+        <Stepper label="personer" min={minimumGuestsFor(menu, settings.custom_min_people)} value={selection.guests}
           onChange={difference => setGuests(selection.guests + difference)} />
-        <Text style={s.detail}>Minst {menu?.min_people || settings.custom_min_people} personer.</Text>
+        <Text style={s.detail}>Minst {minimumGuestsFor(menu, settings.custom_min_people)} personer.</Text>
         <Choices values={Object.entries(occasions).map(([value, label]) => ({
           value: value as typeof selection.occasion, label,
         }))} selected={selection.occasion} onSelect={setOccasion} />

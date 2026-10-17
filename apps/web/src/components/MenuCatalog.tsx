@@ -2,27 +2,31 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import type { Dish, Menu } from '@/types/domain';
+import type { Catalog } from '@/types/domain';
 import { MenuCard } from '@/components/MenuCard';
 import { ItemPicker } from '@/components/ItemPicker';
 import { useMenuDraft } from '@/components/order-draft';
-import { calcDishTotal, formatSek } from '@/lib/domain';
+import { formatSek } from '@/lib/domain';
+import { orderLimits, quoteSelection, reconcileSelection } from '@yehabibi/shared';
+import { useCatalog } from '@/components/use-catalog';
+import { CatalogRefresh } from '@/components/CatalogRefresh';
 
-type Props = { menus: Menu[]; dishes: Dish[]; initialTab?: string; initialDish?: string; preview: boolean; minPeople: number };
+type Props = { initialCatalog: Catalog; initialTab?: string; initialDish?: string };
 
-export function MenuCatalog({ menus, dishes, initialTab, initialDish, preview, minPeople }: Props) {
+export function MenuCatalog({ initialCatalog, initialTab, initialDish }: Props) {
+  const { catalog, ...refreshState } = useCatalog(initialCatalog);
+  const { menus, dishes, demo: preview } = catalog;
+  const minPeople = catalog.settings.custom_min_people;
   const [tab, setTab] = useState<'paket' | 'bygg'>(initialTab === 'bygg' ? 'bygg' : 'paket');
   const chosen = dishes.find(dish => dish.id === initialDish && dish.price_ore > 0);
-  const { draft, setDraft } = useMenuDraft(chosen ? { quantities: { [chosen.id]: 1 } } : {}, dishes, minPeople);
-  const { guests, quantities } = draft;
+  const { draft, setDraft, notice } = useMenuDraft(chosen ? { quantities: { [chosen.id]: 1 } } : {}, catalog);
+  const { guests } = draft;
+  const selection = reconcileSelection(catalog, { menuId: null, quantities: draft.quantities, guests, occasion: 'hemma' });
+  const { quantities } = selection;
   const selected = dishes.filter(dish => quantities[dish.id] > 0);
-  const items = selected.map(dish => ({ dish_id: dish.id, quantity: quantities[dish.id] }));
-  let total: ReturnType<typeof calcDishTotal> | null = null;
-  let error = '';
-  try {
-    if (!Number.isSafeInteger(guests) || guests < minPeople || guests > 1000) error = `Välj mellan ${minPeople} och 1 000 personer.`;
-    else if (items.length) total = calcDishTotal(items, dishes, guests, 'pickup', 0);
-  } catch { error = 'Beställningen överstiger beloppsgränsen. Minska antal eller kontakta oss för en offert.'; }
+  const total = quoteSelection(catalog, selection);
+  const error = !Number.isSafeInteger(guests) || guests < minPeople || guests > orderLimits.maxGuests ? `Välj mellan ${minPeople} och ${orderLimits.maxGuests.toLocaleString('sv-SE')} personer.`
+    : selected.length && !total ? 'Kontrollera mängder och aktuella priser eller kontakta oss för en offert.' : '';
   const params = new URLSearchParams({ val: 'bygg', personer: String(guests),
     varor: selected.map(dish => `${dish.id}:${quantities[dish.id]}`).join(',') });
   const summary = <div className="builder-summary" aria-live="polite">
@@ -39,6 +43,8 @@ export function MenuCatalog({ menus, dishes, initialTab, initialDish, preview, m
   </div>;
 
   return <div>
+    <CatalogRefresh {...refreshState}/>
+    {notice && <p className="preview-note" role="status">{notice}</p>}
     <div className="catalog-tabs" role="group" aria-label="Välj menyläge">
       <button type="button" className={tab === 'paket' ? 'active' : ''} aria-pressed={tab === 'paket'}
         onClick={() => setTab('paket')}>Färdiga paket</button>
@@ -53,7 +59,7 @@ export function MenuCatalog({ menus, dishes, initialTab, initialDish, preview, m
       <div className="builder-intro">
         <div><span className="eyebrow">ER MENY, ERA FAVORITER</span><h2>Lite av allt. Precis som ni vill.</h2><p>Börja med antal gäster. Välj sedan rätter och mängder i lugn och ro.</p></div>
         <label className="field">Antal personer
-          <input type="number" min={minPeople} max={1000} value={guests || ''}
+          <input type="number" min={minPeople} max={orderLimits.maxGuests} value={guests || ''}
             onChange={event => setDraft(old => ({ ...old, guests: Number(event.target.value) }))}/>
         </label>
       </div>
