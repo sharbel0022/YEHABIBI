@@ -2,9 +2,9 @@
 
 En cateringplattform med **Expo för Android/iPhone**, en Next.js-webbplats och samma beställningssystem i Supabase/PostgreSQL. V2:s webbplats och adminpanel finns kvar i `apps/web`. Appens arbetsnamn är **Cedar Mezze**.
 
-Mobilappen använder **Expo SDK 57 för din iPhone i Expo Go**, med Expo Router och samma backend som webben. Det riktiga [EAS-projektet](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) är kopplat till `sharbel1423`. SDK 57 har passerat samtliga kodkontroller och export för Android/iOS/webb; faktisk telefonkörning följs upp i [TESTER.md](docs/TESTER.md). Tidigare SDK 58-byggen sparas som historiska tester.
+Mobilappen använder **Expo SDK 57 för din iPhone i Expo Go**, med Expo Router och samma backend som webben. Det riktiga [EAS-projektet](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) är kopplat till `sharbel1423`. Appstart på fysisk iPhone har bekräftats av användaren, och alla sex skärmar har testats i Androids Expo Go. Kodkontroller och export för Android/iOS/webb är godkända; detaljer finns i [TESTER.md](docs/TESTER.md). Tidigare SDK 58-byggen sparas som historiska tester.
 
-Kodgranskning finns i [PR #2](https://github.com/sharbel0022/YEHABIBI/pull/2) på [branchen expo-mobile-v3](https://github.com/sharbel0022/YEHABIBI/tree/expo-mobile-v3). Den [tidigare gröna CI-körningen](https://github.com/sharbel0022/YEHABIBI/actions/runs/39033639715) gäller SDK 58-källan. Lokal `npm run verify` är godkänd även för SDK 57 och Next.js 16.4.2; ny CI och native-körning redovisas separat.
+Kodgranskning finns i [PR #2](https://github.com/sharbel0022/YEHABIBI/pull/2) på [branchen expo-mobile-v3](https://github.com/sharbel0022/YEHABIBI/tree/expo-mobile-v3). Lokal `npm run verify` och [GitHub Actions](https://github.com/sharbel0022/YEHABIBI/actions/runs/39035790398) är godkända för SDK 57 och Next.js 16.4.2. Native-körning och molnbyggen redovisas separat i teststatusen.
 
 ## Starta
 
@@ -29,7 +29,7 @@ npm run dev:mobile
 
 `npm run dev:mobile` visar **Expo Go-QR för SDK 57**. Skanna med iPhones Kamera och öppna Expo Go. Logga in på samma Expo-konto i CLI och telefonen, här `sharbel1423`; vid behov kör du `npx expo login` från `apps/mobile`. [EXPO.md](docs/EXPO.md) beskriver Wi-Fi, inloggning och felsökning.
 
-Androids egna development build testas separat och måste också byggas för SDK 57. Den äldre SDK 58-APK:n är historik. Lokal native-kompilering i nuvarande Windows-checkout stoppades av sökvägsproblem; använd EAS för egen APK enligt [EXPO.md](docs/EXPO.md).
+SDK 57 har även färdiga EAS-byggen för Android development-APK och iOS-simulator. Hämta rätt artefakt och följ installations-/teststatus i [EXPO.md](docs/EXPO.md). Den äldre SDK 58-APK:n är historik. Lokal native-kompilering med SDK 58 stoppades av Windows-sökvägsproblem; SDK 57 har inte byggts lokalt.
 
 `EXPO_PUBLIC_API_URL` i `apps/mobile/.env.local` är:
 
@@ -79,7 +79,7 @@ Kör från repots rot:
 | `npm run dev` | Startar Next.js och API på port 3000 |
 | `npm run dev:mobile` | Startar Expo Go-QR för iPhone, SDK 57 |
 | `npm run android` | Öppnar separat installerad SDK 57 development build på Android |
-| `npm run build:android` | Försöker lokalt Android-bygge; Windows-sökvägsfelet kvarstår i denna checkout |
+| `npm run build:android` | Försöker lokalt Android-bygge; se Windows-begränsningar i EXPO.md |
 | `npm run go --workspace @yehabibi/mobile` | Startar Expo Go uttryckligt |
 | `npm run export:mobile` | Exporterar Expo för konfigurerade plattformar |
 | `npm run verify` | Syntax, TypeScript, enhetstester, webbbygge och Expo-export |

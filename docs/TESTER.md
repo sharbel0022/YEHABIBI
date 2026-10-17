@@ -25,13 +25,27 @@ Användaren har begärt SDK 57 för sin fysiska iPhone. Alla SDK 58-resultat ned
 | Syntax, webbtyper och 22 affärs-/SQL-tester | Godkända; båda TypeScript-kontrollerna och **22 av 22** tester passerar |
 | Next.js production build och Expo-export | Next.js **16.4.2** godkänd; Expo Android/iOS med Hermes samt webb med 8 statiska routes godkända |
 | Expo beroendekontroll/Doctor | `expo install --check` godkänd; Expo Doctor **21 av 21** godkända |
-| GitHub Actions | Ny SDK 57-körning ännu ej rapporterad; den gröna SDK 58-körningen finns i historiken |
-| Expo Go på fysisk iPhone | Kräver SDK 57-kompatibel Go samt samma Expo-inloggning i CLI och telefon; faktisk telefonkörning ännu ej verifierad |
-| ADB/emulator | ADB-servern svarar igen efter avgränsad serveromstart; `emulator-5554` är `device`. Inget SDK 57-UI-resultat ännu |
-| Android Expo Go / development-APK | Ny SDK 57-körning/build ännu ej rapporterad |
-| iOS EAS-build | Ingen SDK 57-build rapporterad; SDK 58-simulatorbuild finns i historiken |
+| GitHub Actions | **SUCCESS** för SDK 57-källan `c147a7c`; [körning 39035790398](https://github.com/sharbel0022/YEHABIBI/actions/runs/39035790398) |
+| Webb i webbläsare | Next.js 16.4.2 hydrering, kategorier, gästantal, paketval och formulärvalidering godkända; inga konsolfel |
+| Webb/API efter SDK 57-bytet | Kund-/adminsidor 200; demo med 3 menyer/11 rätter och inga påhittade priser; orderstopp 503, admin utan inloggning 401, ogiltig privat order 404, tillåten CORS 204 och otillåten 403 |
+| Expo Go på fysisk iPhone | **Appstart bekräftad av användaren** den 2026-10-17 kl. 15:20 svensk tid: ”Ja, appen visas”. SDK 57 öppnades via Expo Go-QR. Apple Pay, push och hela orderflödet på fysisk iPhone är ännu ej verifierade |
+| SDK 57-manifest och konto | LAN-manifest svarar 200 med `exposdk:57.0.0`, SDK 57.0.0 och rätt projekt-id; Expo CLI inloggad som `sharbel1423` |
+| ADB/emulator | ADB-servern svarar igen efter avgränsad serveromstart; `emulator-5554` är `device` |
+| Android Expo Go | **Alla 6 skärmar godkända** i `host.exp.exponent`: Hem, Menyer, Bygg, Beställ, Ordrar och Kontakt. Gästminimum, rättantal 0 → 1 → 0, spärr mot negativa antal och överfört menyval godkända. Demo-knappen för förfrågan förblir inaktiverad även efter godkända villkor. Tom privat orderlista visas och saknade officiella Maps-/recensionslänkar är inaktiva |
+| Android runtime och visuell kontroll | Skärmbilder kontrollerade utan synlig overflow eller krasch; inga `ReactNativeJS`-/`AndroidRuntime`-felrader i logcat efter start |
+| Android EAS development-APK | **FINISHED**, Gradle `BUILD SUCCESSFUL in 16m 16s`; [SDK 57-bygge](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/8aecfb1a-e685-48f7-b2b5-4036287996d3), [APK](https://expo.dev/artifacts/eas/ykbEJDaMR8-uzR1iJxk9XJa82ENf2gTR9qnWmZ5Ju4I.apk). Hämtad APK 251 795 028 byte; `adb install -r` gav `Success` |
+| Egen Android SDK 57-app | **Start och kontrollerade vyer godkända** i `se.cedarmezze.app.dev`: Hem visuellt granskad, Bygg visar API-katalogens Hummus och plus ökar 0 → 1, privat orderlista visar tomt läge utan lagringsvarning. `Running main` med Fabric; inga `ReactNativeJS`-/`AndroidRuntime`-fel i logcat. Detta är separat från Expo Gos sexskärmstest |
+| iOS EAS simulatorbuild | **FINISHED**; [SDK 57-bygge](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/582a9830-1993-46e0-b8b9-079f589e7848), [simulatorartefakt](https://expo.dev/artifacts/eas/TpvKQfNdLRWRzyKANT8KQ0OerADUwYbHwsUIERmWhcM.tar.gz). Native-bygget slutfört; ingen Mac-simulatorkörning verifierad |
 
-Startkommandot `npm run dev:mobile` använder Expo Go för iPhone. Kodkontrollerna för SDK 57 är godkända. Faktisk appkörning, nya native-byggen och ny CI-körning följs upp separat nedan.
+Startkommandot `npm run dev:mobile` använder Expo Go för iPhone. Kodkontroller och CI för SDK 57 är godkända. Faktisk appkörning och nya native-byggen följs upp separat enligt tabellen.
+
+SDK 57:s båda färdiga EAS-byggen har bekräftad källcommit `c147a7cffc895f4ca51e445d87261de9769c00b5`, app 3.0.0 (1) och identifierare `se.cedarmezze.app.dev`. Android-jobbet skapades den 2026-10-17 kl. 15:15:37 svensk tid och iOS-jobbet kl. 15:16:06. Arkivuppladdning och fingerprint lyckades. Användarens iPhone-bekräftelse ovan gäller Expo Go-appstart och är separat från EAS-byggena.
+
+SDK 57:s iOS-simulatorbygge slutfördes kl. **15:22:44 svensk tid** samma dag. Det använder den låsta SDK 57-byggmiljön med Xcode 26.6 och är ingen App Store-publicering.
+
+SDK 57:s Android development-APK slutfördes kl. **15:32:47 svensk tid** samma dag. Gradle körde `:app:assembleDebug` och rapporterade `BUILD SUCCESSFUL in 16m 16s`. Den installerade development-klienten öppnades därefter med `exp+cedar-mezze://expo-development-client/?url=http://192.168.0.110:8081`, mot samma Metro-server som Expo Go. Native-kompilering, installation och ovan angivna UI-kontroller är verifierade var för sig.
+
+**Beroendegranskning:** `npm audit --workspace @yehabibi/web --omit=dev` rapporterar **0 fynd**. Monorepots audit markerar 29 paket, 18 high och 11 moderate, främst i bygg-/utvecklingsverktyg. En moderate-varning i URL-tolkningen via Expo Router kvarstår i SDK 57: [GHSA-vcc3-ghjq-m6fr](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr). Den behöver följas upp med en kompatibel uppdatering före produktionslansering; ett direkt byte till den rättade ESM-versionen kan bryta den nuvarande CommonJS-anroparen. Ingen exploit har provats och inga blinda beroendeöverskrivningar har lagts in. Detta är verifierad demoutveckling, ingen produktionslansering.
 
 ## Historik: SDK 58, 2026-10-17
 

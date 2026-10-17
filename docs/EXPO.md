@@ -1,31 +1,36 @@
 # Expo SDK 57 på iPhone och Windows
 
-Mobilen använder **Expo SDK 57**, React Native **0.86.3**, React **19.2.3**, Expo Router och TypeScript **6.0.3**, enligt användarens iPhone-krav. Samtliga kodkontroller, Expo Doctor 21/21 och export för Android/iOS/webb är godkända. Faktisk enhetskörning och nya native-byggen redovisas separat i [TESTER.md](TESTER.md). SDK 58-byggena nedan är historik.
+Mobilen använder **Expo SDK 57**, React Native **0.86.3**, React **19.2.3**, Expo Router och TypeScript **6.0.3**, enligt användarens iPhone-krav. Användaren har bekräftat appstart på sin fysiska iPhone via Expo Go; alla sex skärmar har dessutom körts i Androids Expo Go. Samtliga kodkontroller, Expo Doctor 21/21 och export för Android/iOS/webb är godkända. Nya native-byggen och exakt testomfattning redovisas i [TESTER.md](TESTER.md). SDK 58-byggena nedan är historik.
 
 SDK 57 kräver iOS 16.4 eller senare enligt [Expos versionsreferens](https://docs.expo.dev/versions/v57.0.0/).
 
 ## Starta på din iPhone med Expo Go
 
-1. Installera/uppdatera **Expo Go med SDK 57-stöd** från App Store. Expo bekräftade stödet den 3 september 2026. Logga in på samma Expo-konto i telefonen och CLI:n; detta projekt är kopplat till `sharbel1423`. Se [Expos besked om SDK 57 och inloggning](https://expo.dev/changelog/expo-go-57-login).
-2. Anslut telefon och dator till samma Wi-Fi. Kör `ipconfig` i PowerShell och hitta datorns IPv4-adress på det aktiva nätverket.
-3. Sätt `EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000` i `apps/mobile/.env.local`. Exempel: `http://192.168.1.50:3000`, där du ersätter exempeladressen med din egen. `10.0.2.2` gäller Android-emulatorn och fungerar inte på din iPhone.
-4. Kör från repots rot, efter första installationen och kopiering av miljöfiler:
+Kör först från repots rot. Kopiera miljöfilerna **bara första gången**, så att egna inställningar behålls:
 
 ```powershell
 npm install
 Copy-Item apps/web/.env.example apps/web/.env.local
 Copy-Item apps/mobile/.env.example apps/mobile/.env.local
+```
+
+1. Installera/uppdatera **Expo Go med SDK 57-stöd** från App Store. Expo bekräftade stödet den 3 september 2026. Logga in på samma Expo-konto i telefonen och CLI:n; detta projekt är kopplat till `sharbel1423`. Se [Expos besked om SDK 57 och inloggning](https://expo.dev/changelog/expo-go-57-login).
+2. Anslut telefon och dator till samma Wi-Fi. Kör `ipconfig` i PowerShell och hitta datorns IPv4-adress på det aktiva nätverket.
+3. Sätt `EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000` i `apps/mobile/.env.local`. Exempel: `http://192.168.1.50:3000`, där du ersätter exempeladressen med din egen. `10.0.2.2` gäller Android-emulatorn och fungerar inte på din iPhone.
+
+Starta sedan Next.js och API:t på port 3000 i den första terminalen, från repots rot:
+
+```powershell
 npm run dev
 ```
 
-Kopiera miljöfilerna bara första gången. Ändra mobilens API-adress efter kopieringen så att den inte skrivs tillbaka till emulatoradressen. Next.js och API:t kör nu på port 3000.
-
-Logga in vid behov från en separat terminal:
+Öppna en andra terminal i repots rot. Logga in vid behov och gå sedan tillbaka till roten:
 
 ```powershell
 Set-Location apps/mobile
 npx expo whoami
 npx expo login
+Set-Location ../..
 ```
 
 Starta sedan från repots rot:
@@ -70,7 +75,7 @@ Variablerna gäller aktuell terminal; inga globala Java-inställningar behöver 
 
 `npm run android` använder en **egen development build**, medan `npm run dev:mobile` använder **Expo Go** för iPhone. Den egna appen måste vara byggd för samma SDK 57 som projektet. SDK 58-APK:n är en äldre testartefakt och ska inte laddas med SDK 57-källan.
 
-För Expo Go på Android kan du starta `npm run dev:mobile` och trycka `a`, med en SDK 57-kompatibel Go-version. För egen APK används SDK 57-bygget när det har skapats och verifierats, enligt [TESTER.md](TESTER.md).
+För Expo Go på Android kan du starta `npm run dev:mobile` och trycka `a`, med en SDK 57-kompatibel Go-version. För egen APK används det färdiga SDK 57-bygget nedan; installations-/teststatus finns i [TESTER.md](TESTER.md).
 
 ## Egen Android development-APK via EAS
 
@@ -82,7 +87,9 @@ Från `apps/mobile`:
 npx eas-cli@latest build --platform android --profile development --non-interactive --no-wait
 ```
 
-Kontrollera att byggsidan anger SDK 57 innan du använder artefakten. När den färdiga SDK 57-APK:n hämtats, starta emulatorn och kör, med din faktiska filsökväg:
+Det nya [SDK 57 Android-bygget](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/8aecfb1a-e685-48f7-b2b5-4036287996d3) är **FINISHED** för källcommit `c147a7c`, app 3.0.0 (1). [Hämta SDK 57 development-APK](https://expo.dev/artifacts/eas/ykbEJDaMR8-uzR1iJxk9XJa82ENf2gTR9qnWmZ5Ju4I.apk). APK:n har installerats med `Success` och den egna appens start, Hem, katalog/plus i Bygg och tom privat orderlista har verifierats i emulatorn. Det är en egen development client; Expo Go används fortsatt som standard på iPhone.
+
+Kontrollera att byggsidan anger SDK 57 innan du använder artefakten. När APK:n hämtats, starta emulatorn och kör, med din faktiska filsökväg:
 
 ```powershell
 $adb = 'C:\Users\sharbel\AppData\Local\Android\Sdk\platform-tools\adb.exe'
@@ -142,6 +149,8 @@ npx eas-cli@latest build --platform ios --profile development
 ```
 
 Windows kan starta EAS-molnbygget men kan inte köra Xcode/iOS Simulator. Simulatorartefakten installeras på en Mac. Egen build för fysisk iPhone kräver rätt Apple-behörighet, signering och enhetsregistrering. Ingen butiks-submit körs automatiskt.
+
+Det nya [SDK 57 iOS-simulatorbygget](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/582a9830-1993-46e0-b8b9-079f589e7848) är **FINISHED** för källcommit `c147a7c`, app 3.0.0 (1). [Hämta simulatorartefakten](https://expo.dev/artifacts/eas/TpvKQfNdLRWRzyKANT8KQ0OerADUwYbHwsUIERmWhcM.tar.gz). Det är separat från Expo Go på din iPhone och har inte körts i en Mac-simulator här.
 
 ## Tidigare verifierade SDK 58-byggen
 
