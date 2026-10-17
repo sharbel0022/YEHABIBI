@@ -2,7 +2,7 @@
 
 Mobilen behåller Expo 57.0.30, React Native 0.86.3 och React 19.2.3. V4.3 behåller SDK 57 och använder hostad betalning genom samma backend. Aktuell appversion läses ur `app.config.ts` och det befintliga [EAS-projektet sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) bevaras, projekt-ID `a93fde8c-7227-4824-af1f-9bcffe77221d`.
 
-Betalningar är avstängda tills företagets verifierade testkonto finns; inga live-endpoints är aktiverade. Apple Pay på fysisk iPhone och Google Pay/Swish på fysisk Android behöver egna acceptansprov enligt [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md). EAS-/exportresultat bevisar inte ett sådant betalningstest.
+Betalningar är avstängda tills företagets verifierade testkonto finns; produktionsspärren är false och inga livebetalningar är aktiverade. Apple Pay på fysisk iPhone och Google Pay/Swish på fysisk Android behöver egna acceptansprov enligt [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md). EAS-/exportresultat bevisar inte ett sådant betalningstest.
 
 API-anrop och affärsregler finns i `packages/api-client` och `packages/shared`. Native navigation, tangentbord, datumväljare, lagring och pushbehörighet stannar i `apps/mobile`. EAS skapar ingen extra backend eller databas.
 

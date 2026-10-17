@@ -1,6 +1,6 @@
 # Betalningar – V4.3
 
-Stripe är avvecklat som aktiv integration. V4.3 använder ett gemensamt serverkontrakt och en Adyen Pay by Link-adapter enbart för testmiljö. Inget merchant-konto är anslutet/godkänt här och inga livebetalningar aktiveras. Historiska order, betalningsreferenser och migrationer bevaras.
+Stripe är avvecklat som aktiv integration. V4.3 använder ett gemensamt serverkontrakt och en Adyen Pay by Link-adapter för test och separat spärrad produktion. Inget merchant-konto är anslutet/godkänt här och inga livebetalningar aktiveras. Historiska order, betalningsreferenser och migrationer bevaras.
 
 Den fullständiga installationsguiden, leverantörsjämförelsen, verifierade priser och aktuella primärkällor finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md). Faktiskt testutfall finns i [TESTER.md](TESTER.md).
 
@@ -12,7 +12,7 @@ Kunden skickar först en obetald förfrågan. Ägaren granskar och godkänner. E
 
 | Metod | Villkor |
 | --- | --- |
-| Swish | Verifierat Adyen-testkonto med Swish för SEK/SE; leverantörens mobilväxling/desktop-QR |
+| Swish | Verifierat Adyen-konto i vald miljö med Swish för SEK/SE; leverantörens mobilväxling/desktop-QR |
 | Visa/Mastercard | Aktiverad metod och säkert hostat formulär, inklusive 3D Secure/SCA när nödvändigt |
 | Apple Pay | Aktiverat konto och Adyens certifikat för Pay by Link; hostad sida avgör enhets-/plånboksstöd |
 | Google Pay | Aktiverat konto och registrerad hostad domän; stödd plattform/plånbok |
@@ -26,7 +26,7 @@ Ett beständigt betalningsförsök reserveras före leverantörsanropet. Samma f
 
 `/api/payments/webhook` verifierar Standard-HMAC och matchar konto, unik merchantreferens, PSP-referens, belopp och valuta innan SQL uppdaterar betalning/notifieringar atomärt. Osignerad metadata och kundens returlänk är aldrig betalningsbevis. GET på en genomförd betalningslänk sätter inte ensamt `paid`.
 
-Adyen-kandidaten kräver verifierad **omedelbar automatisk capture** i testkontot. En signerad lyckad `AUTHORISATION` följer det dokumenterade Pay by Link-flödet; manual capture stöds inte av aktiveringspolicyn. Swish saknar separat capture. Senare capturefel, chargeback eller återförda medel ger ett avstämningsärende för ägaren.
+Adyen-kandidaten kräver verifierad **omedelbar automatisk capture** på rätt konto i vald miljö. En signerad lyckad `AUTHORISATION` följer det dokumenterade Pay by Link-flödet; manual capture stöds inte av aktiveringspolicyn. Swish saknar separat capture. Senare capturefel, chargeback eller återförda medel ger ett avstämningsärende för ägaren.
 
 Återbetalning kräver behörig admin, samma verifierade provider/transaction och ett beständigt återbetalningsförsök. API-svar `received` är väntande; leverantörshändelsen avgör status och sena refundfel kräver åtgärd. En gammal Stripebetalning får aldrig återbetalas genom Adyen.
 
@@ -34,6 +34,6 @@ Adyen-kandidaten kräver verifierad **omedelbar automatisk capture** i testkonto
 
 `lib/payments/provider.ts` är serverkontraktet, `service.ts` hanterar försök/avstämning och `providers/adyen.ts` har testanrop/HMAC. De generiska `/api/payments/create`, `/status` och `/webhook` återanvänds av webb och Expo. `payment_attempts`, `payment_provider_events` och `payment_refunds` tillkommer additivt med RLS och begränsade serverrättigheter.
 
-`PAYMENTS_ENABLED=false` stoppar nya betalningar. Tom `PAYMENT_PROVIDER` i konfigurationsmallen innebär avstängt läge. En redan utfärdad betalning måste fortfarande kunna stämmas av när nya betalningar stängs; rätt providerhemligheter får därför inte raderas innan alla försök är avstämda. Adaptern innehåller inga live-endpoints.
+`PAYMENTS_ENABLED=false` stoppar nya betalningar. Tom `PAYMENT_PROVIDER` i konfigurationsmallen innebär avstängt läge. En redan utfärdad betalning måste fortfarande kunna stämmas av när nya betalningar stängs; rätt providerhemligheter får därför inte raderas innan alla försök är avstämda. Produktion kräver separat uttryckligt ägarbeslut, godkänd verklig sandbox, rätt livekonto och `PAYMENTS_LIVE_APPROVED=true`, `ADYEN_ENVIRONMENT=live` samt validerat `ADYEN_LIVE_URL_PREFIX`. Dessa är avstängda/tomma här; inga liveanrop har gjorts. Test/live binds till varje försök och får inte blandas. Se V4.3-guiden för den framtida aktiveringsordningen.
 
 Lokala signerade testhändelser och kontrollerade HTTP-svar är simulerade leverantörer. Företagets riktiga sandbox, Resend-leverans och fysiska iPhone/Android återstår tills de verifierats separat. Grön CI, Expo-export eller EAS-bygge bevisar inte en betalning.

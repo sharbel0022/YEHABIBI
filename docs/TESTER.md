@@ -6,7 +6,7 @@ Lokala slutkontroller körda 2026-10-17. [Betalningsguiden](PAYMENTS_WITHOUT_STR
 | --- | --- |
 | Anpassade historiska/delade enhetstester | 40/40 godkända i `domain.test.mjs`, `v3.test.mjs`, `v4.test.mjs`, `unified-domain.test.mjs`, inklusive sju historiska SQL-underfall. V4/V4.1-SQL kör avsiktligt till den historiska migrationsgränsen; nya fullkedjeregler ligger i betalningssviten. |
 | Ren installation | `npm ci --no-audit --no-fund` godkänd; projektets gamla Next-/Expo-processer stoppades för att frigöra Windows-fillås. Stripe-SDK saknas i den nya beroendekedjan. |
-| Syntax, typer och tester | `npm run verify` godkänd: syntax, typkontroll för alla konsumenter och **80/80 tester** inklusive 18 provider-/SQL-fall. |
+| Syntax, typer och tester | `npm run verify` godkänd: syntax, typkontroll för alla konsumenter och **84/84 tester** inklusive 22 provider-/SQL-fall. |
 | Next.js och Expo | Produktionsbygge godkänt; iOS/Android Hermes och åtta Expo-webbrutter exporterade med bibehållen SDK 57. Export är inget signerat nativebygge. |
 | Produktions-HTTP/SEO | `npm run test:web` godkänd: nio publika sidor, metadata/canonical, elva SSR-rätter, avstängda order/adminskydd och robots/sitemap. |
 | Riktig lokal HTTP/databas | `npm run test:integration` godkänd med PostgreSQL 18.3/PostgREST och Next: **11 syntetiska order, 64 idempotenta testmejl**. Alla fyra onlinebetalningsmetoder använder uttryckligen simulerad leverantör. |
@@ -18,6 +18,8 @@ Lokala slutkontroller körda 2026-10-17. [Betalningsguiden](PAYMENTS_WITHOUT_STR
 Historiska Stripe-purehelpers har avvecklats. Deras beteende ersätts av provideroberoende försök-/HMAC-/återbetalningstester; gamla order- och migrationsassertions bevaras. Ingen produktionsdatabas, kundbetalning eller oidentifierat konto används.
 
 HTTP-sviten verifierar ägargranskning utan automatisk extern session, uttrycklig prisacceptans, kundens senare metodval, parallell initiering med samma session, privat token och förbjudna klientbelopp, exakt SEK/revision, nekad betalning och återupptagning, signerade dubbletter, asynkron full återbetalning, spärrad leverans under återbetalning, kontantmottagarens adminreferens och uttrycklig inställning för obetalda förfrågningar. Avstängning av nya betalningar blockerar nya sessioner men tillåter fortfarande verifierade tidigare webhooks. Databassviten täcker även externa/delvisa återbetalningar och chargebacks som kräver avstämning, återförda medel, rollback och bevarade historiska Stripe-referenser.
+
+Produktionskonfigurationen provas endast med injicerade simulerade HTTP-svar: uttrycklig separat live-spärr, låst officiellt Adyen-ursprung, exakt europeisk hostad adress och miljöbindning före status-/refundanrop samt före callback-deduplikering. En sandboxorder kan inte bli en livebetalning genom att miljövariabler byts. Inga riktiga live-endpoints, företagskonton eller produktionsnycklar används i testerna.
 
 ---
 

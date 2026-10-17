@@ -19,6 +19,7 @@ create unique index orders_provider_payment_idx on public.orders(payment_provide
 create table public.payment_attempts (
   id uuid primary key default gen_random_uuid(), order_id uuid not null references public.orders(id),
   provider text not null check(provider ~ '^[a-z][a-z0-9_]{0,39}$'), method text not null check(method in ('swish','card','apple_pay','google_pay')),
+  environment text not null default 'test' check(environment in ('test','live')),
   amount_ore integer not null check(amount_ore between 1 and 100000000), currency text not null check(currency='SEK'),
   quote_revision integer not null check(quote_revision>0),
   provider_reference text not null unique, idempotency_key text not null unique,
@@ -30,6 +31,7 @@ create table public.payment_attempts (
 alter table public.orders add constraint orders_payment_attempt_fk foreign key(payment_attempt_id) references public.payment_attempts(id);
 create table public.payment_provider_events (
   provider text not null check(provider ~ '^[a-z][a-z0-9_]{0,39}$'), event_id text not null,
+  environment text not null check(environment in ('test','live')),
   order_id uuid not null references public.orders(id), attempt_id uuid not null references public.payment_attempts(id),
   event_code text not null, kind text not null check(kind in ('paid','failed','refunded','review')),
   amount_ore integer not null, currency text not null check(currency='SEK'),
@@ -102,12 +104,13 @@ end; $$;
 
 -- The order lock serializes reservations, customer acceptance, callbacks, refunds and cash receipt.
 -- One attempt per accepted revision remains reserved even after expiry/ambiguous network failures.
-create function public.reserve_catering_payment(p_order_id uuid,p_provider text,p_method text,p_revision integer,p_amount_ore integer)
+create function public.reserve_catering_payment(p_order_id uuid,p_provider text,p_method text,p_revision integer,p_amount_ore integer,p_environment text default 'test')
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare v public.orders%rowtype; a public.payment_attempts%rowtype; v_id uuid;
 begin
   select * into v from public.orders where id=p_order_id for update;
   if not found or p_provider is distinct from 'adyen' or coalesce(p_method,'') not in ('swish','card','apple_pay','google_pay')
+    or coalesce(p_environment,'') not in ('test','live')
     or v.status not in ('approved','preparing','ready') or v.payment_status in ('paid','refunded') or v.payment_review_required
     or v.proposal is not null or v.quote_revision<>v.accepted_revision or v.quote_revision is distinct from p_revision
     or v.total_ore is distinct from p_amount_ore or v.total_ore<=0 or v.cash_received_at is not null
@@ -115,13 +118,13 @@ begin
     or v.stripe_checkout_session_id is not null and v.payment_provider is null then return null; end if;
   select * into a from public.payment_attempts where order_id=v.id and quote_revision=v.quote_revision;
   if found then
-    if a.provider<>p_provider or a.method<>p_method or a.amount_ore<>p_amount_ore then return null; end if;
+    if a.provider<>p_provider or a.method<>p_method or a.amount_ore<>p_amount_ore or a.environment<>p_environment then return null; end if;
     return to_jsonb(a);
   end if;
   if v.payment_status='pending' or exists(select 1 from public.payment_attempts where order_id=v.id) then return null; end if;
   v_id:=gen_random_uuid();
-  insert into public.payment_attempts(id,order_id,provider,method,amount_ore,currency,quote_revision,provider_reference,idempotency_key)
-    values(v_id,v.id,p_provider,p_method,v.total_ore,'SEK',v.quote_revision,'yh-'||v_id::text,v_id::text) returning * into a;
+  insert into public.payment_attempts(id,order_id,provider,environment,method,amount_ore,currency,quote_revision,provider_reference,idempotency_key)
+    values(v_id,v.id,p_provider,p_environment,p_method,v.total_ore,'SEK',v.quote_revision,'yh-'||v_id::text,v_id::text) returning * into a;
   update public.orders set payment_provider=p_provider,payment_method=p_method,payment_preference=p_method,
     payment_attempt_id=a.id,payment_status='pending',updated_at=now() where id=v.id;
   return to_jsonb(a);
@@ -135,7 +138,8 @@ begin
   if not found then return null; end if;
   select * into strict a from public.payment_attempts where id=p_attempt_id for update;
   if coalesce(p_provider_payment_id,'')='' or p_provider_payment_id !~ '^[A-Za-z0-9_-]{1,100}$'
-    or coalesce(p_checkout_url,'') !~ '^https://test[.]adyen[.]link/' or p_expires_at is null
+    or p_checkout_url is distinct from ('https://'||case when a.environment='test' then 'test.adyen.link' else 'eu.adyen.link' end||'/'||p_provider_payment_id)
+    or p_expires_at is null
     or v.payment_attempt_id<>a.id or v.total_ore<>a.amount_ore or v.quote_revision<>a.quote_revision
     or a.provider_payment_id is not null and a.provider_payment_id<>p_provider_payment_id then return null; end if;
   update public.payment_attempts set provider_payment_id=p_provider_payment_id,checkout_url=p_checkout_url,expires_at=p_expires_at,
@@ -163,22 +167,23 @@ begin
   return to_jsonb(v);
 end; $$;
 
-create function public.reserve_catering_refund(p_order_id uuid)
+create function public.reserve_catering_refund(p_order_id uuid,p_environment text default 'test')
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare v public.orders%rowtype; a public.payment_attempts%rowtype; r public.payment_refunds%rowtype; v_id uuid;
 begin
   select * into v from public.orders where id=p_order_id for update;
   if not found or v.payment_provider is distinct from 'adyen' or v.payment_review_required then return null; end if;
-  select * into r from public.payment_refunds where order_id=v.id;
-  if found then return to_jsonb(r); end if;
   select * into a from public.payment_attempts where id=v.payment_attempt_id;
-  if not found or v.payment_status<>'paid' or a.status<>'paid' or a.transaction_reference is null
+  if not found or a.environment is distinct from p_environment then return null; end if;
+  select * into r from public.payment_refunds where order_id=v.id;
+  if found then return to_jsonb(r)||jsonb_build_object('environment',a.environment); end if;
+  if v.payment_status<>'paid' or a.status<>'paid' or a.transaction_reference is null
     or a.amount_ore<>v.total_ore then return null; end if;
   v_id:=gen_random_uuid();
   insert into public.payment_refunds(id,order_id,attempt_id,provider,amount_ore,currency,transaction_reference,provider_reference,idempotency_key)
     values(v_id,v.id,a.id,a.provider,a.amount_ore,'SEK',a.transaction_reference,'refund-'||v_id::text,v_id::text) returning * into r;
   update public.orders set payment_refund_status='pending',updated_at=now() where id=v.id;
-  return to_jsonb(r);
+  return to_jsonb(r)||jsonb_build_object('environment',a.environment);
 end; $$;
 create function public.attach_catering_refund(p_refund_id uuid,p_provider_refund_id text)
 returns jsonb language plpgsql security invoker set search_path='' as $$
@@ -238,6 +243,7 @@ declare v public.orders%rowtype; a public.payment_attempts%rowtype; r public.pay
   v_adverse boolean; v_quarantine boolean:=false; v_amount integer:=(p_event->>'amount_ore')::integer;
 begin
   if p_event->>'provider' is distinct from 'adyen' or coalesce(p_event->>'event_id','') !~ '^[a-f0-9]{64}$'
+    or coalesce(p_event->>'environment','') not in ('test','live')
     or coalesce(v_psp,'')='' or p_event->>'currency' is distinct from 'SEK' or v_amount is null or v_amount<=0
     or coalesce(v_code,'') not in ('AUTHORISATION','CAPTURE','CAPTURE_FAILED','REFUND','REFUND_FAILED','REFUNDED_REVERSED','CHARGEBACK','SETTLED_REVERSED') then raise exception 'Invalid payment event'; end if;
   v_expected_kind:=case when v_code='AUTHORISATION' then case when v_success then 'paid' else 'failed' end
@@ -255,6 +261,7 @@ begin
   if not found then raise exception 'Payment event does not match a reserved payment'; end if;
   select * into strict v from public.orders where id=a.order_id for update;
   select * into strict a from public.payment_attempts where id=a.id for update;
+  if a.environment is distinct from p_event->>'environment' then raise exception 'Payment environment mismatch'; end if;
   -- Return the order ID on duplicates so delivery of a durable pending notification is retried.
   if exists(select 1 from public.payment_provider_events where provider='adyen' and event_id=p_event->>'event_id' and order_id=v.id) then return v.id; end if;
   if v.payment_attempt_id is distinct from a.id or v.payment_provider is distinct from a.provider or v.payment_preference='cash'
@@ -274,8 +281,8 @@ begin
       or r.provider_refund_id is not null and r.provider_refund_id<>v_psp
       or r.provider_refund_id is null and r.provider_reference is distinct from p_event->>'reference' then v_quarantine:=true; end if;
   end if;
-  insert into public.payment_provider_events(provider,event_id,order_id,attempt_id,event_code,kind,amount_ore,currency,transaction_reference,original_reference,success)
-    values('adyen',p_event->>'event_id',v.id,a.id,v_code,v_kind,v_amount,'SEK',v_psp,v_original,v_success) on conflict do nothing;
+  insert into public.payment_provider_events(provider,environment,event_id,order_id,attempt_id,event_code,kind,amount_ore,currency,transaction_reference,original_reference,success)
+    values('adyen',a.environment,p_event->>'event_id',v.id,a.id,v_code,v_kind,v_amount,'SEK',v_psp,v_original,v_success) on conflict do nothing;
   get diagnostics v_inserted=row_count;
   if v_inserted=0 then return v.id; end if;
   if v_quarantine then
@@ -315,12 +322,12 @@ begin
 end; $$;
 
 revoke all on function public.create_catering_order(jsonb,jsonb),public.update_catering_settings(jsonb),
-  public.reserve_catering_payment(uuid,text,text,integer,integer),public.attach_catering_payment(uuid,text,text,timestamptz),
-  public.expire_catering_payment(uuid),public.reserve_catering_refund(uuid),public.attach_catering_refund(uuid,text),
+  public.reserve_catering_payment(uuid,text,text,integer,integer,text),public.attach_catering_payment(uuid,text,text,timestamptz),
+  public.expire_catering_payment(uuid),public.reserve_catering_refund(uuid,text),public.attach_catering_refund(uuid,text),
   public.record_catering_cash_payment(uuid,uuid),public.apply_catering_payment_event(jsonb)
   from public,anon,authenticated;
 grant execute on function public.create_catering_order(jsonb,jsonb),public.update_catering_settings(jsonb),
-  public.reserve_catering_payment(uuid,text,text,integer,integer),public.attach_catering_payment(uuid,text,text,timestamptz),
-  public.expire_catering_payment(uuid),public.reserve_catering_refund(uuid),public.attach_catering_refund(uuid,text),
+  public.reserve_catering_payment(uuid,text,text,integer,integer,text),public.attach_catering_payment(uuid,text,text,timestamptz),
+  public.expire_catering_payment(uuid),public.reserve_catering_refund(uuid,text),public.attach_catering_refund(uuid,text),
   public.record_catering_cash_payment(uuid,uuid),public.apply_catering_payment_event(jsonb)
   to service_role;

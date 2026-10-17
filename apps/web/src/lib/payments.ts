@@ -4,7 +4,7 @@ import { adminDb } from '@/lib/supabase';
 import { trackingLink } from '@/lib/tracking';
 import { AdyenProvider, adyenConfigured, adyenVerificationConfigured, InvalidPaymentEventError } from './payments/providers/adyen';
 import type { OnlinePaymentMethod, PaymentAttempt, RefundAttempt } from './payments/provider';
-import { assertPaymentMatches, refundPayment, startPayment, type PaymentStore } from './payments/service';
+import { readProviderPayment, refundPayment, startPayment, type PaymentStore } from './payments/service';
 
 export type { OnlinePaymentMethod } from './payments/provider';
 export { InvalidPaymentEventError } from './payments/providers/adyen';
@@ -28,13 +28,14 @@ function paymentStore(): PaymentStore {
   }
   return {
     reserve: (orderId, method, revision, amount) => rpc<PaymentAttempt>('reserve_catering_payment', {
-      p_order_id: orderId, p_provider: 'adyen', p_method: method, p_revision: revision, p_amount_ore: amount
+      p_order_id: orderId, p_provider: 'adyen', p_method: method, p_revision: revision, p_amount_ore: amount,
+      p_environment: process.env.ADYEN_ENVIRONMENT
     }),
     attach: async (attempt, payment) => { await rpc('attach_catering_payment', {
       p_attempt_id: attempt.id, p_provider_payment_id: payment.id, p_checkout_url: payment.url, p_expires_at: payment.expires_at
     }); },
     expire: async attempt => { await rpc('expire_catering_payment', {p_attempt_id: attempt.id}); },
-    reserveRefund: orderId => rpc<RefundAttempt>('reserve_catering_refund', {p_order_id: orderId}),
+    reserveRefund: orderId => rpc<RefundAttempt>('reserve_catering_refund', {p_order_id: orderId, p_environment: process.env.ADYEN_ENVIRONMENT}),
     attachRefund: async (refund, id) => { await rpc('attach_catering_refund', {p_refund_id: refund.id, p_provider_refund_id: id}); },
     apply: event => rpc<string | null>('apply_catering_payment_event', {p_event: event})
   };
@@ -57,8 +58,8 @@ export async function reconcilePaymentStatus(order: CateringOrder): Promise<Cate
   if (error) throw new Error('Betalningsstatus kunde inte läsas.');
   const attempt = data as PaymentAttempt | null;
   if (!attempt?.provider_payment_id || ['paid', 'refunded'].includes(attempt.status)) return order;
-  const payment = await new AdyenProvider().getPayment(attempt.provider_payment_id);
-  assertPaymentMatches(payment, attempt);
+  const provider = new AdyenProvider();
+  const payment = await readProviderPayment(provider, attempt);
   if (payment.status === 'expired') await paymentStore().expire(attempt);
   const {data: fresh, error: readError} = await db.from('orders').select('*').eq('id', order.id).single();
   if (readError || !fresh) throw new Error('Betalningsstatus kunde inte läsas.');

@@ -1,6 +1,6 @@
 # Publicering – V4.3
 
-V4.3 behåller EAS-profiler och en webbackend samt tillför avstängd Adyen-testadapter. Läs [betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) före kontokonfiguration. Företagets konton, innehåll och externa betalningsflöden måste verifieras före aktivering. Ingen automatisk butiksuppladdning sker. Användarens beslut 2026-10-17: använd endast isolerad lokal testdatabas; använd inte det inaktiva Supabase-projektet. Stripe är avvecklat som aktiv integration.
+V4.3 behåller EAS-profiler och en webbackend samt tillför avstängd Adyen-adapter. Läs [betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) före kontokonfiguration. Företagets konton, innehåll och externa betalningsflöden måste verifieras före aktivering. Ingen automatisk butiksuppladdning sker. Lokala tester använder isolerad testdatabas; det identifierade inaktiva Supabase-projektet har inte ändrats. Stripe är avvecklat som aktiv integration.
 
 Föregående publicering är V4.2 (lokalt sparat underlag anger Site-version 6). Den räknas inte som V4.3-synkronisering. Slutlig V4.3-version/deployment och main-SHA ska redovisas efter avslutade operationer.
 
@@ -24,9 +24,9 @@ Profilerna skiljer apparnas identitet men skapar inte databaser eller backend-se
 2. Skapa separata Supabase-miljöer och kör SQL-migrationerna i ordning enligt [DATABAS.md](DATABAS.md). Bjud in ägaren i Supabase Auth, ange `ADMIN_EMAILS` och rätt `/auth/callback`-redirect.
 3. Välj hosting med Next.js-serverstöd. Rotens `npm run build` bygger workspace `@yehabibi/web`. Statiska Expo-filer ersätter inte API-servern.
 4. Ange `NEXT_PUBLIC_SITE_URL` till webbens riktiga HTTPS-domän. Appens API-adress ska nå samma backend. Ordermejl och QR använder webbadressen, aldrig emulatorns `10.0.2.2`.
-5. Företaget godkänner leverantör/offert och konto innan anslutning. Konfigurera därefter eget Adyen-testkonto, verifierad Resend-avsändare och två olika orderhemligheter på minst 32 tecken. Håll `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false` och `PAYMENT_PROVIDER=none` publikt. Inga live-endpoints finns i V4.3-adaptern.
+5. Företaget godkänner leverantör/offert och konto innan anslutning. Konfigurera därefter eget Adyen-testkonto, verifierad Resend-avsändare och två olika orderhemligheter på minst 32 tecken. Håll `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false` och `PAYMENT_PROVIDER=none` publikt. Behåll också `PAYMENTS_LIVE_APPROVED=false` och tomt `ADYEN_LIVE_URL_PREFIX`. Kod för separat spärrad produktion finns men har inte anslutits eller aktiverats.
 6. Lägg Standard-webhook med HMAC på `/api/payments/webhook` i godkänd testmiljö. Relevanta händelser: `AUTHORISATION`, `CAPTURE`, `CAPTURE_FAILED`, `REFUND`, `REFUND_FAILED`, `REFUNDED_REVERSED`, `CHARGEBACK`, `SETTLED_REVERSED`. Verifiera omedelbar automatisk capture; vanlig auto-capture skickar normalt ingen separat CAPTURE-webhook.
-7. Testa officiella testkort/3D Secure, tillgänglig Swish, Apple Pay på fysisk iPhone, Google Pay på fysisk Android, kontant och återbetalning. Lokal simulering får inte redovisas som Adyen-sandbox. Produktion kräver framtida separat godkänt arbete.
+7. Testa officiella testkort/3D Secure, tillgänglig Swish, Apple Pay på fysisk iPhone, Google Pay på fysisk Android, kontant och återbetalning. Lokal simulering får inte redovisas som Adyen-sandbox. Produktionskonfiguration kräver godkänd sandbox, rätt företagsavtal/konto och ett framtida separat uttryckligt ägarbeslut enligt V4.3-guiden.
 
 Adyens dokumenterade stöd garanterar inte merchantbehörighet. Apple Pay i Pay by Link använder Adyens certifikat; Google Pay kräver registrering av den hostade domänen. Se [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) för primärkällor och konfiguration.
 

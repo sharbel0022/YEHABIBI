@@ -2,7 +2,7 @@
 
 Libanesisk catering för hemma, fest och företag. Next.js driver webb, admin och den gemensamma backendservern. Expo SDK 57 driver iPhone och Android. Alla plattformar använder samma katalog, orderkontrakt och Supabase/PostgreSQL inom respektive miljö.
 
-V4.3 ersätter aktiv Stripe-kod med ett gemensamt betalningsgränssnitt och en avstängd Adyen Pay by Link-adapter för **testmiljö**. Swish, Apple Pay, Google Pay och Visa/Mastercard kräver företagets verifierade konton och riktiga sandboxprov. Inga livebetalningar aktiveras. Orderhistoriken bevaras genom en additiv migration.
+V4.3 ersätter aktiv Stripe-kod med ett gemensamt betalningsgränssnitt och en avstängd Adyen Pay by Link-adapter med testmiljö och separat spärrad produktionskonfiguration. Swish, Apple Pay, Google Pay och Visa/Mastercard kräver företagets verifierade konton och riktiga sandboxprov. Inga livebetalningar aktiveras. Orderhistoriken bevaras genom en additiv migration.
 
 Läs [V4.3-guiden](docs/PAYMENTS_WITHOUT_STRIPE_V4_3.md) för betalningsflöde, leverantörsjämförelse, verifierade priser, installation och kvarvarande företagskrav. [V4.2-guiden](docs/UNIFIED_ARCHITECTURE_V4_2.md) bevarar refaktoreringens bakgrund. [TESTER.md](docs/TESTER.md) redovisar faktiskt testutfall. GitHub/CI och Sites senaste verifierade publicering beskrivs i [PUBLICERING.md](docs/PUBLICERING.md).
 
@@ -49,7 +49,7 @@ Starta om Expo efter ändrad API-adress. `APP_ENV` väljer appidentitet; API-adr
 
 Kunden väljer catering → anpassar → anger datum/plats och kontakt → granskar → skickar förfrågan. Servern läser aktuella priser och skapar order och rader i en databastransaktion. Samma `request_id` återanvänder ordern vid identiska återförsök.
 
-Ägaren granskar i `/admin`. Ett nytt pris kräver kundens uttryckliga godkännande av rätt revision. Ägaren skickar betalningsbegäran med privat statuslänk; kunden väljer därefter en serververifierad metod och skapar den hostade testbetalningen. Bara autentiserad leverantörsbekräftelse kan bekräfta onlinebetalning. Kontant gäller bara hämtning och kvitteras av behörig administratör. Ursprungliga orderrader och priser bevaras när katalogen ändras.
+Ägaren granskar i `/admin`. Ett nytt pris kräver kundens uttryckliga godkännande av rätt revision. Ägaren skickar betalningsbegäran med privat statuslänk; kunden väljer därefter en serververifierad metod och skapar den hostade betalningen i vald miljö. Bara autentiserad leverantörsbekräftelse kan bekräfta onlinebetalning. Kontant gäller bara hämtning och kvitteras av behörig administratör. Ursprungliga orderrader och priser bevaras när katalogen ändras.
 
 Adminändringar läses från samma `/api/catalog` på båda plattformar. Webbens meny/formulär uppdaterar vid fokus, återkomst till synlig flik, återställd anslutning och knappen Uppdatera menyn. Expo uppdaterar vid återkomst till appen och när kunden drar för att uppdatera. Ett nätverksfel behåller matvalen men stänger möjligheten att skicka från en obekräftad katalog.
 

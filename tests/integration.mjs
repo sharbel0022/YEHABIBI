@@ -129,6 +129,7 @@ async function run() {
           const values=JSON.parse(body);
           const fixture={id:`PL_${randomUUID().replaceAll('-','')}`,status:'active',url:'https://test.adyen.link/isolated-fixture',
             amount:values.amount,reference:values.reference,merchantAccount:values.merchantAccount,expiresAt:values.expiresAt};
+          fixture.url=`https://test.adyen.link/${fixture.id}`;
           assert.ok(values.allowedPaymentMethods.length);assert.equal(values.reusable,false);
           assert.equal(values.amount.currency,'SEK');assert.equal(values.merchantAccount,merchantAccount);
           assert.ok(values.allowedPaymentMethods.every(method=>['visa','mc','swish','applepay','googlepay'].includes(method)));

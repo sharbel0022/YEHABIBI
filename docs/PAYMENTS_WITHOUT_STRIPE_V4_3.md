@@ -1,8 +1,8 @@
 # YEHABIBI V4.3 – beställningar och betalningar utan Stripe
 
-Underlag kontrollerat 2026-10-17. **Adyen Pay by Link är integrationskandidaten i koden. Inget företagskonto har valts, anslutits eller godkänts för skarpa betalningar.** Standardläget är avstängt och adaptern använder enbart Adyens testmiljö. Direkt Swish Handel och Nexi Checkout är utvärderade alternativ; de är inte implementerade adaptrar i denna version.
+Underlag kontrollerat 2026-10-17. **Adyen Pay by Link är integrationskandidaten i koden. Inget företagskonto har valts, anslutits eller godkänts för skarpa betalningar.** Standardläget är avstängt med testmiljö vald. Adaptern har också separat spärrad produktionskonfiguration för ett framtida uttryckligt ägarbeslut efter verifierad sandbox; den har inte aktiverats eller anslutits här. Direkt Swish Handel och Nexi Checkout är utvärderade alternativ; de är inte implementerade adaptrar i denna version.
 
-En byggd integration och ett godkänt lokalt HTTP-/databastest bevisar inte en verklig sandboxbetalning. Företagets Adyen-konto, Swish, Apple Pay, Google Pay, verklig Resend-leverans och fysiska iPhone-/Android-prov återstår tills konton och behörigheter finns. Läs [TESTER.md](TESTER.md) för faktiskt körda kontroller. Livebetalningar är spärrade i koden.
+En byggd integration och ett godkänt lokalt HTTP-/databastest bevisar inte en verklig sandboxbetalning. Företagets Adyen-konto, Swish, Apple Pay, Google Pay, verklig Resend-leverans och fysiska iPhone-/Android-prov återstår tills konton och behörigheter finns. Läs [TESTER.md](TESTER.md) för faktiskt körda kontroller. Produktionsspärren `PAYMENTS_LIVE_APPROVED` är false och prefix/nycklar saknas i mallen. Inga liveanrop eller verkliga betalningar har gjorts.
 
 ## Varför Adyen utvärderas först
 
@@ -94,9 +94,9 @@ V4.3 lägger till en separat tilläggsmigration; den befintliga kedjan och tidig
 | Datadel | Ansvar |
 | --- | --- |
 | `orders` | Orderns godkända belopp/revision, aktuell betalstatus och begränsade publika referenser |
-| `payment_attempts` | `provider`, `order_id`, `amount_ore`, SEK, metod, prisrevision, unik providerreferens/idempotensnyckel, hostad länk och leverantörens betalnings-id |
-| `payment_provider_events` | Verifierade leverantörshändelser och unik idempotens per händelse |
-| `payment_refunds` | Beständigt återbetalningsförsök och asynkron status |
+| `payment_attempts` | `provider`, `environment` (`test`/`live`), `order_id`, `amount_ore`, SEK, metod, prisrevision, unik providerreferens/idempotensnyckel, hostad länk och leverantörens betalnings-id |
+| `payment_provider_events` | Verifierade leverantörshändelser, rätt test/live-miljö och unik idempotens per händelse |
+| `payment_refunds` | Beständigt återbetalningsförsök i samma `environment` som betalningen och asynkron status |
 | `order_notifications` | Samma beständiga kund-/ägarbesked som övriga orderflödet |
 | Äldre Stripefält/`payment_events` | Historiska betalningsreferenser som bevaras; de är inte en aktiv integration |
 
@@ -122,22 +122,36 @@ Ingen migration har här körts i ett oidentifierat fjärrprojekt. Supabase Auth
 6. Lägg serverhemligheterna i hostingens godkända secret-hantering. Kopiera bara variabelnamnen från `apps/web/.env.example`; lämna produktionsbetalningar avstängda. Lägg aldrig API-nycklar, certifikatnycklar, webhookhemligheter eller service-role i chatt, GitHub, `.env.example`, appen eller en publik fil.
 7. Konfigurera Standard-webhook med HMAC till `/api/payments/webhook`, rätt testkonto och relevant händelseuppsättning. Testa riktig leverans, dubletter, fel och asynkrona negativa händelser. Bevara hemligheter separat för varje miljö.
 8. Konfigurera Resend med verifierad avsändardomän, `EMAIL_FROM`, ägaradress och godkända testmottagare. Verifiera faktisk mottagning, inte bara HTTP 200. Push kräver företagets FCM/APNs och en installerad app.
-9. Aktivera order-/betalspärrar enbart i den godkända testmiljön och kör acceptansen nedan. Inga live-endpoints finns i den här Adyen-adaptern; en framtida produktionsaktivering kräver eget godkänt arbete.
+9. Aktivera order-/betalspärrar enbart i den godkända testmiljön och kör acceptansen nedan. Behåll produktionsspärren false. En framtida produktionsaktivering kan göras med den skyddade konfigurationen nedan, först efter godkänd sandbox, rätt företagskonto och ett separat uttryckligt ägarbeslut.
 
 `EXPO_PUBLIC_*` och `NEXT_PUBLIC_*` kan byggas in i klienten. Mobilen behöver endast den publika API-adressen och projektkonfigurationen. Serverns service-role, betalnings-API-nyckel/HMAC och Resendnyckel får aldrig ligga där. De två orderhemligheterna ska vara olika slumpvärden med minst 32 tecken.
 
 | Servervariabel | Testkonfiguration efter kontogodkännande |
 | --- | --- |
-| `PAYMENTS_ENABLED` | `false` som standard, `true` endast i godkänd testmiljö |
+| `PAYMENTS_ENABLED` | `false` som standard; nya betalningar aktiveras först i godkänd testmiljö |
 | `PAYMENT_PROVIDER` | Tomt i konfigurationsmallen (avstängt); `adyen` för verifierat testkonto |
-| `ADYEN_ENVIRONMENT` | `test`; andra miljöer har inga stödda endpoints i adaptern |
+| `ADYEN_ENVIRONMENT` | `test` som standard; `live` endast genom framtida godkänd produktionskonfiguration |
+| `PAYMENTS_LIVE_APPROVED` | `false` som standard. Får bara ändras efter separat uttryckligt ägarbeslut och godkänd riktig sandbox |
+| `ADYEN_LIVE_URL_PREFIX` | Tomt som standard. Företagets exakta officiella liveprefix; inga hemliga nycklar eller egna URL:er |
 | `ADYEN_CAPTURE_MODE` | `automatic`, efter verifiering av omedelbar capture på rätt konto |
 | `ADYEN_API_KEY` | Hemlig företagsägd test-API-nyckel i godkänd secret-hantering |
 | `ADYEN_MERCHANT_ACCOUNT` | Exakt företagsägt testkontonamn |
 | `ADYEN_HMAC_KEY` | Hemlig webhooknyckel, 64 hextecken, för rätt testwebhook |
 | `ADYEN_ENABLED_METHODS` | Endast faktiskt verifierade val bland `swish,card,apple_pay,google_pay` |
 
-Att stänga nya betalningar med `PAYMENTS_ENABLED=false` stoppar inte signerad avstämning av redan skapade försök. Behåll rätt testkonto/HMAC och webhook tills alla försök är avstämda. Ändra inte hemligheter eller radera historik för att försöka nollställa en oklar betalning.
+Att stänga nya betalningar med `PAYMENTS_ENABLED=false` stoppar inte signerad avstämning av redan skapade försök. Behåll rätt konto/HMAC, miljöinställning och webhook tills alla försök är avstämda. Ändra inte hemligheter eller radera historik för att försöka nollställa en oklar betalning.
+
+### Framtida produktionskonfiguration – förblir avstängd här
+
+Efter företagsavtal, kontoidentifiering, genomförd riktig sandbox och ett **separat uttryckligt ägarbeslut** kan ansvarig konfigurera den befintliga produktionsvägen. Detta dokument ger ingen sådan aktivering och inga produktionsnycklar ska skickas i chatt/GitHub.
+
+1. Använd företagets separata produktionsbackend/databas och livekonto. Kontrollera liveaktiverade metoder, SEK, omedelbar automatisk capture, Apple Pay-certifikat och Google Pay-godkännande/domän. Kopiera inte testhemligheter eller testförsök till produktion.
+2. Läs företagets prefix i **live Customer Area → Developers → API URLs → Prefix**. Adaptern bygger endast den officiella formen `https://<prefix>-checkout-live.adyenpayments.com/checkout/v71`. Prefixet valideras som en DNS-del med högst 49 tecken; en godtycklig URL, port, sökväg eller domän accepteras inte. [Adyens live-endpoints](https://docs.adyen.com/development-resources/live-endpoints/).
+3. Lägg rätt live-API-nyckel, merchant account och separat webhook-HMAC i produktionsserverns secret-hantering. Konfigurera livewebhook på produktionsdomänen, inte testdatabasen. Först efter det dokumenterade ägarbeslutet får ansvarig sätta `ADYEN_ENVIRONMENT=live`, rätt `ADYEN_LIVE_URL_PREFIX` och `PAYMENTS_LIVE_APPROVED=true`; `PAYMENTS_ENABLED` är en separat spärr för nya sessioner.
+4. Produktionslänken måste vara HTTPS på exakt `eu.adyen.link`; testlänken använder exakt `test.adyen.link`. Port, användaruppgifter, query och fragment avvisas. Den europeiska domänen dokumenteras för Pay by Link/Google Pay. [Adyens Google Pay-konfiguration](https://docs.adyen.com/payment-methods/google-pay/).
+5. Betalningsförsök, händelser och refunds binds till `environment`. Ett försök från test får inte återanvändas eller återbetalas i live och tvärtom. Livewebhook kräver livekonfiguration/produktionsgodkännande; båda miljöerna använder egna konton/HMAC. Nya sessioner kan stängas med `PAYMENTS_ENABLED=false` medan redan godkända händelser avstäms.
+
+Ingen liveanslutning, livebetalning, liveåterbetalning eller produktionsaktivering har gjorts i detta arbete. De automatiska testerna ersätter även produktions-HTTP med kontrollerade transportsvar. De verifierar konfigurationsgränser och kontrakt, inte ett faktiskt livekonto.
 
 ## Testa själv och anteckna bevisnivå
 
@@ -154,7 +168,7 @@ npm run export:mobile
 npm run test:integration
 ```
 
-Integrationssviten använder separat tillfälligt lokalt PostgreSQL/PostgREST/Next-kluster och syntetiska order. Leverantörs-/Auth-/mejltransporter ersätts kontrollerat. Det är **lokal integration med simulerad leverantör**, inte Adyen-sandbox och inte en verklig Swish-, Apple Pay- eller Google Pay-transaktion. Resultat och antal redovisas först när slutkörningen finns i [TESTER.md](TESTER.md).
+Integrationssviten använder separat tillfälligt lokalt PostgreSQL/PostgREST/Next-kluster och syntetiska order. Leverantörs-/Auth-/mejltransporter ersätts kontrollerat. Det är **lokal integration med simulerad leverantör**, inte Adyen-sandbox och inte en verklig Swish-, Apple Pay- eller Google Pay-transaktion. Faktiska resultat och antal finns i [TESTER.md](TESTER.md); eventuella nya slutkörningar/CI anges där och i slutleveransen.
 
 | Acceptans | Lokal kodkontroll | Verklig extern kontroll som återstår |
 | --- | --- | --- |
@@ -193,7 +207,7 @@ Butiksuppladdning är ett eget steg efter verifiering och ägarbeslut. Läs [EXP
 | --- | --- |
 | `apps/web/src/lib/payments/provider.ts` | Gemensamt serverkontrakt för betalning, status, verifierade händelser och refund |
 | `apps/web/src/lib/payments/service.ts` | Beständiga försök, exakta belopp, idempotens och återbetalningslivscykel |
-| `apps/web/src/lib/payments/providers/adyen.ts` | Avstängd testadapter, Pay by Link, kontometoder, HMAC och refund |
+| `apps/web/src/lib/payments/providers/adyen.ts` | Avstängd Adyen-adapter för test och separat spärrad produktion; Pay by Link, kontometoder, HMAC och refund |
 | `apps/web/src/app/api/payments/**` | Generiska serverrutter för initiering, status och verifierad webhook |
 | `apps/web/src/lib/payments.ts` | Befintlig orderkoppling återanvänds genom providergränssnittet; gamla `checkout.ts` avvecklas |
 | `packages/shared`, `packages/api-client` | Samma metod-/statuskontrakt för webb och Expo, inklusive Google Pay och obetald förfrågan när tillåten |

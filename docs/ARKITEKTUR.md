@@ -1,6 +1,6 @@
 # Arkitektur i V4.3
 
-Yehabibi har en logisk backend: Next.js-servern. Webb, Expo och den gemensamma adminpanelen använder samma Supabase/PostgreSQL inom respektive miljö. API-klientpaketet och reglerna i shared från V4.2 återanvänds. V4.3 tillför generiska betalningsrutter, en avstängd Adyen-testadapter och additiva betalningstabeller. Katalog/orderkontrakt och orderhistorik bevaras.
+Yehabibi har en logisk backend: Next.js-servern. Webb, Expo och den gemensamma adminpanelen använder samma Supabase/PostgreSQL inom respektive miljö. API-klientpaketet och reglerna i shared från V4.2 återanvänds. V4.3 tillför generiska betalningsrutter, en avstängd Adyen-adapter med separat produktionsspärr och additiva betalningstabeller. Katalog/orderkontrakt och orderhistorik bevaras.
 
 ```mermaid
 flowchart LR
@@ -11,7 +11,7 @@ flowchart LR
   Webb -->|Serverrenderad katalog| Data[Serverns data.ts]
   API --> Data
   Data --> DB[(Gemensam Supabase PostgreSQL)]
-  API --> Betaltjanst[Gemensamt providergränssnitt / Adyen test]
+  API --> Betaltjanst[Gemensamt providergränssnitt / Adyen]
   Betaltjanst -->|HMAC-verifierad webhook| API
   API --> Besked[Resend och Expo Push]
   Shared[packages/shared] -. regler och typer .-> Webb

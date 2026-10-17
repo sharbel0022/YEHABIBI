@@ -80,7 +80,7 @@ Native navigation, tangentbord, datumväljare, enhetslagring och pushbehörighet
 | `lib/config.ts` | Serverkonfiguration och återexport av delad förhandsvisning. |
 | `lib/supabase.ts`, `lib/auth.ts` | Serverklient, cookies, verifierad admin, origin och CORS. |
 | `lib/tracking.ts` | Privat ordertoken, HMAC och säker jämförelse. |
-| `lib/payments.ts`, `lib/payments/{provider,service}.ts`, `lib/payments/providers/adyen.ts` | Orderkoppling, providerkontrakt, beständiga försök och avstängd Adyen-testadapter. Gamla `checkout.ts` är avvecklad. |
+| `lib/payments.ts`, `lib/payments/{provider,service}.ts`, `lib/payments/providers/adyen.ts` | Orderkoppling, providerkontrakt, beständiga försök och avstängd Adyen-adapter med separat produktionsspärr. Gamla `checkout.ts` är avvecklad. |
 | `lib/mailer.ts`, `lib/push.ts` | Köade besked och separat leveranskvittens till kund/ägare. |
 | `lib/browser-upload.ts` | Återanvänt uppladdningsanrop i admin. |
 | `lib/domain.ts`, `lib/validators.ts`, `types/domain.ts` | Tunna kompatibilitetsexporter av shared. Lägg ny gemensam logik i paketet. |

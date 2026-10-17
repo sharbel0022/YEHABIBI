@@ -24,7 +24,7 @@ test('V4.3 payment SQL: reservations, exact references, corrections, refunds, ca
     const attach=(a,id='PL_'+a.id.replaceAll('-',''))=>one('select public.attach_catering_payment($1,$2,$3,$4) as saved',[a.id,id,'https://test.adyen.link/'+id,new Date(Date.now()+86400000).toISOString()]);
     const read=id=>one('select to_jsonb(o) as saved from public.orders o where id=$1',[id]);
     let serial=0;
-    const event=(a,overrides={})=>({provider:'adyen',event_id:createHash('sha256').update(String(++serial)).digest('hex'),event_code:'AUTHORISATION',kind:'paid',success:true,reference:a.provider_reference,transaction_reference:'AUTH_'+a.id,original_reference:null,amount_ore:a.amount_ore,currency:'SEK',...overrides});
+    const event=(a,overrides={})=>({provider:'adyen',environment:a.environment,event_id:createHash('sha256').update(String(++serial)).digest('hex'),event_code:'AUTHORISATION',kind:'paid',success:true,reference:a.provider_reference,transaction_reference:'AUTH_'+a.id,original_reference:null,amount_ore:a.amount_ore,currency:'SEK',...overrides});
     const apply=e=>one('select public.apply_catering_payment_event($1::jsonb) as saved',[JSON.stringify(e)]);
     const approve=o=>db.query("update public.orders set status='approved' where id=$1",[o.id]);
     let o,a;
@@ -62,6 +62,32 @@ test('V4.3 payment SQL: reservations, exact references, corrections, refunds, ca
       assert.equal((await read(o.id)).payment_status,'paid');
       assert.equal((await db.query("select count(*)::int as count from public.order_notifications where order_id=$1 and kind='paid'",[o.id])).rows[0].count,1);
       assert.equal(await reserve(o),null);
+    });
+    await t.test('database binds reservations, hosted links, callbacks and refunds to the exact provider environment',async()=>{
+      const live=await order();await approve(live);
+      const attempt=await one('select public.reserve_catering_payment($1,$2,$3,$4,$5,$6) as saved',[live.id,'adyen','card',1,5000,'live']);
+      assert.equal(attempt.environment,'live');
+      assert.equal(await reserve(live),null); // Sandbox cannot reuse a live reservation.
+      const linkId='PL_live_fixture';
+      const attachUrl=url=>one('select public.attach_catering_payment($1,$2,$3,$4) as saved',[attempt.id,linkId,url,new Date(Date.now()+86400000).toISOString()]);
+      for(const url of ['https://test.adyen.link/'+linkId,'https://eu.adyen.link.evil.example/'+linkId,'https://eu.adyen.link:444/'+linkId,'https://user@eu.adyen.link/'+linkId,'https://eu.adyen.link/wrong','https://eu.adyen.link/'+linkId+'?unsafe=1']) assert.equal(await attachUrl(url),null);
+      assert.equal((await attachUrl('https://eu.adyen.link/'+linkId)).provider_payment_id,linkId);
+      const paid=event(attempt);
+      await assert.rejects(apply({...paid,environment:'test'}),/environment mismatch/);
+      assert.equal((await read(live.id)).payment_status,'pending');
+      await apply(paid);
+      await assert.rejects(apply({...paid,environment:'test'}),/environment mismatch/); // Even a replay checks environment before dedupe.
+      assert.equal(await one('select public.reserve_catering_refund($1) as saved',[live.id]),null);
+      assert.equal((await read(live.id)).payment_refund_status,null);
+      assert.equal((await db.query('select count(*)::int as count from public.payment_refunds where order_id=$1',[live.id])).rows[0].count,0);
+      const refund=await one('select public.reserve_catering_refund($1,$2) as saved',[live.id,'live']);
+      assert.equal(refund.environment,'live');
+      const refundEvent=event(attempt,{event_code:'REFUND',kind:'refunded',reference:refund.provider_reference,original_reference:refund.transaction_reference,transaction_reference:'REF_live_fixture'});
+      await assert.rejects(apply({...refundEvent,environment:'test'}),/environment mismatch/);
+      assert.equal((await read(live.id)).payment_status,'paid');
+      await apply(refundEvent);assert.equal((await read(live.id)).payment_status,'refunded');
+      const sandbox=await order();await approve(sandbox);const sandboxAttempt=await reserve(sandbox);
+      assert.equal(await one('select public.attach_catering_payment($1,$2,$3,$4) as saved',[sandboxAttempt.id,'PL_test_fixture','https://eu.adyen.link/PL_test_fixture',new Date(Date.now()+86400000).toISOString()]),null);
     });
     await t.test('exact SEK amount, signed unique reference and transaction/revision binding reject mismatches atomically',async()=>{
       const before=(await db.query('select count(*)::int as count from public.payment_provider_events')).rows[0].count;
