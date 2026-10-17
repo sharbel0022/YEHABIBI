@@ -8,7 +8,7 @@ type Editable = Omit<Settings,'id'>;
 
 /** A single place to manage branding, delivery prices and seasonal campaigns. */
 export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
-  const [form,setForm]=useState<Editable>(initialSettings);
+  const [form,setForm]=useState<Editable>({...initialSettings,allow_unpaid_requests:initialSettings.allow_unpaid_requests === true});
   const [zonesText,setZonesText]=useState(
     (initialSettings.delivery_zones||[])
       .map(zone=>`${zone.name} | ${zone.postal_prefix} | ${zone.fee_ore/100}`).join('\n')
@@ -89,9 +89,11 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
       <p className="field-hint">Format: Namn | första 1–5 siffrorna i postnummer | leveranspris i kronor. Längsta prefix gäller. Leveranszoner som skapats under Katalog och leverans hanteras där och bevaras när du sparar här.</p>
     </div>
     {([['delivery_enabled','Erbjud hemleverans'],['pickup_enabled','Erbjud hämtning'],
-      ['cash_enabled','Tillåt kontantbetalning vid hämtning']] as const).map(([key,label])=>
+      ['cash_enabled','Tillåt kontantbetalning vid hämtning'],
+      ['allow_unpaid_requests','Tillåt obetalda förfrågningar med betalningssätt som avtalas efter godkännande']] as const).map(([key,label])=>
       <label key={key} className="checkbox-label"><input type="checkbox" checked={form[key]}
         onChange={e=>set(key,e.target.checked)}/>{label}</label>)}
+    <p className="field-hint">Obetalda förfrågningar kräver att köket kan följa upp och avtala ett betalningssätt. Onlinebetalningar aktiveras först när företagets leverantörskonto och integration är verifierade.</p>
 
     <h3>Startsida och media</h3>
     <div className="admin-grid">

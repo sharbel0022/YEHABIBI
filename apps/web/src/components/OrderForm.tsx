@@ -11,6 +11,7 @@ import { availablePaymentMethods, buildOrderPayload, canOfferDelivery, itemsFrom
 import { api } from '@/lib/api-client';
 import { useCatalog } from '@/components/use-catalog';
 import { CatalogRefresh } from '@/components/CatalogRefresh';
+import { usePaymentMethods } from '@/components/use-payment-methods';
 
 type Props = {
   initialCatalog: Catalog;
@@ -40,13 +41,14 @@ export function OrderForm({ initialCatalog,
   const custom = draft.mode === 'bygg';
   const menu = draft.menuId ? menus.find(item => item.id === draft.menuId) : menus[0];
   const canDeliver = canOfferDelivery(catalog);
+  const onlineMethods = usePaymentMethods(paymentMethods);
   const bookingDates = eventDateBounds(settings.min_advance_days);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<Contact>({
     occasion: initialOccasion === 'fest' || initialOccasion === 'foretag' ? initialOccasion : 'hemma',
     event_date: '', event_time: '12:00', fulfillment: canDeliver ? 'delivery' : 'pickup',
     address: '', postal_code: '', city: settings.location_city, full_name: '', email: '', phone: '', notes: '',
-    payment_preference: paymentMethods.find(method => method !== 'cash') || paymentMethods[0] || 'card',
+    payment_preference: 'unpaid',
     terms_accepted: false, website: ''
   });
   const [sending, setSending] = useState(false);
@@ -63,7 +65,9 @@ export function OrderForm({ initialCatalog,
   const deliveryPending = form.fulfillment === 'delivery' && !zone;
   const validGuests = Number.isSafeInteger(guests) && guests >= orderLimits.minGuests && guests <= orderLimits.maxGuests;
   const minimum = minimumGuestsFor(custom ? null : menu, customMinimum);
-  const availableMethods = availablePaymentMethods(catalog, form.fulfillment);
+  const availableMethods = availablePaymentMethods(catalog, form.fulfillment)
+    .filter(method => method === 'cash' || method === 'unpaid' || onlineMethods.includes(method));
+  const payment = availableMethods.includes(form.payment_preference) ? form.payment_preference : availableMethods[0];
   const total = quoteSelection(catalog, selection, form.fulfillment, fee);
   const quoteError = validGuests && (items.length > 0 || !custom && menu?.price_ore) && !total
     ? 'Kontrollera antal personer, mängder och aktuella priser.' : '';
@@ -71,7 +75,7 @@ export function OrderForm({ initialCatalog,
   function set<K extends keyof Contact>(key: K, value: Contact[K]) { setForm(old => ({ ...old, [key]: value })); }
   function goBack(to: number) { setError(''); setStep(to); }
   function orderInput() {
-    return buildOrderPayload(selection, { ...form, delivery_zone_id: zone?.id });
+    return buildOrderPayload(selection, { ...form, payment_preference: payment || 'unpaid', delivery_zone_id: zone?.id });
   }
   function contactError() {
     return orderContactError(form);
@@ -104,7 +108,7 @@ export function OrderForm({ initialCatalog,
     if (message) return setError(message);
     const detailsMessage = orderDetailsError(orderInput(), settings, zones);
     if (detailsMessage) return setError(detailsMessage);
-    if (!form.terms_accepted || !availableMethods.includes(form.payment_preference)) return setError('Godkänn villkoren och välj ett tillgängligt betalningssätt.');
+    if (!form.terms_accepted || !payment) return setError('Godkänn villkoren och välj ett tillgängligt betalningssätt.');
     const parsed = newOrderSchema.safeParse(orderInput());
     if (!parsed.success) return setError(contactError() || 'Kontrollera dina uppgifter.');
     setSending(true);
@@ -167,7 +171,6 @@ export function OrderForm({ initialCatalog,
         <fieldset className="plain-fieldset"><legend>Leverans eller hämtning</legend><div className="form-choice">
           {canDeliver && <label className="choice"><input type="radio" name="fulfillment" checked={form.fulfillment === 'delivery'} onChange={() => {
             set('fulfillment', 'delivery');
-            if (form.payment_preference === 'cash') set('payment_preference', paymentMethods.find(method => method !== 'cash')!);
           }}/>Hemleverans</label>}
           {settings.pickup_enabled && <label className="choice"><input type="radio" name="fulfillment" checked={form.fulfillment === 'pickup'} onChange={() => set('fulfillment', 'pickup')}/>Hämtning</label>}
         </div></fieldset>
@@ -201,16 +204,16 @@ export function OrderForm({ initialCatalog,
           <button type="button" className="text-link" onClick={() => goBack(3)}>Ändra</button></div>
         <fieldset className="plain-fieldset"><legend>Betalningssätt efter godkännande</legend>
           <div className="form-choice">{availableMethods.map(value => <label className="choice" key={value}>
-            <input type="radio" name="payment" disabled={sending} checked={form.payment_preference === value} onChange={() => set('payment_preference', value)}/>{paymentLabels[value]}</label>)}</div></fieldset>
-        {!availableMethods.length && <p className="preview-note">Betalningssätten visas när köket har öppnat beställningarna.</p>}
-        {availableMethods.includes('card') ? <p className="field-hint">Apple Pay visas i säker Checkout på stödda enheter.</p> : null}
+            <input type="radio" name="payment" disabled={sending} checked={payment === value} onChange={() => set('payment_preference', value)}/>{paymentLabels[value]}</label>)}</div></fieldset>
+        {!availableMethods.length && <p className="preview-note">{catalog.payment_unavailable_reason || 'Inga betalningssätt är aktiverade. Kontakta köket för att beställa.'}</p>}
+        {payment === 'unpaid' && <p className="field-hint">Köket tillåter obetalda förfrågningar. Betalningssätt avtalas efter godkännande; ingen onlinebetalning är utlovad.</p>}
         <p className="approval-note"><ShieldCheck size={20} aria-hidden="true"/>Du betalar först efter kökets godkännande. Ett nytt pris kräver ditt godkännande. Kontant gäller endast vid hämtning.</p>
         <label className="checkbox-label"><input type="checkbox" required disabled={sending} checked={form.terms_accepted} onChange={event => set('terms_accepted', event.target.checked)}/>
           <span>Jag godkänner <a className="text-link" href="/villkor" target="_blank" rel="noopener noreferrer">villkoren</a> och har läst <a className="text-link" href="/integritet" target="_blank" rel="noopener noreferrer">integritetspolicyn</a>.</span></label>
         <div hidden aria-hidden="true"><label htmlFor="website">Lämna tomt</label><input id="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={event => set('website', event.target.value)}/></div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="form-actions"><button type="button" disabled={sending} className="btn" onClick={() => goBack(3)}>← Tillbaka</button>
-          <button type="submit" className="btn btn-accent" disabled={!enabled || sending || !!quoteError || !availableMethods.includes(form.payment_preference)}>{sending ? 'Skickar…' : 'Skicka cateringförfrågan →'}</button></div>
+          <button type="submit" className="btn btn-accent" disabled={!enabled || sending || !!quoteError || !payment}>{sending ? 'Skickar…' : 'Skicka cateringförfrågan →'}</button></div>
       </form>}
       {!enabled && <p className="preview-note">Förhandsvisning. Köket behöver publicera godkända priser och inställningar innan förfrågningar öppnas.</p>}
     </div>

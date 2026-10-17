@@ -32,7 +32,7 @@ export const newOrderSchema = z.object({
   email: contactFields.email,
   phone: contactFields.phone,
   notes: contactFields.notes,
-  payment_preference: z.enum(['swish','card','apple_pay','cash']),
+  payment_preference: z.enum(['swish','card','apple_pay','google_pay','cash','unpaid']),
   terms_accepted: z.literal(true),
   website: z.string().max(0).optional() // hidden bot honeypot
 }).refine(value => Boolean(value.menu_id) !== Boolean(value.items), 'Välj ett paket eller egna maträtter.')
@@ -71,6 +71,7 @@ export const settingsSchema = z.object({
   facebook_url:z.union([z.url(),z.literal(''),z.null()]).optional(),
   tiktok_url:z.union([z.url(),z.literal(''),z.null()]).optional(),
   delivery_enabled:z.boolean(), pickup_enabled:z.boolean(),cash_enabled:z.boolean(),
+  allow_unpaid_requests:z.boolean().default(false),
   delivery_fee_ore:z.number().int().min(0).max(10000000),
   min_advance_days:z.number().int().min(0).max(90),
   custom_min_people:z.number().int().min(1).max(100),

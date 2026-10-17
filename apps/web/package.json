@@ -1,6 +1,6 @@
 {
   "name": "@yehabibi/web",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,25 +12,24 @@
     "node": ">=20.9.0"
   },
   "dependencies": {
-    "@yehabibi/api-client": "4.2.0",
-    "@yehabibi/shared": "4.2.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "@yehabibi/api-client": "4.3.0",
+    "@yehabibi/shared": "4.3.0",
+    "lucide-react": "0.468.0",
     "next": "16.4.2",
+    "qrcode": "1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "@supabase/supabase-js": "2.118.0",
-    "@supabase/ssr": "0.12.7",
-    "stripe": "23.0.0",
     "resend": "6.0.0",
-    "qrcode": "1.5.4",
-    "zod": "4.0.0",
-    "lucide-react": "0.468.0"
+    "zod": "4.0.0"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
     "@types/node": "22.20.5",
+    "@types/qrcode": "1.5.5",
     "@types/react": "19.2.4",
     "@types/react-dom": "19.2.7",
-    "@types/qrcode": "1.5.5"
+    "typescript": "5.9.3"
   },
   "type": "module"
 }

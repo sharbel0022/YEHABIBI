@@ -1,10 +1,8 @@
 import { adminDb } from '@/lib/supabase';
-import { isSupabaseReady } from '@/lib/config';
 import { checkOrigin, jsonError, publicOptions, publicResponse } from '@/lib/auth';
-import { verifyTrackingToken } from '@/lib/tracking';
+import { trackedOrder as readTrackedOrder } from '@/lib/tracked-order';
 import { customerActionSchema } from '@/lib/validators';
 import { publicOrderView } from '@/lib/data';
-import { createCheckout } from '@/lib/payments';
 import { deliverOrderNotifications } from '@/lib/mailer';
 import type { CateringOrder } from '@/types/domain';
 
@@ -14,11 +12,7 @@ type Context = {params:Promise<{code:string}>};
 async function trackedOrder(request:Request,{params}:Context) {
   const {code} = await params;
   const token = new URL(request.url).searchParams.get('token') || '';
-  if(!isSupabaseReady() || !/^CM-[A-F0-9]{10}$/.test(code) || !/^[a-f0-9]{64}$/.test(token)) return null;
-  const db = adminDb();
-  const {data,error} = await db.from('orders').select('*').eq('code',code).maybeSingle();
-  if(error || !data || !verifyTrackingToken(token,data.tracking_hash)) return null;
-  return data as CateringOrder;
+  return readTrackedOrder(code,token);
 }
 
 export async function GET(request:Request,context:Context) {
@@ -48,17 +42,7 @@ async function updateOrder(request:Request,context:Context) {
   const {data:saved,error} = await db.rpc('accept_catering_change',{p_order_id:order.id,p_revision:parsed.data.revision});
   if(error || !saved) return jsonError('Förslaget har ändrats. Uppdatera sidan och granska det aktuella priset.',409);
   order = saved as CateringOrder;
-  // Godkännandet sparas även om betaltjänsten tillfälligt är nere. Ägaren kan förnya länken.
-  if(order.payment_preference!=='cash' && order.status==='approved' && !['paid','refunded'].includes(order.payment_status)) {
-    try {
-      const checkout = await createCheckout(order);
-      const {data:attached,error:attachError} = await db.rpc('attach_catering_checkout',{
-        p_order_id:order.id,p_expected_status:order.status,p_expected_payment_status:order.payment_status,
-        p_expected_session_id:order.stripe_checkout_session_id,p_session_id:checkout.id,p_checkout_url:checkout.url
-      });
-      if(!attachError && attached) order = attached as CateringOrder;
-    } catch { console.error('Accepted quote saved; payment link requires retry'); }
-  }
+  // Kunden väljer och initierar betalning separat efter att godkännandet har sparats.
   await deliverOrderNotifications(order.id).catch(()=>console.error('Quote accepted; notifications pending'));
   return customerResponse(order);
 }

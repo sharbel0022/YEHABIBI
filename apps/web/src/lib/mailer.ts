@@ -22,17 +22,19 @@ function content(event:Notification,order:Snapshot,current:CateringOrder) {
     : event.kind==='paid'?'Betalningen är bekräftad.' : event.kind==='refunded'?'Betalningen har återbetalats.'
     : event.kind==='failed'?'Betalningen misslyckades eller sessionen gick ut. Kontakta köket för en ny betalningslänk.'
     : event.kind==='changes_requested'?'Köket föreslår en ändring som du behöver godkänna.'
-    : event.kind==='payment_available'?'Din förfrågan är godkänd. Din säkra betalningslänk är tillgänglig.' : statusLabels[order.status];
+    : event.kind==='payment_available'?'Din förfrågan är godkänd. Din säkra betalningslänk är tillgänglig.'
+    : event.kind==='payment_request'?'Din förfrågan är godkänd. Öppna orderlänken och välj ett tillgängligt betalningssätt.'
+    : event.kind==='payment_review'?'Betalningen behöver kontrolleras av köket. Betala inte på nytt innan du fått besked.' : statusLabels[order.status];
   if(event.kind==='approved' && order.payment_preference==='cash') message+=' Du betalar kontant vid hämtning. Ordern är fortfarande obetald.';
   const proposal=order.proposal ? `<p>${escapeHtml(order.proposal.message)}<br>Nuvarande totalpris ${formatSek(order.total_ore)}. Föreslaget totalpris <b>${formatSek(order.proposal.total_ore)}</b>.</p><p>Granska och godkänn förslaget via orderlänken före betalning.</p>` : '';
   // En försenad notis får aldrig erbjuda en ersatt, betald eller ändrad betalning.
-  const payable=current.payment_status==='pending' && !current.proposal && ['approved','preparing','ready'].includes(current.status)
-    && current.stripe_checkout_session_id===order.stripe_checkout_session_id && current.quote_revision===order.quote_revision;
+  const payable=current.payment_provider && current.payment_attempt_id && current.payment_status==='pending' && !current.proposal && ['approved','preparing','ready'].includes(current.status)
+    && !current.payment_review_required && current.payment_attempt_id===order.payment_attempt_id && current.quote_revision===order.quote_revision;
   if(event.kind==='payment_available'&&!payable) message='Betalningsinformationen har uppdaterats. Se aktuell orderstatus.';
   const checkout=payable && ['approved','payment_available'].includes(event.kind) ? safeExternalUrl(current.checkout_url) : null;
   const review=event.kind==='completed'?safeExternalUrl(order.review_url):null;
-  const customer=`<p><b>${escapeHtml(message)}</b></p>${details}${proposal}${checkout?`<p><a href="${escapeHtml(checkout)}">Betala säkert med Stripe</a>. Betald visas först efter verifiering från betaltjänsten.</p>`:''}${review?`<p><a href="${escapeHtml(review)}">Lämna ett ärligt omdöme på Google</a>. Alla åsikter är välkomna.</p>`:''}${follow}`;
-  const notifyOwner=event.kind==='new'||['paid','refunded','failed'].includes(event.kind);
+  const customer=`<p><b>${escapeHtml(message)}</b></p>${details}${proposal}${checkout?`<p><a href="${escapeHtml(checkout)}">Öppna säker betalning</a>. Betald visas först efter verifiering från betaltjänsten.</p>`:''}${review?`<p><a href="${escapeHtml(review)}">Lämna ett ärligt omdöme på Google</a>. Alla åsikter är välkomna.</p>`:''}${follow}`;
+  const notifyOwner=event.kind==='new'||['paid','refunded','failed','payment_review'].includes(event.kind);
   const owner=notifyOwner?`${details}<p>${escapeHtml(message)} ${order.payment_preference==='cash'&&event.kind==='new'?'KONTANT – OBETALD.':''}</p><p>Namn: ${escapeHtml(order.full_name)}<br>E-post: ${escapeHtml(order.email)}<br>Telefon: ${escapeHtml(order.phone)}<br>Önskemål: ${escapeHtml(order.notes)}</p><p>Öppna adminpanelen för att granska ordern.</p>`:null;
   return {subject:`${message} #${order.code}`,message,customer,owner};
 }
@@ -63,9 +65,11 @@ export async function deliverOrderNotifications(orderId:string) {
     }
     // Behåll kvittot på att beskedet ersatts; kalla det inte levererat.
     // Skicka heller aldrig nytt innehåll med en gammal Resend-idempotensnyckel.
-    const changed=order.quote_revision!==current.quote_revision||order.stripe_checkout_session_id!==current.stripe_checkout_session_id;
+    const changed=order.quote_revision!==current.quote_revision||order.payment_attempt_id!==current.payment_attempt_id;
     const superseded=(event.kind==='payment_available' && (changed||current.payment_status!=='pending'||current.proposal||!['approved','preparing','ready'].includes(current.status)))
       ||(event.kind==='approved' && (changed||current.status!=='approved'||order.payment_status!==current.payment_status))
+      ||(event.kind==='payment_request' && (current.proposal||['paid','refunded'].includes(current.payment_status)||!['approved','preparing','ready'].includes(current.status)))
+      ||(['paid','refunded'].includes(event.kind) && current.payment_review_required)
       ||(event.kind==='changes_requested' && (changed||current.status!=='changes_requested'));
     if(superseded) {
       const {error:skipError}=await db.from('order_notifications').update({superseded_at:new Date().toISOString()}).eq('event_key',event.event_key);

@@ -7,7 +7,7 @@ import { canTransition, formatSek, occasions, paymentLabels, paymentStatusLabels
 const actions = {
   review: 'Granska', approve: 'Godkänn', request_changes: 'Föreslå ändring', reject: 'Neka',
   preparing: 'Förbered', ready: 'Klar för hämtning', dispatched: 'På väg', complete: 'Slutför',
-  cash_paid: 'Kontanter mottagna', refund: 'Återbetala', payment_link: 'Ny betalningslänk', cancel: 'Avbryt',
+  cash_paid: 'Kontanter mottagna', refund: 'Begär återbetalning', payment_link: 'Skicka betalningsbegäran', cancel: 'Avbryt',
   resend_notifications: 'Skicka uppdatering igen'
 };
 
@@ -27,7 +27,7 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
     if (operation === 'request_changes' && !message.trim()) return setError('Beskriv ändringen för kunden innan du skickar förslaget.');
     const proposedOre = amount ? Math.round(Number(amount.replace(',', '.')) * 100) : undefined;
     if (operation === 'request_changes' && amount && (!Number.isSafeInteger(proposedOre) || proposedOre! <= 0)) return setError('Ange ett giltigt nytt totalpris i kronor.');
-    const confirmation = operation === 'cash_paid' ? 'Bekräfta att du har tagit emot hela kontantbeloppet.' : operation === 'refund' ? 'Återbetala hela beloppet via Stripe?' : '';
+    const confirmation = operation === 'cash_paid' ? 'Bekräfta att du har tagit emot hela kontantbeloppet.' : operation === 'refund' ? 'Begär återbetalning av hela beloppet via betalleverantören? Status ändras först när leverantören bekräftar.' : '';
     if (confirmation && !window.confirm(confirmation)) return;
     setBusy(order.id); setError(''); setMessage('');
     try {
@@ -36,7 +36,7 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Åtgärden misslyckades.');
       setOrders(items => items.map(item => item.id === order.id ? { ...data.order, order_items: item.order_items } : item));
-      setMessage(operation === 'resend_notifications' ? 'Statusuppdateringen har skickats.' : `Beställning ${order.code} har uppdaterats.`);
+      setMessage(typeof data.message === 'string' ? data.message : `Beställning ${order.code} har uppdaterats.`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ett fel inträffade.'); }
     finally { setBusy(''); }
   }
@@ -54,7 +54,7 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
     {message && <p className="form-success" role="status">{message}</p>}
     {!orders.length && <p className="empty-state">Inga beställningar matchar. Nya förfrågningar visas här när de kommer in.</p>}
     {orders.map(order => {
-      const checkout = safeExternalUrl(order.checkout_url);
+      const checkout = order.payment_provider && !order.payment_review_required ? safeExternalUrl(order.checkout_url) : null;
       const canPropose = canTransition(order.status, 'request_changes', order.payment_status, order.payment_preference);
       return <article key={order.id} className="admin-order">
         <div className="admin-top"><div><strong>#{order.code} · {order.menu_title}</strong><p className="admin-note">{order.full_name} · {order.guests} personer · {order.event_date} kl {order.event_time}</p></div>
@@ -62,6 +62,11 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
         <div className="admin-grid"><div><p>{occasions[order.occasion]} · {order.fulfillment === 'pickup' ? 'Hämtning' : `Leverans: ${order.address}, ${order.postal_code} ${order.city}`}<br/>
           <a href={`mailto:${order.email}`}>{order.email}</a> · <a href={`tel:${order.phone}`}>{order.phone}</a><br/>{paymentLabels[order.payment_preference]} · <strong>{formatSek(order.total_ore)}</strong></p>
           {!!order.price_adjustment_ore && <p className="admin-note">Godkänd prisjustering: {formatSek(order.price_adjustment_ore)}</p>}
+          <p className="admin-note">Betalleverantör: {order.payment_provider || 'Ingen aktiv betalning'}<br/>
+            Transaktionsreferens: {order.payment_transaction_reference || order.provider_payment_id || 'Inväntar leverantören'}</p>
+          {order.payment_review_required && <p className="form-error" role="alert">Betalningen kräver utredning. Kontakta leverantören och kunden före fler betalningsåtgärder. {order.payment_review_reason}</p>}
+          {order.payment_refund_status === 'pending' && <p className="preview-note">Återbetalning begärd. Väntar på leverantörens bekräftelse.</p>}
+          {order.payment_refund_status === 'needs_review' && <p className="form-error">Återbetalningen behöver utredas. Kontrollera transaktionen hos leverantören.</p>}
           {order.notes && <p><strong>Önskemål:</strong> {order.notes}</p>}
         </div><div><div className="field"><label htmlFor={`note-${order.id}`}>Meddelande till kunden</label><textarea id={`note-${order.id}`} maxLength={1000} value={note[order.id] ?? order.admin_note ?? ''} onChange={event => setNote(old => ({ ...old, [order.id]: event.target.value }))}/></div>
           {canPropose && <div className="field"><label htmlFor={`price-${order.id}`}>Föreslå nytt totalpris (kr, frivilligt)</label><input id={`price-${order.id}`} inputMode="decimal" value={proposedPrice[order.id] || ''} onChange={event => setProposedPrice(old => ({ ...old, [order.id]: event.target.value }))} placeholder={String(order.total_ore / 100)}/>
@@ -72,8 +77,10 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
         {checkout && <p><a className="text-link" href={checkout} rel="noopener noreferrer" target="_blank">Öppna kundens betalningslänk ↗</a></p>}
         <div className="admin-actions">{Object.entries(actions).filter(([operation]) => {
           if (operation === 'resend_notifications') return true;
-          if (operation === 'refund') return order.payment_preference !== 'cash' && order.payment_status === 'paid';
-          if (operation === 'payment_link') return order.payment_preference !== 'cash' && order.status === 'approved' && !['paid', 'refunded'].includes(order.payment_status);
+          if (order.payment_review_required) return false;
+          if (order.payment_refund_status && ['preparing', 'ready', 'dispatched', 'complete'].includes(operation)) return false;
+          if (operation === 'refund') return Boolean(order.payment_provider && order.provider_payment_id) && order.payment_preference !== 'cash' && order.payment_status === 'paid' && !order.payment_refund_status;
+          if (operation === 'payment_link') return order.payment_preference !== 'cash' && !order.proposal && order.status === 'approved' && !['paid', 'refunded'].includes(order.payment_status);
           if (operation === 'ready' && order.fulfillment !== 'pickup') return false;
           if (operation === 'dispatched' && order.fulfillment !== 'delivery') return false;
           return canTransition(order.status, operation, order.payment_status, order.payment_preference);

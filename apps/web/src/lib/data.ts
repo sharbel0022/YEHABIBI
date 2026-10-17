@@ -2,7 +2,8 @@ import 'server-only';
 import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
 import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings } from '@/types/domain';
-import { isTestStripeKey, safeExternalUrl, previewDishes } from '@/lib/domain';
+import { safeExternalUrl, previewDishes } from '@/lib/domain';
+import { paymentCapabilities, paymentsConfigured } from '@/lib/payments';
 
 export async function getMenus(): Promise<Menu[]> {
   if (!isSupabaseReady()) return previewMenus;
@@ -41,10 +42,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 export { previewDishes } from '@yehabibi/shared';
 
 export function onlinePaymentsReady() {
-  if(process.env.PAYMENTS_ENABLED!=='true') return false;
-  const key = process.env.STRIPE_SECRET_KEY;
-  const validKey = isTestStripeKey(key) || (process.env.STRIPE_LIVE_ENABLED === 'true' && /^(sk|rk)_live_/.test(key || ''));
-  return validKey && Boolean(process.env.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_'));
+  return paymentsConfigured();
 }
 export function ordersReady() {
   return isSupabaseReady() && process.env.ORDERS_ENABLED === 'true'
@@ -73,10 +71,10 @@ export async function getCatalog(): Promise<Catalog> {
     dishes = (dishResult.data || []) as Dish[];
     campaigns = (campaignResult.data || []) as Campaign[];
   }
-  const payment_methods: PaymentPreference[] = [];
-  // Apple Pay erbjuds inom kortbetalning först när Stripe verifierat enhetens stöd.
-  if(onlinePaymentsReady()) { payment_methods.push('card'); if(process.env.STRIPE_SWISH_ENABLED === 'true') payment_methods.push('swish'); }
+  // Kontokonfiguration och leverantörens faktiska metodlista måste båda godkänna metoden.
+  const payment_methods: PaymentPreference[] = isSupabaseReady() ? await paymentCapabilities() : [];
   if(settings.cash_enabled && settings.pickup_enabled) payment_methods.push('cash');
+  if(settings.allow_unpaid_requests) payment_methods.push('unpaid');
   // Ta bort eventuella framtida privata databasfält genom en explicit kopia.
   const publicSettings: Settings = Object.fromEntries(Object.keys(previewSettings).map(key => [key,settings[key as keyof Settings]])) as Settings;
   return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,demo:!isSupabaseReady()};
@@ -87,13 +85,18 @@ export async function publicOrderView(order:CateringOrder):Promise<PublicOrder> 
   const {data:items,error} = await adminDb().from('order_items')
     .select('dish_id,item_id,menu_id,title,quantity,unit_label,unit_price_ore,total_ore').eq('order_id',order.id).order('id');
   if(error) throw new Error('Kunde inte läsa orderrader.');
+  const legacyPayment = !order.payment_provider && Boolean(order.stripe_checkout_session_id) && !['paid','refunded'].includes(order.payment_status);
   return {
     code:order.code,menu_title:order.menu_title,guests:order.guests,event_date:order.event_date,event_time:order.event_time,
     fulfillment:order.fulfillment,status:order.status,payment_status:order.payment_status,payment_preference:order.payment_preference,
     subtotal_ore:order.subtotal_ore,delivery_fee_ore:order.delivery_fee_ore,total_ore:order.total_ore,created_at:order.created_at,
     proposal:order.proposal || null,price_adjustment_ore:order.price_adjustment_ore || 0,admin_note:order.admin_note,
-    checkout_url:!order.proposal && (order.quote_revision||1)===(order.accepted_revision||1) && ['approved','preparing','ready'].includes(order.status)
-      && order.payment_status==='pending' ? safeExternalUrl(order.checkout_url) : null,
+    payment_provider:order.payment_provider || null,provider_payment_id:order.provider_payment_id || null,
+    payment_transaction_reference:order.payment_transaction_reference || null,payment_method:order.payment_method || null,
+    payment_review_required:order.payment_review_required || legacyPayment,payment_review_reason:legacyPayment?'En äldre betalning behöver kontrolleras av köket.':order.payment_review_reason || null,
+    payment_refund_status:order.payment_refund_status || null,
+    checkout_url:order.payment_provider && order.payment_attempt_id && !order.proposal && (order.quote_revision||1)===(order.accepted_revision||1) && ['approved','preparing','ready'].includes(order.status)
+      && !order.payment_review_required && order.payment_status==='pending' ? safeExternalUrl(order.checkout_url) : null,
     items:(items || []) as OrderLine[]
   };
 }

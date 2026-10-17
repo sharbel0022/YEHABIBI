@@ -1,6 +1,8 @@
 export type Occasion = 'hemma' | 'fest' | 'foretag';
 export type Fulfillment = 'delivery' | 'pickup';
-export type PaymentPreference = 'swish' | 'card' | 'apple_pay' | 'cash';
+export type OnlinePaymentMethod = 'swish' | 'card' | 'apple_pay' | 'google_pay';
+export type PaymentMethod = OnlinePaymentMethod | 'cash';
+export type PaymentPreference = PaymentMethod | 'unpaid';
 export type OrderStatus = 'new' | 'reviewing' | 'changes_requested' | 'approved' | 'preparing' | 'rejected' | 'ready' | 'dispatched' | 'completed' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded' | 'failed';
 export type ItemCategory = 'kalla_meze' | 'varma_meze' | 'grill' | 'vegetariskt' | 'brod_saser' | 'dessert';
@@ -35,7 +37,7 @@ export type Settings = {
   hero_video_url: string | null; hero_poster_url: string | null; google_review_url: string | null;
   google_maps_url: string | null; instagram_url: string | null; facebook_url: string | null; tiktok_url: string | null;
   pickup_address: string; delivery_enabled: boolean; pickup_enabled: boolean;
-  cash_enabled: boolean; delivery_fee_ore: number; min_advance_days: number;
+  cash_enabled: boolean; allow_unpaid_requests: boolean; delivery_fee_ore: number; min_advance_days: number;
   custom_min_people:number; delivery_zones:LegacyDeliveryZone[];
   campaign_title:string; campaign_description:string; campaign_image_url:string|null;
   campaign_start_date:string|null; campaign_end_date:string|null; campaign_enabled:boolean;
@@ -68,6 +70,7 @@ export type OrderPayload = Omit<OrderInput, 'terms_accepted'> & { terms_accepted
 export type OrderReference = { code: string; token: string };
 export type OrderReceipt = OrderReference & { tracking_url: string };
 export type OrderStatusResponse = { order: PublicOrder };
+export type PaymentSessionResponse = { checkout_url: string; payment_status: PaymentStatus };
 export type PushRegistrationResponse = { registered: true };
 /** Ursprungliga rader bevaras. Förslaget visar en uttrycklig prisjustering. */
 export type OrderProposal = {
@@ -82,7 +85,13 @@ export type CateringOrder = {
   full_name: string; email: string; phone: string; notes: string;
   subtotal_ore: number; delivery_fee_ore: number; total_ore: number;
   payment_preference: PaymentPreference; payment_status: PaymentStatus; status: OrderStatus;
-  checkout_url: string | null; stripe_checkout_session_id: string | null; stripe_payment_intent_id: string | null;
+  checkout_url: string | null;
+  /** Inaktiva historiska referenser. Används aldrig för nya betalningar. */
+  stripe_checkout_session_id: string | null; stripe_payment_intent_id: string | null;
+  payment_provider?: string | null; provider_payment_id?: string | null; payment_attempt_id?: string | null;
+  payment_transaction_reference?: string | null; payment_method?: PaymentMethod | null;
+  payment_refund_status?: 'pending' | 'confirmed' | 'needs_review' | null;
+  payment_review_required?: boolean; payment_review_reason?: string | null;
   admin_note: string | null; created_at: string; updated_at: string;
   order_items?: OrderLine[];
   items_snapshot:LegacyOrderLine[];
@@ -90,8 +99,9 @@ export type CateringOrder = {
   quote_revision?:number; accepted_revision?:number; proposal?:OrderProposal|null;
   price_adjustment_ore?:number;
 };
-export type PublicOrder = Pick<CateringOrder, 'code' | 'menu_title' | 'guests' | 'event_date' | 'event_time' | 'fulfillment' | 'status' | 'payment_status' | 'payment_preference' | 'subtotal_ore' | 'delivery_fee_ore' | 'total_ore' | 'checkout_url' | 'created_at' | 'proposal' | 'price_adjustment_ore'> & { items: OrderLine[]; admin_note?:string|null };
+export type PublicOrder = Pick<CateringOrder, 'code' | 'menu_title' | 'guests' | 'event_date' | 'event_time' | 'fulfillment' | 'status' | 'payment_status' | 'payment_preference' | 'subtotal_ore' | 'delivery_fee_ore' | 'total_ore' | 'checkout_url' | 'created_at' | 'proposal' | 'price_adjustment_ore' | 'payment_provider' | 'provider_payment_id' | 'payment_transaction_reference' | 'payment_method' | 'payment_review_required' | 'payment_review_reason' | 'payment_refund_status'> & { items: OrderLine[]; admin_note?:string|null };
 export type Catalog = {
   menus: Menu[]; dishes: Dish[]; campaigns: Campaign[]; settings: Settings;
   delivery_zones: DeliveryZone[]; orders_enabled: boolean; payment_methods: PaymentPreference[]; demo: boolean;
+  payment_unavailable_reason?: string;
 };
