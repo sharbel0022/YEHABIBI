@@ -78,7 +78,7 @@ function sqlClient(db) {
   };
 }
 
-test('test adapter runs all four methods through real authoritative SQL, retries, duplicates, refund and isolation failure',async()=>{
+test('test adapter runs all four methods through real SQL, repeated failures, durable replays, refund and isolation failure',async()=>{
   const {PGlite}=await import('@electric-sql/pglite'),db=new PGlite();
   try {
     await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);
@@ -92,8 +92,9 @@ test('test adapter runs all four methods through real authoritative SQL, retries
     const client=sqlClient(db),settings=testEnvironmentSettings(env);
     const validate=()=>assertTestIsolation(async()=>(await db.query('select isolation_id,secret_hash from public.test_environment_guard')).rows[0],env).then(()=>{});
     const rpc=async(name,args)=>{const result=await client.rpc(name,args);if(result.error)throw result.error;return result.data;};
-    let deliveries=0;
-    const provider=new TestPaymentProvider(client,validate,settings,async payload=>{for(const event of provider.verifyEvents(payload)){await rpc('apply_catering_payment_event',{p_event:event});deliveries++;}});
+    let deliveries=0;const dispatched=[];
+    const dispatch=async payload=>{for(const event of [verifyTestEvent(payload,settings)]){await rpc('apply_catering_payment_event',{p_event:event});deliveries++;}dispatched.push(structuredClone(payload));};
+    const provider=new TestPaymentProvider(client,validate,settings,dispatch);
     assert.deepEqual(await provider.availableMethods(),['swish','card','apple_pay','google_pay']);
     const dish=randomUUID();await db.query("insert into public.dishes(id,title,price_ore,active) values($1,'TEST Ostrulle',4000,true)",[dish]);
     const create=method=>rpc('create_catering_order',{p_order:{id:randomUUID(),code:'CM-'+randomUUID().slice(0,10),tracking_hash:'a'.repeat(64),request_id:randomUUID(),request_hash:'b'.repeat(64),guests:5,occasion:'hemma',event_date:new Date(Date.now()+10*86400000).toISOString().slice(0,10),event_time:'12:00',fulfillment:'pickup',full_name:'Syntetisk Testkund',email:'customer@example.test',phone:'0700000000',payment_preference:method,subtotal_ore:48000,delivery_fee_ore:0},p_items:[{dish_id:dish,quantity:12}]});
@@ -111,18 +112,38 @@ test('test adapter runs all four methods through real authoritative SQL, retries
       const payment=await startPayment(store,provider,input);
       assert.match(payment.url,/^http:\/\/127\.0\.0\.1:43211\/__test\/payment\/lt_[a-f0-9]{64}$/);
       assert.equal((await startPayment(store,provider,input)).id,payment.id);
+      const failedEvents=new Set();
       for(const outcome of ['decline','cancel','expire']) {
-        await provider.simulate(payment.id,outcome);
-        assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'failed');
-        assert.equal((await startPayment(store,provider,input)).id,payment.id);
+        for(let retry=0;retry<2;retry++) {
+          await provider.simulate(payment.id,outcome);
+          const envelope=dispatched.at(-1);
+          assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'failed',`${method}: ${outcome} ${retry+1} must record a new failure after reopening.`);
+          assert.equal(failedEvents.has(envelope.event.event_id),false,'Each newly simulated failure has its own event identity.');
+          failedEvents.add(envelope.event.event_id);
+          const saved=(await db.query('select payload,delivered_at from public.test_payment_deliveries where event_id=$1',[envelope.event.event_id])).rows[0];
+          assert.deepEqual(saved.payload,envelope,'A failure envelope is saved exactly as dispatched.');
+          assert.ok(saved.delivered_at);
+          assert.equal((await startPayment(store,provider,input)).id,payment.id);
+          await dispatch(saved.payload);
+          assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'pending','Replaying the saved failure remains a duplicate after reopening.');
+        }
       }
-      await provider.simulate(payment.id,'success');await provider.simulate(payment.id,'duplicate');
+      assert.equal((await db.query("select count(*)::int as count from public.payment_provider_events where order_id=$1 and kind='failed'",[order.id])).rows[0].count,6);
+      await provider.simulate(payment.id,'success');const paidEnvelope=dispatched.at(-1);
+      const restartedProvider=new TestPaymentProvider(client,validate,settings,dispatch);
+      await restartedProvider.simulate(payment.id,'duplicate');
+      assert.deepEqual(dispatched.at(-1),paidEnvelope,'Explicit duplicate delivery preserves the paid event and signature across provider instances.');
       const paid=(await db.query('select payment_status,total_ore,payment_provider from public.orders where id=$1',[order.id])).rows[0];
       assert.deepEqual(paid,{payment_status:'paid',total_ore:48000,payment_provider:'local_test'});
       assert.equal((await db.query("select count(*)::int as count from public.order_notifications where order_id=$1 and kind='paid'",[order.id])).rows[0].count,1);
       assert.equal((await db.query('select count(*)::int as count from public.payment_attempts where order_id=$1',[order.id])).rows[0].count,1);
-      await refundPayment(store,provider,order.id);
+      const refund=await store.reserveRefund(order.id);
+      await refundPayment(store,provider,order.id);const refundEnvelope=dispatched.at(-1);
       assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'refunded');
+      await restartedProvider.refund(refund);
+      assert.deepEqual(dispatched.at(-1),refundEnvelope,'A refund retry preserves its event and transaction identity.');
+      assert.equal((await db.query("select count(*)::int as count from public.payment_provider_events where order_id=$1 and kind='paid'",[order.id])).rows[0].count,1);
+      assert.equal((await db.query("select count(*)::int as count from public.payment_provider_events where order_id=$1 and kind='refunded'",[order.id])).rows[0].count,1);
       assert.equal((await refundPayment(store,provider,order.id)).status,'refunded');
     }
     assert.ok(deliveries>=24);

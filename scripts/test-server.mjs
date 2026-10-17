@@ -15,7 +15,10 @@ if (args.has('--stop')) {
   process.stdout.write(`Expo använder samma isolerade API: ${api}\nAndroid-emulator: välj --android. Fysisk telefon kräver skyddad privat åtkomst; localhost kan inte nås från telefonen.\n`);
   // Android's 10.0.2.2 maps to IPv4 loopback; Windows localhost may otherwise bind Metro to ::1 only.
   const child = spawn(process.execPath, ['--dns-result-order=ipv4first', path.join(repositoryRoot, 'node_modules/expo/bin/cli'), 'start', args.has('--dev-client') ? '--dev-client' : '--go', '--localhost', '--port', String(metroPort), ...(args.has('--android') && !args.has('--no-open') ? ['--android'] : [])], {
-    cwd: path.join(repositoryRoot, 'apps/mobile'), windowsHide: true, stdio: 'inherit', env: { ...cleanProcessEnvironment(), EXPO_NO_DOTENV: '1', APP_ENV: 'test', EXPO_PUBLIC_API_URL: api },
+    cwd: path.join(repositoryRoot, 'apps/mobile'), windowsHide: true, stdio: 'inherit', env: { ...cleanProcessEnvironment(), EXPO_NO_DOTENV: '1', APP_ENV: 'test', EXPO_PUBLIC_API_URL: api,
+      // SDK 57 advertises this emulator alias for bundle/manifest/HMR URLs while --localhost still controls binding.
+      ...(args.has('--android') ? { EXPO_PACKAGER_PROXY_URL: `http://10.0.2.2:${metroPort}` } : {}),
+    },
   });
   await new Promise(resolve => child.once('exit', resolve));
 } else {
@@ -23,7 +26,9 @@ if (args.has('--stop')) {
   if (fs.existsSync(activeSessionPath)) throw new Error('En testsession finns redan. Använd --reset för en ny tom databas eller --stop.');
   let complete;
   const finished = new Promise(resolve => { complete = resolve; });
-  const session = await startTestEnvironment({ persistent: true, onStop: () => complete() });
+  const session = await startTestEnvironment({ persistent: true, onStop: () => complete(), onFailure: error => {
+    process.exitCode = 1; process.stderr.write(`${error.message}\n`);
+  } });
   // Never print private order URLs, provider sessions, database keys or the control secret.
   process.stdout.write(`TESTLÄGE – INGA RIKTIGA BESTÄLLNINGAR\nWebb: ${session.origin}\nTestadmin: ${session.adminLogin}\nTestlösenord: ${session.adminPassword}\nLokal inkorg efter inloggning: ${session.inbox}\nAndroid API: ${session.androidApi}\nCtrl+C stoppar bara dessa testprocesser. --reset startar en ny tom isolerad databas.\n`);
   const shutdown = () => session.stop().then(complete);

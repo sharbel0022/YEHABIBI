@@ -104,7 +104,8 @@ export default function Orders() {
       {!!updated && <Text style={s.detail}>Senast uppdaterad {updated}</Text>}
       {orders.map(order => {
         const stage = orderProgress(order) - 1;
-        const canPay = !error && !loading && !catalogLoading && !catalogError && canPayOrder(order);
+        // Keep the verified panel mounted during background polling so focus and scroll stay stable.
+        const canPay = !error && !catalogError && canPayOrder(order);
         const available = orderPaymentMethods(methods, order);
         const method = available.find(item => item === selectedMethods[order.code]) ||
           available.find(item => item === order.payment_preference) || available[0];
@@ -151,7 +152,7 @@ export default function Orders() {
                 selected={method} onSelect={value => setSelectedMethods(previous => ({ ...previous, [order.code]: value }))} />
               {!!order.payment_provider && <Text style={s.detail}>Det påbörjade försöket använder samma metod. Kontakta köket om du behöver ändra.</Text>}
               {catalog.test_mode === true && <Text style={s.detail}>Lokal simulation av vald metod. Inga pengar, plånböcker eller kort används.</Text>}
-              <Button title={catalog.test_mode === true ? 'Öppna betalningssimulation  →' : 'Öppna säker betalning  →'} disabled={!!busy} onPress={() => void action(order, 'pay')} />
+              <Button title={catalog.test_mode === true ? 'Öppna betalningssimulation  →' : 'Öppna säker betalning  →'} disabled={!!busy || loading || catalogLoading} onPress={() => void action(order, 'pay')} />
             </View>}
             {canPay && !available.length && <Notice text={catalog.payment_unavailable_reason || 'Onlinebetalning är ännu inte aktiverad för din enhet. Kontakta köket om betalning.'} />}
             {!['completed', 'rejected', 'cancelled'].includes(order.status) && <Button secondary title={catalog.test_mode === true ? 'Simulera statusnotiser' : 'Aktivera statusnotiser'}

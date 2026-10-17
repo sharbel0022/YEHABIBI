@@ -82,8 +82,10 @@ try {
   }
   const decline = await create('swish'); await action(decline, { action: 'approve' }); const declinedPath = await checkout(decline, 'swish');
   await simulate(declinedPath, 'decline'); assert.equal(row(decline).payment_status, 'failed');
+  assert.equal(await checkout(decline, 'swish'), declinedPath);
+  await simulate(declinedPath, 'decline'); assert.equal(row(decline).payment_status, 'failed', 'A second declined retry must not remain pending');
   assert.equal(await checkout(decline, 'swish'), declinedPath); await simulate(declinedPath, 'success'); assert.equal(row(decline).payment_status, 'paid');
-  checks.push('Decline and retry reuse immutable attempt');
+  checks.push('Repeated declines and retries reuse immutable attempt');
   const cancelled = await create('card'); await action(cancelled, { action: 'approve' }); const cancelledPath = await checkout(cancelled, 'card');
   await simulate(cancelledPath, 'cancel'); assert.notEqual(row(cancelled).payment_status, 'paid');
   await simulate(cancelledPath, 'success'); assert.equal(row(cancelled).payment_status, 'paid'); checks.push('Cancel cannot mark paid; retry can succeed');

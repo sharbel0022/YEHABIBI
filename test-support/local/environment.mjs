@@ -33,17 +33,29 @@ export function cleanProcessEnvironment() {
   }
   return { ...selected, NODE_OPTIONS: '', NEXT_TELEMETRY_DISABLED: '1', CI: '1' };
 }
-export async function freePort() {
+export async function freePort(requestedPort = 0) {
   const server = net.createServer();
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(requestedPort, '127.0.0.1', resolve);
+  });
   const port = server.address().port;
   await new Promise(resolve => server.close(resolve));
   return port;
 }
-async function waitReady(url, children, directory) {
+export async function waitReady(url, children, directory, expectedIsolationId) {
+  const assertRunning = () => {
+    for (const child of children) if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Testprocess avslutades (${child.exitCode ?? child.signalCode}). Redigerade loggar: ${directory}`);
+  };
   for (let attempt = 0; attempt < 180; attempt++) {
-    for (const child of children) if (child.exitCode !== null) throw new Error(`Testprocess avslutades (${child.exitCode}). Redigerade loggar: ${directory}`);
-    try { if ((await fetch(url, { signal: AbortSignal.timeout(3000) })).ok) return; } catch {}
+    assertRunning();
+    let available = false;
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      available = response.ok && (!expectedIsolationId || (await response.json()).isolation_id === expectedIsolationId);
+    } catch {}
+    assertRunning();
+    if (available) return;
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   throw new Error(`Testservern startade inte. Redigerade loggar: ${directory}`);
@@ -62,13 +74,21 @@ export async function startTestEnvironment(options = {}) {
   // Windows treats PATH case-insensitively; never pass a second Path entry to child_process.
   delete env.Path;
   const pgData = path.join(directory, 'pgdata'), children = [], logs = [];
-  let bridge, pgStarted = false, stopped = false;
+  let bridge, pgStarted = false, stopped = false, ready = false;
   const command = (file, args, input) => {
     const result = spawnSync(file, args, { env, input, encoding: 'utf8', windowsHide: true, ...(path.basename(file).startsWith('pg_ctl') ? { stdio: 'ignore' } : {}) });
     if (result.status !== 0) throw new Error(`${path.basename(file)} misslyckades: ${redacted(result.stderr || result.stdout || result.error || '')}`);
     return (result.stdout || '').trim();
   };
-  const pgPort = await freePort(), restPort = await freePort(), bridgePort = await freePort(), webPort = await freePort(), metroPort = await freePort();
+  const choosePort = async name => {
+    const selected = options.ports?.[name];
+    if (selected === undefined) return freePort();
+    assert.ok(Number.isInteger(selected) && selected >= 1024 && selected <= 65535, `Ogiltig lokal testport: ${name}`);
+    // Reject an occupied fixed port before initializing the database or launching any process.
+    return freePort(selected);
+  };
+  const pgPort = await freePort(), restPort = await freePort(), bridgePort = await choosePort('bridge'), webPort = await choosePort('web'), metroPort = await freePort();
+  assert.equal(new Set([pgPort, restPort, bridgePort, webPort, metroPort]).size, 5, 'Testprocesserna behöver fem olika portar.');
   const origin = `http://127.0.0.1:${webPort}`, backendOrigin = `http://127.0.0.1:${bridgePort}`;
   const sql = text => command(executable('psql'), ['-h', '127.0.0.1', '-p', String(pgPort), '-U', 'postgres', '-d', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1'], text);
   const rows = query => JSON.parse(sql(`select coalesce(json_agg(row_to_json(t)),'[]'::json) from (${query}) t;`));
@@ -85,6 +105,12 @@ export async function startTestEnvironment(options = {}) {
       stream.on('end', () => { if (pending) log.write(redacted(pending)); });
     }
     child.once('close', () => log.end());
+    child.once('exit', (code, signal) => {
+      if (!ready || stopped) return;
+      const failure = new Error(`Isolerad testprocess avslutades oväntat (${path.basename(file)}, kod ${code ?? signal}). Starta en ny testsession. Redigerade loggar: ${directory}`);
+      // Only stop processes created by this instance. Never restart against a partially stopped database.
+      void stop().then(() => options.onFailure?.(failure)).catch(error => options.onFailure?.(new Error(`${failure.message}; stoppfel: ${redacted(error.message)}`)));
+    });
     children.push(child); logs.push(log); return child;
   };
   const stop = async () => {
@@ -139,7 +165,9 @@ export async function startTestEnvironment(options = {}) {
     sql(`insert into public.delivery_zones(id,name,postal_prefixes,fee_ore,active) values('55555555-5555-4555-8555-555555555555','TEST zon',array['721'],10000,true);`);
     // Registry schema comes from the real additive migration; only this isolated database gets local_test.
     sql(`insert into public.payment_provider_registry(provider,environment,checkout_base_url,active) values('local_test','test',${literal(origin + '/__test/payment/')},true);`);
-    start(postgrest, [], { GHCRTS: '-N2', PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
+    // The Windows binary intermittently aborts during startup with exit 3 at -N2; exact upstream cause is unknown.
+    // Reproduced against a closed local port; -N1 keeps the same real database/API with one RTS capability.
+    start(postgrest, [], { GHCRTS: process.platform === 'win32' ? '-N1' : '-N2', PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
     await waitReady(`http://127.0.0.1:${restPort}/`, children, directory);
     bridge = http.createServer(async (request, response) => {
       try {
@@ -191,7 +219,7 @@ export async function startTestEnvironment(options = {}) {
         json(response, 404, { error: 'Isolerad testresurs saknas.' });
       } catch { json(response, 500, { error: 'Lokalt testanrop misslyckades.' }); }
     });
-    await new Promise(resolve => bridge.listen(bridgePort, '127.0.0.1', resolve));
+    await new Promise((resolve, reject) => { bridge.once('error', reject); bridge.listen(bridgePort, '127.0.0.1', resolve); });
     const workspace = path.join(directory, 'workspace'), web = path.join(workspace, 'apps/web');
     fs.mkdirSync(web, { recursive: true });
     for (const entry of ['src', 'public', 'package.json', 'tsconfig.json', 'next.config.ts', 'next-env.d.ts']) {
@@ -209,16 +237,25 @@ export async function startTestEnvironment(options = {}) {
     const paymentPage = path.join(web, 'src/app/%5F%5Ftest/payment/[id]'); fs.mkdirSync(path.join(paymentPage, 'simulate'), { recursive: true });
     fs.copyFileSync(path.join(support, 'routes/page.tsx'), path.join(paymentPage, 'page.tsx'));
     fs.copyFileSync(path.join(support, 'routes/simulate.route.ts'), path.join(paymentPage, 'simulate/route.ts'));
+    // Only this ignored overlay exposes readiness, after its actual database attestation is verified.
+    const readiness = path.join(web, 'src/app/%5F%5Ftest/ready'); fs.mkdirSync(readiness, { recursive: true });
+    fs.writeFileSync(path.join(readiness, 'route.ts'), `import { paymentRuntime } from '@/lib/payments/runtime';
+export async function GET() {
+  await paymentRuntime().validate();
+  return Response.json({ isolation_id: process.env.TEST_ISOLATION_ID }, { headers: { 'Cache-Control': 'no-store' } });
+}
+`);
     const webEnv = { NODE_ENV: 'development', NODE_OPTIONS: `--import=${pathToFileURL(path.join(root, 'test-support/local/transport.mjs')).href}`, APP_ENV: 'test', TEST_ISOLATION_ID: isolationId, TEST_PAYMENT_SECRET: secret, TEST_BACKEND_ORIGIN: backendOrigin,
       NEXT_PUBLIC_SITE_URL: origin, NEXT_PUBLIC_INDEXABLE: 'false', NEXT_PUBLIC_SUPABASE_URL: backendOrigin, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon, SUPABASE_SERVICE_ROLE_KEY: service,
       ORDERS_ENABLED: 'true', PAYMENTS_ENABLED: 'false', TEST_PAYMENTS_ENABLED: 'true', PAYMENT_PROVIDER: '', ADYEN_ENVIRONMENT: 'test', PAYMENTS_LIVE_APPROVED: 'false', ADYEN_LIVE_URL_PREFIX: '', ADYEN_API_KEY: '', ADYEN_HMAC_KEY: '', ADYEN_MERCHANT_ACCOUNT: '', ADYEN_ENABLED_METHODS: '', ADYEN_CAPTURE_MODE: '',
       RESEND_API_KEY: 're_isolated_capture_only', EMAIL_FROM: 'Yehabibi TEST <orders@example.test>', OWNER_NOTIFICATION_EMAIL: ownerEmail, ADMIN_EMAILS: ownerEmail,
       ORDER_LINK_SECRET: randomBytes(32).toString('hex'), ORDER_RATE_LIMIT_SECRET: randomBytes(32).toString('hex'), OWNER_PUSH_ENABLED: 'true', CUSTOMER_PUSH_ENABLED: 'true', EXPO_ACCESS_TOKEN: '', MOBILE_WEB_ORIGINS: `http://localhost:${metroPort},http://127.0.0.1:${metroPort},http://10.0.2.2:${webPort},${origin}` };
     start(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(webPort)], webEnv, web);
-    await waitReady(`${origin}/api/health`, children, directory);
+    await waitReady(`${origin}/__test/ready`, children, directory, isolationId);
     const state = { isolationId, origin, backendOrigin, directory, metroPort, adminLogin: `${backendOrigin}/__test/login`, inbox: `${backendOrigin}/__test/inbox`, androidApi: `http://10.0.2.2:${webPort}`, marker: 'YEHABIBI_ISOLATED_LOCAL_TEST', controlSecret: secret };
     fs.writeFileSync(path.join(directory, 'private-session.json'), JSON.stringify({ ...state, adminPassword }, null, 2), { mode: 0o600 });
     if (options.persistent) fs.writeFileSync(activeSessionPath, JSON.stringify(state, null, 2), { mode: 0o600 });
+    ready = true;
     return { ...state, adminPassword, adminCookie: cookie, webEnv, stop, sql, rows, mails, pushes, userId, directory, web, children };
   } catch (error) { await stop(); throw error; }
 }

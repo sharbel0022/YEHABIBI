@@ -13,9 +13,11 @@ npm run test:server
 
 PostgreSQL 18:s `initdb`, `pg_ctl` och `psql` behöver finnas i `C:/Program Files/PostgreSQL/18/bin`, alternativt anger du `PG_BIN` till din installation. PostgREST finns i den lokala testverktygskatalogen `.tmp/v41-tools/postgrest.exe`, eller anges med `POSTGREST_BIN`. CI använder redan samma verktyg som det befintliga integrationstestet. Kommandot säger vilket verktyg som saknas; det ansluter aldrig till en molndatabas som reserv.
 
+På Windows startas PostgREST med `GHCRTS=-N1`. I en avgränsad lokal diagnos avslutades samma binär med kod 3 i tre av fyra starter med `-N2`, medan fyra av fyra `-N1`-starter fortsatte med väntade anslutningsdiagnoser mot en stängd loopbackport. Miljö och DLL-sökväg var identiska; den exakta bakomliggande orsaken är inte fastställd. Inställningen styr GHC:s antal parallella exekveringsresurser och ändrar inte databas, behörigheter eller betalningsregler. [PostgREST dokumenterar GHCRTS](https://docs.postgrest.org/en/stable/explanations/install.html#docker-resource-constraints), och [GHC beskriver `-N1`](https://downloads.haskell.org/ghc/latest/docs/users_guide/using-concurrent.html#rts-options-for-smp-parallelism). Ingen automatisk startomkörning döljer ett fel.
+
 Startkommandot skapar en helt ny datakatalog och en isolerad webbkopia under ignorerade `.tmp/test-mode-<uuid>/`. PostgreSQL, PostgREST, lokal Auth-/meddelandetransport och Next.js får egna portar på `127.0.0.1`. Alla riktiga migrationer körs i ordning, följda av teststödets tabeller och en unik databasattestering. Produktionsfiler eller produktionsdata ändras inte.
 
-Terminalen visar webbens adress, testadmin-inloggning, ett slumpat testlösenord och lokal inkorg. Låt terminalen vara igång. Länkar med privata ordertoken eller betalningssessioner skrivs inte ut i startloggen. Själva orderkvittot visas i kundens webbläsare/app.
+Terminalen visar webbens adress, testadmin-inloggning, ett slumpat testlösenord och lokal inkorg. Låt terminalen vara igång. Länkar med privata ordertoken eller betalningssessioner skrivs inte ut i startloggen. Själva orderkvittot visas i kundens webbläsare/app. Starten räknas som klar först när testwebben har verifierat just den nya databasens attestering; en annan frisk server på samma adress räcker inte. Om Next.js eller PostgREST avslutas oväntat stoppar launchern återstående egna testprocesser och visar en felindikering med katalogen för redigerade loggar; starta då en ny testsession.
 
 Testservern kopierar inte `.env` eller `.env.local` och ärver bara operativsystemets nödvändiga processvariabler. Adyen är avstängt, produktionsgodkännande är false och inga riktiga betalningsnycklar används. Ett separat serverhemligt testvärde måste matcha attesteringen i den nyss skapade databasen. Att bara sätta `APP_ENV=test` eller en publik variabel kan inte aktivera simulatorn i produktion.
 
@@ -46,6 +48,8 @@ Testdatabasen har fem aktiva rätter:
 5. Ange en syntetisk kund, `.test`-e-post och testtelefon. Skicka en förfrågan.
 6. Kvittot visar ordernummer och privat orderlänk. Ordern är **Mottagen/Obetald** och finns nu i den riktiga isolerade PostgreSQL-databasen.
 7. Testa dubbeltryck/återförsök med samma innehåll. Samma beständiga förfrågningsnyckel återanvänder ordern; nya kundordrar ska ha en ny nyckel.
+
+Samma skydd som i ordermotorn tillåter högst fem nya förfrågningar per nätverksnyckel respektive e-postadress och timme. Identiska återförsök använder den befintliga ordern. Om en längre manuell testomgång når gränsen kan du starta en ny tom testsession med reset-kommandot nedan; använd då den nya API-adressen även i Expo.
 
 ## Godkännande, pris och orderstatus
 
@@ -91,11 +95,13 @@ Android-emulatorn använder samma backendport genom `http://10.0.2.2:<port>`, so
 
 I den verifierade Windows-miljön slukade `npm.ps1` vidarebefordrade `--android`- och `--dev-client`-flaggor. Använd därför direktkommandona ovan när du behöver flaggor i PowerShell. Kontrollera att utskriften visar `10.0.2.2` för Android. `npm run test:mobile` fungerar utan extra flaggor för Expo web.
 
+För `--android` anger helpern också SDK 57 CLI:s `EXPO_PACKAGER_PROXY_URL=http://10.0.2.2:<Metroport>`. Då använder annonserade manifest-, bundle- och utvecklingsadresser emulatorns värdadress. `--localhost` styr fortfarande själva lyssningen på IPv4-loopback; ingen LAN-bindning eller tunnel öppnas. Inställningen sätts bara i den egna Expo-barnprocessen.
+
 En fysisk iPhone/Android kan inte nå datorns `127.0.0.1`. Den här standardstarten öppnar inte testservern på hela nätverket. För ett framtida fysiskt prov behövs en uttryckligt konfigurerad privat och åtkomstskyddad anslutning; publicera inte simulatorn på den publika Sites-webben. Ett telefonprov får endast anges som genomfört om den aktuella enheten faktiskt användes. Expo-export och emulatorprov räknas inte som fysisk iPhone-verifiering.
 
 ## Stoppa och återställ
 
-Tryck **Ctrl+C** i testserverns terminal, eller kör:
+Stoppa Expo/Metro med **Ctrl+C** i dess separata terminal. Tryck sedan **Ctrl+C** i testserverns terminal, eller kör:
 
 ```powershell
 node --experimental-strip-types scripts/test-server.mjs --stop

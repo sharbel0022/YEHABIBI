@@ -120,7 +120,7 @@ try {
     }
   }
   checkProductionFiles(path.join(web, '.next/server'));
-  for (const route of ['/__test/payment/missing', '/__test/payment/missing/simulate']) {
+  for (const route of ['/__test/payment/missing', '/__test/payment/missing/simulate', '/__test/ready']) {
     for (const method of ['GET', 'POST']) {
       const response = await request(route, { method });
       assert.equal(response.status, 404, 'Produktionsappen får inte exponera någon betalsimulator.');

@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { HostedPayment, OnlinePaymentMethod, PaymentAttempt, PaymentEvent, PaymentProvider, RefundAttempt } from '@/lib/payments/provider';
 import type { IsolationSettings } from './guard.ts';
@@ -76,11 +76,14 @@ export class TestPaymentProvider implements PaymentProvider {
   async inspectSession(id: string) { return this.session(id); }
   private event(session: Session, action: string, refund?: RefundAttempt): PaymentEvent {
     const success=action==='success' || action==='refund';
-    return {provider:this.name,environment:'test',event_id:createHash('sha256').update(`${this.settings.id}:${session.id}:${action}:${refund?.id||''}`).digest('hex'),
+    // Each failure click is a new outcome on the reusable checkout. Its saved envelope remains replayable.
+    // Financial outcomes keep their original identity so success/refund retries cannot create a second event.
+    const eventId=success?createHash('sha256').update(`${this.settings.id}:${session.id}:${action}:${refund?.id||''}`).digest('hex'):randomBytes(32).toString('hex');
+    return {provider:this.name,environment:'test',event_id:eventId,
       event_code:refund?'REFUND':'AUTHORISATION',kind:refund?'refunded':success?'paid':'failed',success,
       reference:refund?.provider_reference||session.reference,transaction_reference:refund?'refund_'+refund.id:'pay_'+session.id,
       original_reference:refund?.transaction_reference||null,amount_ore:session.amount_ore,currency:'SEK',
-      // Stable timestamp makes retries byte-identical, including after process restarts.
+      // Stable timestamp also preserves success/refund signatures across process restarts.
       occurred_at:new Date(0).toISOString()};
   }
   private async deliver(session: Session, action: string, refund?: RefundAttempt) {
