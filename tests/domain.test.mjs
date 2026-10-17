@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   calcTotal, canUseCash, canTransition, isValidEventDate,
   stripePaymentTypes, safeExternalUrl, escapeHtml, formatSek
-} from '../src/lib/domain.ts';
+} from '../packages/shared/pricing/index.ts';
 
 test('summa: pris per person + leveransavgift i öre', () => {
   assert.deepEqual(calcTotal(27900,20,'delivery',9900),{

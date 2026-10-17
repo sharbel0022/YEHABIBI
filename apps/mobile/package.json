@@ -1,0 +1,45 @@
+{
+  "name": "@yehabibi/mobile",
+  "version": "3.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "dev": "expo start --dev-client",
+    "android": "expo start --android --dev-client",
+    "go": "expo start --go",
+    "build:android": "expo run:android",
+    "web": "expo start --web",
+    "export": "expo export --platform all",
+    "typecheck": "tsc --noEmit",
+    "doctor": "npx expo-doctor"
+  },
+  "dependencies": {
+    "@yehabibi/shared": "*",
+    "@expo/metro-runtime": "58.0.14",
+    "expo": "58.0.14",
+    "expo-constants": "58.0.12",
+    "expo-dev-client": "58.0.14",
+    "expo-linking": "58.0.13",
+    "expo-router": "58.0.23",
+    "expo-secure-store": "58.0.2",
+    "expo-splash-screen": "58.0.10",
+    "expo-status-bar": "58.0.3",
+    "expo-video": "58.0.11",
+    "expo-web-browser": "58.0.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "5.10.1",
+    "react-native-screens": "4.30.0",
+    "react-native-web": "0.21.4"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/react": "19.3.0",
+    "@types/node": "22.0.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

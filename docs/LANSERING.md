@@ -1,5 +1,7 @@
 # Att publicera Cedar Mezze – enkel ordning
 
+V2:s ägarlista är bevarad här. För V3:s miljöer, EAS, Android/iOS och butikspublicering, börja med [PUBLICERING.md](PUBLICERING.md) och [EXPO.md](EXPO.md).
+
 **Läge:** Koden är förberedd för Next.js-hosting men inte klar för skarpa beställningar utan företagets konton och innehåll.
 
 1. **Varumärke och domän.** Be ägaren skriftligen godkänna Cedar Mezze, kontrollera rättigheter till namn och köp domän i ägarens namn.

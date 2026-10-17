@@ -1,0 +1,151 @@
+import { createContext, useCallback, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import { calcDishTotal, calcTotal, type Catalog, type Fulfillment, type Occasion } from '@yehabibi/shared';
+import {
+  demoCatalog,
+  getCatalog,
+  readOrderReferences,
+  saveOrderReferences,
+  type OrderReference,
+} from './api';
+
+export type Selection = {
+  menuId: string | null;
+  quantities: Record<string, number>;
+  guests: number;
+  occasion: Occasion;
+};
+type Store = {
+  catalog: Catalog;
+  loading: boolean;
+  notice: string;
+  refresh: () => Promise<void>;
+  selection: Selection;
+  setGuests: (value: number) => void;
+  setOccasion: (value: Occasion) => void;
+  chooseMenu: (id: string) => void;
+  changeDish: (id: string, difference: number) => void;
+  references: OrderReference[];
+  rememberOrder: (reference: OrderReference) => Promise<void>;
+  storageNotice: string;
+};
+const Context = createContext<Store | null>(null);
+
+export function CateringProvider({ children }: PropsWithChildren) {
+  const [catalog, setCatalog] = useState(demoCatalog);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState('');
+  const [storageNotice, setStorageNotice] = useState('');
+  const [references, setReferences] = useState<OrderReference[]>([]);
+  const [selection, setSelection] = useState<Selection>({
+    menuId: null,
+    quantities: {},
+    guests: 10,
+    occasion: 'hemma',
+  });
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const next = await getCatalog();
+      setCatalog(next);
+      setNotice(
+        next.demo
+          ? 'Demonstration: beställningar är stängda tills ägaren har konfigurerat och verifierat tjänsten.'
+          : '',
+      );
+    } catch (error) {
+      // Gammal prislista får aldrig användas för en beställning när API:t är nere.
+      setCatalog((previous) => ({ ...previous, orders_enabled: false }));
+      setNotice(error instanceof Error ? error.message : 'Servern är inte tillgänglig.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  useEffect(() => {
+    readOrderReferences()
+      .then(setReferences)
+      .catch(() => setStorageNotice('Det säkra orderminnet kunde inte öppnas på enheten.'));
+  }, []);
+
+  async function rememberOrder(reference: OrderReference) {
+    const privateReference = { code: reference.code, token: reference.token };
+    const next = [privateReference, ...references.filter((item) => item.code !== reference.code)].slice(0, 20);
+    setReferences(next);
+    try {
+      await saveOrderReferences(next);
+    } catch {
+      setStorageNotice(
+        'Ordern är mottagen, men kunde inte sparas på enheten. Behåll appen öppen och notera ditt ordernummer.',
+      );
+    }
+  }
+
+  const value: Store = {
+    catalog,
+    loading,
+    notice,
+    refresh,
+    selection,
+    references,
+    rememberOrder,
+    storageNotice,
+    setGuests: (guests) =>
+      setSelection((previous) => ({
+        ...previous,
+        guests: Math.max(1, Math.min(1000, Math.floor(guests) || 1)),
+      })),
+    setOccasion: (occasion) => setSelection((previous) => ({ ...previous, occasion })),
+    chooseMenu: (menuId) =>
+      setSelection((previous) => ({
+        ...previous,
+        menuId,
+        quantities: {},
+        guests: Math.max(previous.guests, catalog.menus.find((menu) => menu.id === menuId)?.min_people || 1),
+      })),
+    changeDish: (id, difference) =>
+      setSelection((previous) => ({
+        ...previous,
+        menuId: null,
+        quantities: {
+          ...previous.quantities,
+          [id]: Math.max(0, Math.min(1000, (previous.quantities[id] || 0) + difference)),
+        },
+      })),
+  };
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+
+export function useCatering() {
+  const store = useContext(Context);
+  if (!store) throw new Error('CateringProvider saknas.');
+  return store;
+}
+
+// Samma heltalsregler som webb och server. En ogiltig eller obekräftad prislista ger ingen offert.
+export function getQuote(
+  catalog: Catalog,
+  selection: Selection,
+  fulfillment: Fulfillment = 'pickup',
+  fee = 0,
+) {
+  const menu = catalog.menus.find((item) => item.id === selection.menuId && item.active);
+  const items = Object.entries(selection.quantities)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([dish_id, quantity]) => ({ dish_id, quantity }));
+  try {
+    if (selection.menuId) {
+      if (!menu || menu.price_ore <= 0 || selection.guests < menu.min_people) return null;
+      return {
+        ...calcTotal(menu.price_ore, selection.guests, fulfillment, fee),
+        price_per_person_ore: menu.price_ore,
+      };
+    }
+    return calcDishTotal(items, catalog.dishes, selection.guests, fulfillment, fee);
+  } catch {
+    return null;
+  }
+}

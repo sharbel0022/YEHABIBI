@@ -1,80 +1,83 @@
-# Cedar Mezze – libanesisk catering
+# YEHABIBI V3 – Cedar Mezze
 
-En **lättläst Next.js-webbapp** för förbeställd libanesisk catering i Västerås. Projektet ligger i repot `YEHABIBI` men använder arbetsnamnet **Cedar Mezze**. Företagets juridiska namn, menypriser, domän och Google-profil måste godkännas innan publicering.
+En cateringplattform med **Expo för Android/iPhone**, en Next.js-webbplats och samma beställningssystem i Supabase/PostgreSQL. V2:s webbplats och adminpanel finns kvar i `apps/web`. Appens arbetsnamn är **Cedar Mezze**.
 
-## Det här går att göra
+Mobilappen är ett riktigt Expo-projekt med Expo Router, Expo Go och stöd för egna development builds. Det riktiga [EAS-projektet](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) har skapats under `sharbel1423` och lagts in i konfigurationen. Signering och faktiska molnbyggen verifieras separat. Se [EXPO.md](docs/EXPO.md).
 
-- Se en elegant startsida med stor matbild, stöd för ägarens korta ljudlösa video, pausknapp och mobilanpassning.
-- Bläddra bland cateringpaket för **hemma, fest och företag**.
-- Välja meny, antal personer, datum, tid, leverans/hämtning och betalningsönskemål.
-- Skicka en **förfrågan först**; ingen betalning görs förrän ägaren godkänt.
-- Få mejl om ordern och en privat länk för att följa status.
-- Ägaren kan godkänna/neka, föreslå ändringar, skicka Stripe-betalningslänk, markera kontanter mottagna, redigera menyer och lägga in färdiga bilder/filmer.
-- Två QR-koder: beställning och **verifierad Google-recensionslänk**.
-- Lokal SEO med sitemap, metadata, strukturerad data och sidor för fest- och företagscatering.
-- Installera sidan som en PWA på mobilen.
+## Starta
 
-## Kom igång lokalt
+Installera Node.js **22.13 eller senare**, npm och Android Studio om du vill köra Android-emulatorn. Kör i repots rot:
 
-Förutsättningar: **Node.js 22+**, npm och egna Supabase-/Stripe-/Resend-konton om du vill ta emot verkliga ordrar.
-
-```bash
+```powershell
 npm install
-cp .env.example .env.local
+Copy-Item apps/web/.env.example apps/web/.env.local
+Copy-Item apps/mobile/.env.example apps/mobile/.env.local
 npm run dev
 ```
 
-Öppna `http://localhost:3000`. Utan inloggnings- och betalningsuppgifter visas en **säker demoversion**, som INTE tar emot riktiga beställningar.
+Kopiera miljöfilerna bara första gången. Webben och API:t finns på `http://localhost:3000`. Öppna en andra terminal i roten:
 
-## Aktivera databas och admin
-
-1. Skapa ett Supabase-projekt som ägs av cateringföretaget.
-2. Kör `supabase/migrations/0001_cedar_mezze.sql` i SQL Editor.
-3. Kopiera projektets URL, publishable/anon-nyckel och **hemliga** service-role-nyckel till `.env.local`.
-4. Bjud in ägaren i Supabase Auth. Skriv samma e-postadress i `ADMIN_EMAILS`.
-5. Tillåt korrekt inloggnings-redirect `http://localhost:3000/auth/callback` lokalt, och den slutliga domänen i produktion.
-6. Gå till `/admin` och begär en engångslänk via e-post.
-7. Lägg in **riktiga** cateringpriser, bilder, allergener, hämtadress, leveransområde och kontaktuppgifter.
-
-Dessa fält måste vara korrekt ifyllda före riktiga beställningar.
-
-## Betalningar och e-post
-
-1. Skapa Stripe-kontot i cateringföretagets namn och börja med **testnycklar**.
-2. Lägg in `STRIPE_SECRET_KEY` och skapa Stripe-webhook för `https://DIN-DOMÄN/api/stripe/webhook`. Spara `STRIPE_WEBHOOK_SECRET`.
-3. Lyssna på `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` och `charge.refunded`.
-4. Aktivera Swish **i Stripe-kontot** innan `STRIPE_SWISH_ENABLED=true`. Apple Pay visas av Stripe på kompatibla enheter för kortbetalning.
-5. Anslut en verifierad avsändardomän hos Resend. Ange `RESEND_API_KEY`, `EMAIL_FROM` och `OWNER_NOTIFICATION_EMAIL`.
-6. Skapa **två olika, långa slumpade hemligheter** för `ORDER_RATE_LIMIT_SECRET` och `ORDER_LINK_SECRET`.
-7. Ägaren godkänner sekretesspolicy, villkor, priser, momssatser och rutiner kring kontanter/kassaregister med rådgivare. Först därefter: `ORDERS_ENABLED=true`.
-
-**Säkerhet:** sätt aldrig Stripe secret, Resend API-nyckel eller Supabase service-role i en variabel som börjar med `NEXT_PUBLIC_`.
-
-## Publicering och Google
-
-1. Godkänn namnet *Cedar Mezze* och koppla en riktig domän. Ändra `NEXT_PUBLIC_SITE_URL` till exakt HTTPS-domän.
-2. Anslut domänen till Next.js-hosting med stöd för serverfunktioner (t.ex. Vercel).
-3. Behåll `NEXT_PUBLIC_INDEXABLE=false` tills både domän, företag, juridik, media och menyer är klara.
-4. När webbplatsen är offentlig och färdig, sätt `NEXT_PUBLIC_INDEXABLE=true` och skicka `sitemap.xml` till Google Search Console.
-5. Kontrollera att en Google Business Profile är tillåten för det nya namnet. Ange rätt företagskategori, serviceområde, webbplats och kontaktuppgifter. Använd bara officiella Google-länkar.
-6. Klistra in den **officiella** Google-recensionslänken i `/admin/settings` och hämta de två SVG QR-koderna där.
-7. Testa iPhone, Android, kort, Swish i testläge, kontant, alla mejl och Stripe-webhook med fejkade testordrar.
-
-**Viktigt:** Koden kan förbättra sökmotorernas förståelse av webbplatsen, men Google-betyg, recensioner, ranking och verifiering kan inte skapas/garanteras automatiskt. Du kan inte publicera recensioner på Google åt kunden från den här sidan.
-
-## Tester
-
-```bash
-npm run syntax
-npm run test
-npm run typecheck
-npm run build
+```powershell
+npm run dev:mobile
 ```
 
-GitHub Actions gör samma kontroller när koden pushas. Se `docs/TESTPLAN.md` för de manuella testfallen. Denna version är **inte en live-produktionsrelease** förrän ägarens konton och innehåll anslutits.
+Starta Android-emulatorn. Första gången installeras din egen **Cedar Mezze Dev** med `npm run build:android`; därefter öppnar `npm run android` appen mot utvecklingsservern. Exakta SDK-/Java-kommandon finns i [EXPO.md](docs/EXPO.md).
 
-## Hitta rätt fil
+Expo Go är ett separat alternativ: `npm run go --workspace @yehabibi/mobile`. Dess SDK-version måste passa projektet. Standardkommandona använder development build så att appens riktiga identitet kan verifieras.
 
-**Börja med [`docs/FIL_FOR_FIL.md`](docs/FIL_FOR_FIL.md).** Där beskrivs varje del på enkel svenska.
+`EXPO_PUBLIC_API_URL` i `apps/mobile/.env.local` är:
 
-**Ingen fotografering eller videoproduktion ingår.** Ägaren skickar färdigt material med användningsrätt; administratören väljer när det ska publiceras.
+| Körning | API-adress |
+| --- | --- |
+| Android Studio-emulator | `http://10.0.2.2:3000` |
+| Fysisk mobil på samma Wi-Fi | `http://DATORNS-LAN-IP:3000` |
+| Expo Web | `http://localhost:3000` och tillåten webborigin på servern |
+| Publicerad app | Företagets riktiga HTTPS-adress |
+
+Utan anslutna företagskonton visas en demonstration med stängda beställningar. Priser, kontaktuppgifter, recensioner och betalningsresultat hittas inte på.
+
+## Så används plattformen
+
+Kunden väljer cateringpaket eller egna maträtter och skickar en förfrågan. Servern hämtar aktuella priser och kontrollerar totalsumman. Ägaren granskar förfrågan i webbens `/admin` innan kunden betalar.
+
+Stripe Checkout öppnas i webbläsaren för kort, Swish när kontot stöder det och Apple Pay på stödd enhet. Betald status kommer från en signerad webhook. Kontant gäller hämtning och registreras manuellt av ägaren. Se [ARKITEKTUR.md](docs/ARKITEKTUR.md).
+
+## Hitta koden
+
+```text
+apps/mobile/      Expo: skärmar, API-anrop och säkert orderminne
+apps/web/         Next.js: webb, admin, API och betalningar
+packages/shared/ TypeScript-typer, priser, statusregler och validering
+supabase/        SQL-migrationer som bevarar V2:s databas
+tests/           Tester av gemensamma affärsregler
+docs/            Korta svenska förklaringar
+```
+
+| Läs | Förklaring |
+| --- | --- |
+| [ARKITEKTUR.md](docs/ARKITEKTUR.md) | Hur app, webb, API och databas hänger ihop |
+| [FIL_FOR_FIL.md](docs/FIL_FOR_FIL.md) | Viktiga filer och varför de finns |
+| [DATABAS.md](docs/DATABAS.md) | Tabeller, priser, RLS och adminbehörighet |
+| [EXPO.md](docs/EXPO.md) | Expo Go, Android Studio, development build och EAS |
+| [PUBLICERING.md](docs/PUBLICERING.md) | Webb, miljöer, Google Play och App Store |
+| [TESTER.md](docs/TESTER.md) | Kommandon, faktiska resultat och återstående tester |
+
+## Vanliga kommandon
+
+Kör från repots rot:
+
+| Kommando | Gör |
+| --- | --- |
+| `npm run dev` | Startar Next.js och API på port 3000 |
+| `npm run dev:mobile` | Startar Expo för installerad development build |
+| `npm run android` | Öppnar Cedar Mezze Dev på Android |
+| `npm run build:android` | Bygger och installerar Android development build lokalt |
+| `npm run go --workspace @yehabibi/mobile` | Startar alternativet Expo Go |
+| `npm run export:mobile` | Exporterar Expo för konfigurerade plattformar |
+| `npm run verify` | Syntax, TypeScript, enhetstester, webbbygge och Expo-export |
+
+Installera alla workspaces från roten. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel. Mobil och webb har var sin React-version eftersom Expo och Next.js kräver olika versioner.
+
+Hemliga nycklar hör endast hemma i `apps/web/.env.local` eller serverns miljövariabler. Allt som börjar med `EXPO_PUBLIC_` kan läsas ur appen. Skicka aldrig Supabase service-role, Stripe secret eller Resend-nycklar till mobilen.
+
+Före riktiga beställningar behövs företagets konton, godkända priser/allergener, kontaktuppgifter, villkor och verifierade testbetalningar. Butiksuppladdning sker separat efter verifiering; inga automatiska submits är konfigurerade.

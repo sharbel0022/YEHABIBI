@@ -1,0 +1,102 @@
+'use client';
+import { useState } from 'react';
+import type { Campaign, DeliveryZone, Dish, Menu } from '@/types/domain';
+import { formatSek } from '@/lib/domain';
+import { uploadAdminFile } from '@/lib/browser-upload';
+
+type Kind = 'dishes' | 'campaigns' | 'delivery_zones';
+type CatalogItem = Dish | Campaign | DeliveryZone;
+type Draft = {
+  id?:string; title:string; description:string; price:string; allergens:string; portion_label:string;
+  media_url:string; active:boolean; sort_order:number; starts_at:string; ends_at:string; menu_ids:string[]; postal_prefixes:string;
+};
+function localDate(value:string) { const date = new Date(value); return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
+function draftFor(item?:CatalogItem):Draft {
+  return {id:item?.id,title:item ? ('title' in item ? item.title : item.name) : '',description:item && 'description' in item ? item.description : '',
+    price:item ? String(('price_ore' in item ? item.price_ore : 'fee_ore' in item ? item.fee_ore : 0)/100) : '',
+    allergens:item && 'allergens' in item ? item.allergens.join(', ') : '',portion_label:item && 'portion_label' in item ? item.portion_label : '1 portion',
+    media_url:item && 'image_url' in item ? item.image_url || '' : item && 'media_url' in item ? item.media_url || '' : '',active:item?.active ?? false,
+    sort_order:item && 'sort_order' in item ? item.sort_order : 10,
+    starts_at:localDate(item && 'starts_at' in item ? item.starts_at : new Date().toISOString()),
+    ends_at:localDate(item && 'ends_at' in item ? item.ends_at : new Date(Date.now()+7*86400000).toISOString()),
+    menu_ids:item && 'menu_ids' in item ? item.menu_ids : [],postal_prefixes:item && 'postal_prefixes' in item ? item.postal_prefixes.join(', ') : ''};
+}
+const titles:Record<Kind,string> = {dishes:'Maträtter',campaigns:'Kampanjer',delivery_zones:'Leveranszoner'};
+const split = (value:string) => value.split(',').map(part=>part.trim()).filter(Boolean);
+
+export function AdminCatalog({initialDishes,initialCampaigns,initialZones,menus}:{initialDishes:Dish[];initialCampaigns:Campaign[];initialZones:DeliveryZone[];menus:Pick<Menu,'id'|'title'>[]}) {
+  const [records,setRecords] = useState<Record<Kind,CatalogItem[]>>({dishes:initialDishes,campaigns:initialCampaigns,delivery_zones:initialZones});
+  const [kind,setKind] = useState<Kind>('dishes');
+  const [draft,setDraft] = useState<Draft|null>(null);
+  const [busy,setBusy] = useState(false);
+  const [message,setMessage] = useState('');
+  const [pushToken,setPushToken] = useState('');
+  function update(field:keyof Draft,value:Draft[keyof Draft]) { setDraft(old=>old ? {...old,[field]:value} : old); }
+  async function saveItem(value?:Record<string,unknown>,id?:string,archive=false) {
+    setBusy(true);setMessage('');
+    try {
+      const response = await fetch('/api/admin/catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,id,archive,value})});
+      const data = await response.json();
+      if(!response.ok) throw new Error(data.error || 'Kunde inte spara.');
+      setRecords(old=>({...old,[kind]:[...old[kind].filter(item=>item.id!==data.item.id),data.item]}));
+      setDraft(null);setMessage('Sparat. Samma katalog används av Expo och hemsidan.');
+    } catch(error) { setMessage(error instanceof Error ? error.message : 'Kunde inte spara.'); }
+    finally { setBusy(false); }
+  }
+  async function save(event:React.FormEvent) {
+    event.preventDefault(); if(!draft) return;
+    const amount = Number(draft.price.replace(',','.'));
+    if(kind!=='campaigns' && (!Number.isFinite(amount) || amount<0 || !draft.price.trim())) { setMessage('Ange ett giltigt pris i kronor.');return; }
+    const common = {active:draft.active};
+    const value = kind==='dishes' ? {...common,title:draft.title,description:draft.description,price_ore:Math.round(amount*100),allergens:split(draft.allergens),portion_label:draft.portion_label,image_url:draft.media_url||null,sort_order:draft.sort_order}
+      : kind==='delivery_zones' ? {...common,name:draft.title,postal_prefixes:split(draft.postal_prefixes),fee_ore:Math.round(amount*100)}
+      : {...common,title:draft.title,description:draft.description,media_url:draft.media_url||null,starts_at:new Date(draft.starts_at).toISOString(),ends_at:new Date(draft.ends_at).toISOString(),menu_ids:draft.menu_ids};
+    await saveItem(value,draft.id);
+  }
+  async function upload(file?:File) {
+    if(!file) return;setBusy(true);setMessage('');
+    try { update('media_url',await uploadAdminFile(file)); }
+    catch(error) { setMessage(error instanceof Error ? error.message : 'Uppladdningen misslyckades.'); }
+    finally { setBusy(false); }
+  }
+  async function registerPush(event:React.FormEvent) {
+    event.preventDefault();setBusy(true);setMessage('');
+    try {
+      const response = await fetch('/api/admin/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:pushToken})});
+      const data = await response.json(); if(!response.ok) throw new Error(data.error);
+      setPushToken('');setMessage('Pushtoken sparad. Mejl används alltid som reserv.');
+    } catch(error) { setMessage(error instanceof Error ? error.message : 'Kunde inte registrera push.'); }
+    finally { setBusy(false); }
+  }
+  async function checkPush() {
+    setBusy(true);setMessage('');
+    try {
+      const response = await fetch('/api/admin/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'check'})});
+      const data = await response.json(); if(!response.ok) throw new Error(data.error);
+      setMessage(`${data.checked} pushkvitton kontrollerade. Nya kvitton kan dröja cirka 15 minuter.`);
+    } catch(error) { setMessage(error instanceof Error ? error.message : 'Kunde inte kontrollera push.'); }
+    finally { setBusy(false); }
+  }
+  return <div className="admin-panel">
+    <div className="admin-actions">{(Object.keys(titles) as Kind[]).map(tab=><button type="button" className={`btn ${kind===tab?'btn-primary':''}`} key={tab} onClick={()=>{setKind(tab);setDraft(null);setMessage('');}}>{titles[tab]}</button>)}</div>
+    <div className="admin-top"><h2>{titles[kind]}</h2><button className="btn btn-primary" onClick={()=>setDraft(draftFor())}>Lägg till</button></div>
+    <p className="admin-note">Priser anges i kronor. Avpublicerade objekt sparas för orderhistoriken. En leveranszon matchar början på ett svenskt postnummer.</p>
+    <div style={{overflowX:'auto'}}><table className="admin-table"><thead><tr><th>Namn</th><th>Pris / period</th><th>Publicerad</th><th>Åtgärder</th></tr></thead><tbody>{records[kind].map(item=><tr key={item.id}>
+      <td>{'title' in item ? item.title : item.name}</td><td>{'price_ore' in item ? `${formatSek(item.price_ore)} / ${item.portion_label}` : 'fee_ore' in item ? `${formatSek(item.fee_ore)} · ${item.postal_prefixes.join(', ')}` : `${new Date(item.starts_at).toLocaleDateString('sv-SE')} – ${new Date(item.ends_at).toLocaleDateString('sv-SE')}`}</td>
+      <td>{item.active?'Ja':'Nej'}</td><td><button className="btn" disabled={busy} onClick={()=>setDraft(draftFor(item))}>Ändra</button>{item.active&&<button className="btn" disabled={busy} onClick={()=>saveItem(undefined,item.id,true)}>Avpublicera</button>}</td>
+    </tr>)}</tbody></table></div>
+    {draft&&<form onSubmit={save} style={{marginTop:24}}><h3>{draft.id?'Ändra':'Lägg till'} {titles[kind].toLowerCase()}</h3>
+      <div className="field"><label htmlFor="catalog-name">Namn / rubrik</label><input id="catalog-name" required maxLength={100} value={draft.title} onChange={event=>update('title',event.target.value)}/></div>
+      {kind!=='delivery_zones'&&<div className="field"><label htmlFor="catalog-description">Beskrivning</label><textarea id="catalog-description" maxLength={kind==='dishes'?350:500} value={draft.description} onChange={event=>update('description',event.target.value)}/></div>}
+      {kind!=='campaigns'&&<div className="field"><label htmlFor="catalog-price">{kind==='dishes'?'Styckpris i kronor':'Leveransavgift i kronor'}</label><input id="catalog-price" inputMode="decimal" required value={draft.price} onChange={event=>update('price',event.target.value)}/></div>}
+      {kind==='dishes'&&<><div className="field"><label htmlFor="catalog-portion">Portionsstorlek, exempelvis 1 spett eller 250 g</label><input id="catalog-portion" required maxLength={100} value={draft.portion_label} onChange={event=>update('portion_label',event.target.value)}/></div><div className="field"><label htmlFor="catalog-allergens">Allergener (kommatecken)</label><input id="catalog-allergens" value={draft.allergens} onChange={event=>update('allergens',event.target.value)}/></div><div className="field"><label htmlFor="catalog-sort">Sortering</label><input id="catalog-sort" type="number" min={0} max={500} value={draft.sort_order} onChange={event=>update('sort_order',Number(event.target.value))}/></div></>}
+      {kind==='delivery_zones'&&<div className="field"><label htmlFor="catalog-postal">Postnummerprefix (kommatecken), exempelvis 721, 722</label><input id="catalog-postal" required value={draft.postal_prefixes} onChange={event=>update('postal_prefixes',event.target.value)}/></div>}
+      {kind==='campaigns'&&<><div className="field-grid"><div className="field"><label htmlFor="campaign-start">Start (lokal tid)</label><input id="campaign-start" type="datetime-local" required value={draft.starts_at} onChange={event=>update('starts_at',event.target.value)}/></div><div className="field"><label htmlFor="campaign-end">Slut (lokal tid)</label><input id="campaign-end" type="datetime-local" required value={draft.ends_at} onChange={event=>update('ends_at',event.target.value)}/></div></div><fieldset><legend>Marknadsförda cateringpaket</legend>{menus.map(menu=><label className="checkbox-label" key={menu.id}><input type="checkbox" checked={draft.menu_ids.includes(menu.id)} onChange={event=>update('menu_ids',event.target.checked?[...draft.menu_ids,menu.id]:draft.menu_ids.filter(id=>id!==menu.id))}/>{menu.title}</label>)}</fieldset></>}
+      {kind!=='delivery_zones'&&<><div className="field"><label htmlFor="catalog-media">Bild {kind==='campaigns'?'eller video':''}</label><input id="catalog-media" type="file" accept={kind==='campaigns'?'image/jpeg,image/png,image/webp,video/mp4,video/webm':'image/jpeg,image/png,image/webp'} onChange={event=>upload(event.target.files?.[0])}/></div><div className="field"><label htmlFor="catalog-url">Mediaadress (HTTPS)</label><input id="catalog-url" value={draft.media_url} onChange={event=>update('media_url',event.target.value)}/></div></>}
+      <label className="checkbox-label"><input type="checkbox" checked={draft.active} onChange={event=>update('active',event.target.checked)}/>Publicera (kampanjer visas endast inom perioden)</label>
+      <div className="form-actions"><button disabled={busy} className="btn btn-primary" type="submit">Spara</button><button type="button" className="btn" onClick={()=>setDraft(null)}>Avbryt</button></div>
+    </form>}
+    <p role="status" aria-live="polite">{message}</p>
+    <details style={{marginTop:32}}><summary>Ägarens pushnotiser</summary><p>Registrera en Expo-pushtoken från ägarens development build. EAS-projekt och FCM/APNs måste konfigureras innan push aktiveras. Ordermejl skickas alltid separat.</p><form onSubmit={registerPush}><div className="field"><label htmlFor="owner-push">Expo-pushtoken</label><input id="owner-push" required value={pushToken} onChange={event=>setPushToken(event.target.value)} autoComplete="off"/></div><button disabled={busy} className="btn" type="submit">Registrera enheten</button></form><button disabled={busy} className="btn" onClick={checkPush}>Kontrollera pushleverans</button></details>
+  </div>;
+}

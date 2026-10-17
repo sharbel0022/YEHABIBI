@@ -9,3 +9,12 @@ out
 *.tsbuildinfo
 coverage
 .DS_Store
+.expo
+dist
+android
+ios
+*.tgz
+*.apk
+*.aab
+.tmp
+supabase/.temp

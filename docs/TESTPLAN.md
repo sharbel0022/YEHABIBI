@@ -1,5 +1,7 @@
 # Testplan för ägaren – gör detta före skarp lansering
 
+V2:s ägarchecklista är bevarad här. För V3:s aktuella kommandon, Expo-tester och verkliga verifieringsresultat, börja med [TESTER.md](TESTER.md).
+
 ## Kundens flöde
 
 - [ ] Öppna startsidan på iPhone och Android: bild visas direkt, video kan spelas/pausas och ljud är av.
