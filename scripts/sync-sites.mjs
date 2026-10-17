@@ -14,9 +14,10 @@ const sha = git('rev-parse', process.argv[3] || 'origin/main').trim();
 // Ursprunglig main måste innehålla den version som publiceras.
 git('merge-base', '--is-ancestor', sha, 'origin/main');
 const files = git('ls-tree', '-r', '--name-only', sha).trim().split('\n');
-// Den borttagna V4.2-webhooken får inte leva kvar i Sites arbetskopia.
-const obsoleteRoute = path.join(destination, 'src/app/api/stripe/webhook/route.ts');
-if (!files.includes('apps/web/src/app/api/stripe/webhook/route.ts')) fs.rmSync(obsoleteRoute, { force: true });
+// Borttagen V4.2-kod får inte leva kvar i Sites arbetskopia när SDK:t avvecklas.
+for (const relative of ['src/app/api/stripe/webhook/route.ts', 'src/lib/checkout.ts']) {
+  if (!files.includes(`apps/web/${relative}`)) fs.rmSync(path.join(destination, relative), { force: true });
+}
 let copiedFiles = 0;
 for (const file of files) {
   let relative = file.startsWith('apps/web/src/') || file.startsWith('apps/web/public/')
