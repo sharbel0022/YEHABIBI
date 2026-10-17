@@ -2,16 +2,11 @@
 
 import { useState, type ReactNode } from 'react';
 import type { Dish, ItemCategory } from '@/types/domain';
-import { formatSek } from '@/lib/domain';
+import { categoryLabels, formatSek, orderLimits, suggestedQuantity } from '@/lib/domain';
 
 const categories: Array<{ value: ItemCategory | 'alla'; label: string }> = [
   { value: 'alla', label: 'Alla rätter' },
-  { value: 'kalla_meze', label: 'Kalla meze' },
-  { value: 'varma_meze', label: 'Varma meze' },
-  { value: 'grill', label: 'Grill' },
-  { value: 'vegetariskt', label: 'Vegetariskt' },
-  { value: 'brod_saser', label: 'Bröd & såser' },
-  { value: 'dessert', label: 'Dessert' }
+  ...Object.entries(categoryLabels).map(([value, label]) => ({ value: value as ItemCategory, label }))
 ];
 
 type Props = {
@@ -42,7 +37,7 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange, summa
     <div className="dish-grid">
       {visible.map(dish => {
         const quantity = quantities[dish.id] || 0;
-        const suggestion = Math.ceil(guests * (dish.suggested_per_person || 0));
+        const suggestion = suggestedQuantity(guests, dish.suggested_per_person);
         const priced = Number.isSafeInteger(dish.price_ore) && dish.price_ore > 0;
         const photo = dish.image_url || (dish.category === 'grill' ? '/images/grill.webp' : '/images/mezze.webp');
         return <article key={dish.id} className={`dish-card ${quantity ? 'dish-selected' : ''}`}>
@@ -52,17 +47,17 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange, summa
             <strong>{priced ? `${formatSek(dish.price_ore)} / ${dish.portion_label}` : 'Pris fastställs av ägaren'}</strong>
             <small>{dish.suggested_per_person ? `Kökets riktmärke: ${dish.suggested_per_person} ${dish.portion_label} per person` : 'Köket anger rekommenderad mängd.'}</small>
             <small>Allergener: {dish.allergens.join(', ') || 'Fråga oss före beställning'}</small>
-            {priced && suggestion > 0 && suggestion <= 1000 && <button type="button" className="dish-suggestion"
+            {priced && suggestion > 0 && suggestion <= orderLimits.maxQuantity && <button type="button" className="dish-suggestion"
               onClick={() => onQuantityChange(dish.id, suggestion)}>
               Förslag för {guests} personer: {suggestion} {dish.portion_label}
             </button>}
             <div className="dish-controls">
               <button type="button" aria-label={`Ta bort en ${dish.title}`} disabled={quantity === 0}
                 onClick={() => onQuantityChange(dish.id, Math.max(0, quantity - 1))}>−</button>
-              <input type="number" aria-label={`Antal ${dish.title}`} value={quantity} min={0} max={1000} disabled={!priced}
-                onChange={event => onQuantityChange(dish.id, Math.max(0, Math.min(1000, Math.floor(Number(event.target.value) || 0))))}/>
-              <button type="button" aria-label={`Lägg till en ${dish.title}`} disabled={!priced || quantity >= 1000}
-                onClick={() => onQuantityChange(dish.id, Math.min(1000, quantity + 1))}>+</button>
+              <input type="number" aria-label={`Antal ${dish.title}`} value={quantity} min={0} max={orderLimits.maxQuantity} disabled={!priced}
+                onChange={event => onQuantityChange(dish.id, Math.max(0, Math.min(orderLimits.maxQuantity, Math.floor(Number(event.target.value) || 0))))}/>
+              <button type="button" aria-label={`Lägg till en ${dish.title}`} disabled={!priced || quantity >= orderLimits.maxQuantity}
+                onClick={() => onQuantityChange(dish.id, Math.min(orderLimits.maxQuantity, quantity + 1))}>+</button>
               <span aria-live="polite">{priced && quantity > 0 ? `${quantity} × ${formatSek(dish.price_ore)} = ${formatSek(quantity * dish.price_ore)}` : 'Välj antal'}</span>
             </div>
           </div>

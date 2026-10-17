@@ -2,20 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  formatSek, paymentLabels, paymentStatusLabels, statusLabels, type PublicOrder,
+  canPayOrder, formatSek, orderProgress, orderTimelineLabels, paymentLabels,
+  paymentStatusLabels, statusLabels, type PublicOrder,
 } from '@yehabibi/shared';
-import { getOrder, openWebsite, registerOrderPush, request } from '../lib/api';
+import { api, getOrder, openWebsite, registerOrderPush } from '../lib/api';
 import { useCatering } from '../lib/store';
 import { Amount, Button, colors, Notice, Screen, s } from '../lib/ui';
-
-const stages = [
-  { status: 'new', label: 'Mottagen' },
-  { status: 'reviewing', label: 'Granskning' },
-  { status: 'approved', label: 'Godkänd' },
-  { status: 'preparing', label: 'Tillagas' },
-  { status: 'ready', label: 'Klar / på väg' },
-  { status: 'completed', label: 'Slutförd' },
-];
 
 export default function Orders() {
   const { references, storageNotice } = useCatering();
@@ -62,9 +54,7 @@ export default function Orders() {
     try {
       if (kind === 'pay') await openWebsite(order.checkout_url, true);
       if (kind === 'accept' && order.proposal) {
-        await request(`/api/orders/${encodeURIComponent(reference.code)}?token=${encodeURIComponent(reference.token)}`, {
-          method: 'PATCH', body: JSON.stringify({ action: 'accept_changes', revision: order.proposal.revision }),
-        });
+        await api.acceptPriceChange(reference, order.proposal.revision);
         setNotice('Du har godkänt förslaget. Nästa steg visas i din beställning.');
       }
       if (kind === 'push') {
@@ -92,10 +82,8 @@ export default function Orders() {
         disabled={loading} onPress={() => void refresh()} />}
       {!!updated && <Text style={s.detail}>Senast uppdaterad {updated}</Text>}
       {orders.map(order => {
-        const stage = stages.findIndex(item => item.status === (order.status === 'dispatched' ? 'ready' : order.status));
-        const canPay = !error && !loading && ['approved', 'preparing', 'ready'].includes(order.status) &&
-          ['unpaid', 'pending', 'failed'].includes(order.payment_status) &&
-          order.payment_preference !== 'cash' && !!order.checkout_url;
+        const stage = orderProgress(order) - 1;
+        const canPay = !error && !loading && canPayOrder(order);
         return <View key={order.code} style={s.card}>
           <View style={s.cardBody}>
             <Text style={s.eyebrow}>{order.code}</Text>
@@ -106,9 +94,9 @@ export default function Orders() {
               <Text style={s.body}>Betalning: {paymentStatusLabels[order.payment_status]}</Text>
               <Text style={s.detail}>{paymentLabels[order.payment_preference]} · {order.fulfillment === 'pickup' ? 'Hämtning' : 'Leverans'}</Text>
             </View>
-            {stage >= 0 && <View style={s.section}>{stages.map((item, index) =>
-              <Text key={item.status} style={[s.detail, { color: index <= stage ? colors.green : colors.muted }]}>
-                {index < stage ? '✓' : index === stage ? '●' : '○'}  {item.label}
+            {stage >= 0 && <View style={s.section}>{orderTimelineLabels(order).map((label, index) =>
+              <Text key={label} style={[s.detail, { color: index <= stage ? colors.green : colors.muted }]}>
+                {index < stage ? '✓' : index === stage ? '●' : '○'}  {label}
               </Text>)}</View>}
             {order.items.map((item, index) => <View key={index} style={s.row}>
               <Text style={s.body}>{item.quantity} × {item.title}</Text>

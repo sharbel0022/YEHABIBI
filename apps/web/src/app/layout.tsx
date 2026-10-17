@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import type { CSSProperties } from 'react';
+import { designColors } from '@yehabibi/shared';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { LocalStructuredData } from '@/components/LocalStructuredData';
@@ -6,6 +8,9 @@ import { PwaRegister } from '@/components/PwaRegister';
 import { getSettings } from '@/lib/data';
 import { BRAND, isIndexable, siteUrl } from '@/lib/config';
 import './globals.css';
+
+// Även startsidans paket och sidfotens kontaktuppgifter ska följa adminändringar.
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
@@ -16,12 +21,12 @@ export const metadata: Metadata = {
   openGraph: { type: 'website', locale: 'sv_SE', title: `${BRAND} – Libanesisk catering`, images: ['/images/hero.webp'] }
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#155A43' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: designColors.green };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const settings = await getSettings();
   return <html lang="sv">
-    <body>
+    <body style={{ '--green': designColors.green, '--red': designColors.red, '--sand': designColors.soft, '--white': designColors.white } as CSSProperties}>
       <a href="#main" className="skip-link">Hoppa till innehåll</a>
       <Header />
       <main id="main">{children}</main>

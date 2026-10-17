@@ -1,8 +1,8 @@
 import 'server-only';
 import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
-import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, ItemCategory, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings } from '@/types/domain';
-import { isTestStripeKey, safeExternalUrl } from '@/lib/domain';
+import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings } from '@/types/domain';
+import { isTestStripeKey, safeExternalUrl, previewDishes } from '@/lib/domain';
 
 export async function getMenus(): Promise<Menu[]> {
   if (!isSupabaseReady()) return previewMenus;
@@ -37,14 +37,8 @@ export async function getMenuItems(): Promise<MenuItem[]> {
   return (data||[]) as MenuItem[];
 }
 
-const dishNames = ['Hummus','Tabbouleh','Ostrullar','Kebbe','Falafel','Vinblad','Kafta','Kycklingspett','Grillmix','Bröd och såser','Dessert'];
-const demoCategories:Record<string,ItemCategory> = {Tabbouleh:'vegetariskt',Ostrullar:'varma_meze',Kebbe:'varma_meze',Falafel:'varma_meze',Kafta:'grill',Kycklingspett:'grill',Grillmix:'grill','Bröd och såser':'brod_saser',Dessert:'dessert'};
-export const previewDishes: Dish[] = dishNames.map((title,index) => ({
-  id:`44444444-4444-4444-8444-${String(index+1).padStart(12,'0')}`, slug:`demo-${index+1}`, title,
-  description:'Demonstrationsrätt. Pris, portionsstorlek och allergener bekräftas av ägaren före bokning.',
-  allergens:[], price_ore:0, portion_label:'Bekräftas av ägaren',category:demoCategories[title] || 'kalla_meze',
-  image_url:demoCategories[title]==='grill'?'/images/grill.webp':title==='Dessert'?'/images/fest.webp':'/images/mezze.webp',active:true,sort_order:index
-}));
+// Även demonstrationsrätterna kommer från samma källa som Expo och Sites.
+export { previewDishes } from '@yehabibi/shared';
 
 export function onlinePaymentsReady() {
   if(process.env.PAYMENTS_ENABLED!=='true') return false;

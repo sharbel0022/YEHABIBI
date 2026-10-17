@@ -142,11 +142,11 @@ async function run() {
     },path.join(root,'apps/web'));
     let webProcess=startWeb();
     await wait(`${origin}/api/health`);
-    const call=async(url,method='GET',value,auth=false)=>{const response=await fetch(`${origin}${url}`,{method,headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{} )},...(value?{body:JSON.stringify(value)}:{})});return {status:response.status,data:await response.json()};};
-    const event=async(type,session,id=`evt_${randomUUID()}`)=>{
+    const call=async(url,method='GET',value,auth=false,headers={})=>{const response=await fetch(`${origin}${url}`,{method,headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{} ),...headers},...(value?{body:JSON.stringify(value)}:{})});return {status:response.status,data:await response.json()};};
+    const event=async(type,session,id=`evt_${randomUUID()}`,expectedStatus=200)=>{
       const Stripe=(await import('stripe')).default;const payload=JSON.stringify({id,object:'event',type,livemode:false,data:{object:session}});
       const signature=Stripe.webhooks.generateTestHeaderString({payload,secret:webhookSecret});
-      const response=await fetch(`${origin}/api/stripe/webhook`,{method:'POST',headers:{'stripe-signature':signature},body:payload});assert.equal(response.status,200,await response.text());return id;
+      const response=await fetch(`${origin}/api/stripe/webhook`,{method:'POST',headers:{'stripe-signature':signature},body:payload});assert.equal(response.status,expectedStatus,await response.text());return id;
     };
     const connection={origin,adminLogin:`${bridgeUrl}/__test/admin-login`,stop:`${bridgeUrl}/__test/stop`,database:sql('select version()'),directory};
     fs.writeFileSync(path.join(directory,'connection.json'),JSON.stringify(connection,null,2));
@@ -184,6 +184,13 @@ async function run() {
     const accepted=await call(orderPath,'PATCH',{action:'accept_changes',revision:proposal.data.order.proposal.revision});assert.equal(accepted.status,200,JSON.stringify(accepted));assert.ok(accepted.data.order.checkout_url);
     const sessionId=sql(`select stripe_checkout_session_id from public.orders where id='${orderId}'`);const checkout=sessions.get(sessionId);assert.ok(checkout);
     const paid={...checkout,status:'complete',payment_status:'paid',payment_intent:'pi_isolated_fixture'};sessions.set(sessionId,paid);
+    // Även signerade händelser måste innehålla rätt belopp, valuta och session.
+    await event('checkout.session.completed',{...paid,amount_total:1},undefined,400);
+    await event('checkout.session.completed',{...paid,currency:'eur'},undefined,400);
+    await event('checkout.session.completed',{...paid,id:'cs_wrong_order'},undefined,400);
+    await event('checkout.session.completed',{...checkout,status:'complete',payment_status:'unpaid'});
+    assert.equal((await call(orderPath)).data.order.payment_status,'pending');
+    assert.equal(sql('select count(*) from public.payment_events'),'0');
     const eventId=`evt_${randomUUID()}`;
     await Promise.all([event('checkout.session.completed',paid,eventId),event('checkout.session.completed',paid,eventId)]);
     await event('checkout.session.async_payment_succeeded',paid);
@@ -216,6 +223,8 @@ async function run() {
     const packageMail=[...mails].find(([key])=>key.startsWith(`${packageId}:approved:`))[1].html.replace(/\s/g,' ');
     assert.ok(packageMail.includes('6 × Testpaket (250 kr/person) = 1 500 kr'),packageMail);
     assert.ok(packageMail.includes('godkänd prisjustering 150 kr'),packageMail);assert.ok(packageMail.includes('Testostrullar, Testhummus'),packageMail);
+    await verifyUnifiedCatalog({call,sql,input,origin,dishId:dishA,zoneId:zone,orderPath,receipt,
+      readAdminOrders:async()=>{const response=await fetch(`${origin}/admin/orders`,{headers:{Cookie:cookie}});assert.equal(response.status,200);return response.text();}});
     const rowsBeforeFailure=sql('select count(*) from public.orders'),queueBeforeFailure=sql('select count(*) from public.order_notifications');
     sql(`create function public.fail_test_line() returns trigger language plpgsql as $$begin raise exception 'Isolated atomicity test';end;$$;create trigger fail_test_line before insert on public.order_items for each row execute function public.fail_test_line();`);
     assert.equal((await call('/api/orders','POST',{...input,request_id:randomUUID(),email:'rollback@example.test'})).status,409);
@@ -257,4 +266,69 @@ async function run() {
     if(pgStarted)command(executable('pg_ctl'),['-D',pgData,'-m','fast','-w','stop']);
     // Loggar och det isolerade klustret behålls under ignorerade .tmp för felsökning.
   }
+}
+
+/** Två klienter läser samma API och ser samma adminändring utan en ny appversion. */
+async function verifyUnifiedCatalog({call,sql,input,origin,dishId,zoneId,orderPath,receipt,readAdminOrders}) {
+  const webHeaders={Origin:origin,'User-Agent':'Yehabibi web integration'};
+  const mobileHeaders={'User-Agent':'Yehabibi Expo integration'};
+  const readBoth=async()=>{
+    const [web,mobile]=await Promise.all([
+      call('/api/catalog','GET',undefined,false,webHeaders),
+      call('/api/catalog','GET',undefined,false,mobileHeaders)
+    ]);
+    assert.equal(web.status,200);assert.equal(mobile.status,200);
+    assert.deepEqual(web.data,mobile.data,'Webb och native ska läsa samma publika katalog.');
+    return web.data;
+  };
+  const before=await readBoth();
+  const historical=(await call(orderPath)).data.order;
+  const dish=before.dishes.find(item=>item.id===dishId);
+  const zone=before.delivery_zones.find(item=>item.id===zoneId);
+  const changedDish={...dish,price_ore:3000,image_url:'/images/fest.webp'};
+  const changedZone={...zone,fee_ore:15000};
+  assert.equal((await call('/api/admin/catalog','POST',{kind:'dishes',id:dishId,value:changedDish},true)).status,200);
+  assert.equal((await call('/api/admin/catalog','POST',{kind:'delivery_zones',id:zoneId,value:changedZone},true)).status,200);
+  assert.equal((await call('/api/admin/settings','PATCH',{...before.settings,contact_phone:'0701111111'},true)).status,200);
+  const updated=await readBoth();
+  assert.equal(updated.dishes.find(item=>item.id===dishId).price_ore,3000);
+  assert.equal(updated.dishes.find(item=>item.id===dishId).image_url,'/images/fest.webp');
+  assert.equal(updated.delivery_zones.find(item=>item.id===zoneId).fee_ore,15000);
+  assert.equal(updated.settings.contact_phone,'0701111111');
+
+  // Båda plattformarna skickar samma format. Det påhittade klientbeloppet ignoreras.
+  sql('truncate public.order_rate_limits');
+  const countBefore=Number(sql('select count(*) from public.orders'));
+  const send=async(platform,headers)=>{
+    const result=await call('/api/orders','POST',{...input,request_id:randomUUID(),email:`${platform}@example.test`,fulfillment:'pickup',payment_preference:'cash',total_ore:1},false,headers);
+    assert.equal(result.status,201,JSON.stringify(result));
+    const tracked=await call(`/api/orders/${result.data.code}?token=${result.data.token}`);
+    assert.equal(tracked.status,200);assert.equal(tracked.data.order.total_ore,54000);
+    assert.equal(tracked.data.order.payment_status,'unpaid');
+    return result.data;
+  };
+  const [webOrder,mobileOrder]=await Promise.all([send('web',webHeaders),send('mobile',mobileHeaders)]);
+  assert.notEqual(webOrder.code,mobileOrder.code);
+  assert.equal(Number(sql('select count(*) from public.orders')),countBefore+2);
+  const adminOrders=await readAdminOrders();
+  assert.ok(adminOrders.includes(webOrder.code),'Webbens order ska synas i gemensam admin.');
+  assert.ok(adminOrders.includes(mobileOrder.code),'Mobilens order ska synas i gemensam admin.');
+
+  assert.equal((await call('/api/admin/catalog','POST',{kind:'dishes',id:dishId,archive:true},true)).status,200);
+  const archived=await readBoth();
+  assert.equal(archived.dishes.some(item=>item.id===dishId),false);
+  assert.equal((await call('/api/orders','POST',{...input,request_id:randomUUID(),email:'archived@example.test'})).status,400);
+  const replay=await call('/api/orders','POST',input);
+  assert.equal(replay.status,200);assert.deepEqual(replay.data,receipt);
+  assert.deepEqual((await call(orderPath)).data.order,historical,'Adminpris och avpublicering får inte ändra historiska orderrader.');
+
+  // Återställ bara detta tests katalogvärden för följande separata betalningsfall.
+  assert.equal((await call('/api/admin/catalog','POST',{kind:'dishes',id:dishId,value:dish},true)).status,200);
+  assert.equal((await call('/api/admin/catalog','POST',{kind:'delivery_zones',id:zoneId,value:zone},true)).status,200);
+  assert.equal((await call('/api/admin/settings','PATCH',before.settings,true)).status,200);
+  const restored=await readBoth();
+  // Lika sort_order har ingen definierad inbördes ordning i PostgreSQL efter UPDATE.
+  const byId=(left,right)=>left.id.localeCompare(right.id);
+  assert.deepEqual({...restored,dishes:[...restored.dishes].sort(byId)},{...before,dishes:[...before.dishes].sort(byId)});
+  sql('truncate public.order_rate_limits');
 }

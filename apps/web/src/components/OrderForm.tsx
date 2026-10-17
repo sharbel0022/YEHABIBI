@@ -4,13 +4,16 @@ import { useState, type FormEvent } from 'react';
 import { CalendarDays, Check, ShieldCheck } from 'lucide-react';
 import { ItemPicker } from '@/components/ItemPicker';
 import { parseQuantities, useMenuDraft } from '@/components/order-draft';
-import type { DeliveryZone, Dish, Fulfillment, Menu, Occasion, PaymentPreference, Settings } from '@/types/domain';
-import { calcDishTotal, calcTotal, eventDateBounds, findDeliveryZone, formatSek, isValidEventDate, occasions, paymentLabels } from '@/lib/domain';
-import { newOrderSchema } from '@yehabibi/shared';
+import type { Catalog, Fulfillment, Occasion, PaymentPreference } from '@/types/domain';
+import { eventDateBounds, findDeliveryZone, formatSek, occasions, paymentLabels } from '@/lib/domain';
+import { availablePaymentMethods, buildOrderPayload, canOfferDelivery, itemsFromQuantities, minimumGuestsFor,
+  newOrderSchema, orderContactError, orderDetailsError, orderLimits, orderSteps, quoteSelection, reconcileSelection } from '@yehabibi/shared';
+import { api } from '@/lib/api-client';
+import { useCatalog } from '@/components/use-catalog';
+import { CatalogRefresh } from '@/components/CatalogRefresh';
 
 type Props = {
-  menus: Menu[]; dishes: Dish[]; zones: DeliveryZone[]; settings: Settings;
-  enabled: boolean; paymentMethods: PaymentPreference[];
+  initialCatalog: Catalog;
   initialMenu?: string; initialOccasion?: string; initialMode?: string; initialItems?: string; initialGuests?: string;
 };
 type Contact = {
@@ -18,23 +21,25 @@ type Contact = {
   address: string; postal_code: string; city: string; full_name: string; email: string; phone: string;
   notes: string; payment_preference: PaymentPreference; terms_accepted: boolean; website: string;
 };
-const steps = ['Välj mat', 'Datum & plats', 'Kontakt', 'Skicka förfrågan'];
+const steps = orderSteps;
 
-export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMethods,
+export function OrderForm({ initialCatalog,
   initialMenu, initialOccasion, initialMode, initialItems, initialGuests }: Props) {
+  const { catalog, ...refreshState } = useCatalog(initialCatalog);
+  const { menus, dishes, delivery_zones: zones, settings, orders_enabled: enabled, payment_methods: paymentMethods } = catalog;
   const customMinimum = settings.custom_min_people;
   const explicitCustom = initialMode === 'bygg' || initialMenu === 'egen' || !!initialItems;
-  const { draft, setDraft, clearDraft, requestIdFor } = useMenuDraft({
+  const { draft, setDraft, clearDraft, requestIdFor, notice } = useMenuDraft({
     ...(initialMenu && initialMenu !== 'egen' ? { menuId: initialMenu, mode: 'paket' as const } : {}),
     ...(explicitCustom ? { mode: 'bygg' as const } : {}),
     ...(initialItems ? { quantities: parseQuantities(initialItems, dishes) } : {}),
-    ...(initialGuests && Number.isSafeInteger(Number(initialGuests)) && Number(initialGuests) >= customMinimum && Number(initialGuests) <= 1000
+    ...(initialGuests && Number.isSafeInteger(Number(initialGuests)) && Number(initialGuests) >= customMinimum && Number(initialGuests) <= orderLimits.maxGuests
       ? { guests: Number(initialGuests) } : {})
-  }, dishes, customMinimum);
-  const { guests, quantities } = draft;
+  }, catalog);
+  const { guests } = draft;
   const custom = draft.mode === 'bygg';
-  const menu = menus.find(item => item.id === draft.menuId) || menus[0];
-  const canDeliver = settings.delivery_enabled && zones.length > 0 && paymentMethods.some(method => method !== 'cash');
+  const menu = draft.menuId ? menus.find(item => item.id === draft.menuId) : menus[0];
+  const canDeliver = canOfferDelivery(catalog);
   const bookingDates = eventDateBounds(settings.min_advance_days);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<Contact>({
@@ -48,40 +53,34 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
   const [error, setError] = useState('');
   const [tracking, setTracking] = useState('');
   const [orderCode, setOrderCode] = useState('');
+  const selection = reconcileSelection(catalog, { menuId: custom ? null : menu?.id || null,
+    quantities: draft.quantities, guests, occasion: form.occasion });
+  const { quantities } = selection;
   const selected = dishes.filter(dish => quantities[dish.id] > 0);
-  const items = selected.map(dish => ({ dish_id: dish.id, quantity: quantities[dish.id] }));
+  const items = itemsFromQuantities(quantities);
   const zone = findDeliveryZone(zones, form.postal_code);
   const fee = zone?.fee_ore ?? 0;
   const deliveryPending = form.fulfillment === 'delivery' && !zone;
-  const validGuests = Number.isSafeInteger(guests) && guests >= 1 && guests <= 1000;
-  const availableMethods = paymentMethods.filter(method => method !== 'cash' || (form.fulfillment === 'pickup' && settings.cash_enabled));
-  let total: ReturnType<typeof calcTotal> | null = null;
-  let quoteError = '';
-  try {
-    if (validGuests) total = custom && items.length ? calcDishTotal(items, dishes, guests, form.fulfillment, fee)
-      : !custom && menu?.price_ore ? calcTotal(menu.price_ore, guests, form.fulfillment, fee) : null;
-  } catch { quoteError = 'Minska antalet eller kontakta oss för en offert. Beställningen överstiger beloppsgränsen.'; }
+  const validGuests = Number.isSafeInteger(guests) && guests >= orderLimits.minGuests && guests <= orderLimits.maxGuests;
+  const minimum = minimumGuestsFor(custom ? null : menu, customMinimum);
+  const availableMethods = availablePaymentMethods(catalog, form.fulfillment);
+  const total = quoteSelection(catalog, selection, form.fulfillment, fee);
+  const quoteError = validGuests && (items.length > 0 || !custom && menu?.price_ore) && !total
+    ? 'Kontrollera antal personer, mängder och aktuella priser.' : '';
 
   function set<K extends keyof Contact>(key: K, value: Contact[K]) { setForm(old => ({ ...old, [key]: value })); }
   function goBack(to: number) { setError(''); setStep(to); }
   function orderInput() {
-    return { ...form, guests, menu_id: custom ? undefined : menu?.id,
-      items: custom ? items : undefined, delivery_zone_id: form.fulfillment === 'delivery' ? zone?.id : undefined };
+    return buildOrderPayload(selection, { ...form, delivery_zone_id: zone?.id });
   }
   function contactError() {
-    const result = newOrderSchema.safeParse({ ...orderInput(), terms_accepted: true });
-    if (result.success) return '';
-    const messages: Record<string, string> = { full_name: 'Ange ditt fullständiga namn, minst två tecken.',
-      email: 'Ange en giltig e-postadress, högst 200 tecken.', phone: 'Ange ett telefonnummer med minst 7 tecken. Använd siffror, +, mellanslag, bindestreck eller parenteser.',
-      notes: 'Önskemålen får innehålla högst 1 000 tecken.' };
-    return messages[String(result.error.issues[0]?.path[0])] || 'Kontrollera uppgifterna i föregående steg.';
+    return orderContactError(form);
   }
   function validationError() {
-    if (quoteError) return quoteError;
     if ((!custom && !menu) || (custom && !items.length)) return 'Välj ett cateringpaket eller minst en maträtt.';
-    const minimum = custom ? customMinimum : menu?.min_people || 1;
-    if (!validGuests || guests < minimum) return `Välj mellan ${minimum} och 1 000 personer.`;
-    if (!total || total.total_ore <= 0) return 'Köket behöver publicera godkända priser innan beställning.';
+    const minimum = minimumGuestsFor(custom ? null : menu, customMinimum);
+    if (!validGuests || guests < minimum) return `Välj mellan ${minimum} och ${orderLimits.maxGuests.toLocaleString('sv-SE')} personer.`;
+    if (!total || total.total_ore <= 0) return 'Kontrollera mängder och aktuella priser. Köket behöver ha publicerat godkända priser.';
     return '';
   }
   function next(event: FormEvent<HTMLFormElement>) {
@@ -89,15 +88,13 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
     const message = validationError();
     if (message) return setError(message);
     if (step === 2) {
-      if (!isValidEventDate(form.event_date, settings.min_advance_days) || !form.event_time) return setError(`Välj ett datum minst ${settings.min_advance_days} dagar framåt, inom ett år.`);
       if (form.fulfillment === 'delivery' && !canDeliver) return setError('Leverans är inte tillgänglig. Välj hämtning.');
-      if (form.fulfillment === 'pickup' && !settings.pickup_enabled) return setError('Hämtning är inte tillgänglig. Kontakta oss.');
-      if (form.fulfillment === 'delivery' && (!form.address || !form.city || !form.postal_code)) return setError('Ange fullständig leveransadress.');
-      if (form.fulfillment === 'delivery' && !zone) return setError('Postnumret ligger utanför våra leveranszoner. Välj hämtning eller kontakta oss.');
+      const detailsMessage = orderDetailsError(orderInput(), settings, zones);
+      if (detailsMessage) return setError(detailsMessage);
     }
     const contactMessage = step === 3 ? contactError() : '';
     if (contactMessage) return setError(contactMessage);
-    setStep(old => Math.min(old + 1, 4));
+    setStep(old => Math.min(old + 1, steps.length));
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
@@ -105,6 +102,8 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
     if (!enabled) return setError('Beställningarna öppnar när ägaren godkänt priser och företagsinställningar.');
     const message = validationError();
     if (message) return setError(message);
+    const detailsMessage = orderDetailsError(orderInput(), settings, zones);
+    if (detailsMessage) return setError(detailsMessage);
     if (!form.terms_accepted || !availableMethods.includes(form.payment_preference)) return setError('Godkänn villkoren och välj ett tillgängligt betalningssätt.');
     const parsed = newOrderSchema.safeParse(orderInput());
     if (!parsed.success) return setError(contactError() || 'Kontrollera dina uppgifter.');
@@ -112,10 +111,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
     try {
       const payload = parsed.data;
       const request_id = await requestIdFor(payload);
-      const response = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, request_id }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Kunde inte skicka förfrågan.');
+      const result = await api.createOrder({ ...payload, request_id });
       clearDraft(); setOrderCode(result.code); setTracking(result.tracking_url);
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Ett oväntat fel inträffade. Försök igen.'); }
     finally { setSending(false); }
@@ -128,7 +124,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
     <a href={tracking} className="btn btn-primary">Följ din förfrågan →</a>
   </div>;
 
-  return <><ol className="order-steps" aria-label="Beställningens fyra steg">{steps.map((label, index) =>
+  return <><CatalogRefresh {...refreshState}/>{notice && <p className="preview-note" role="status">{notice}</p>}<ol className="order-steps" aria-label="Beställningens fyra steg">{steps.map((label, index) =>
     <li key={label} aria-current={step === index + 1 ? 'step' : undefined} className={step > index + 1 ? 'complete' : ''}>
       <button type="button" disabled={sending || index + 1 > step} onClick={() => goBack(index + 1)}><span>{step > index + 1 ? <Check size={16}/> : index + 1}</span>{label}</button>
     </li>)}</ol>
@@ -141,7 +137,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
             onClick={() => { setDraft(old => ({ ...old, mode, guests: Math.max(old.guests, mode === 'bygg' ? customMinimum : menu?.min_people || 1) })); setError(''); }}>
             {mode === 'paket' ? 'Färdiga paket' : 'Bygg egen meny'}</button>)}</div>
         <div className="field"><label htmlFor="guests">Antal personer</label>
-          <input id="guests" type="number" required min={custom ? customMinimum : menu?.min_people || 1} max="1000" value={guests || ''}
+          <input id="guests" type="number" required min={minimum} max={orderLimits.maxGuests} value={guests || ''}
             onChange={event => setDraft(old => ({ ...old, guests: Number(event.target.value) }))}/></div>
         {!custom ? <div className="field"><label htmlFor="menu">Välj cateringpaket</label>
           <select id="menu" value={menu?.id || ''} onChange={event => {
@@ -162,7 +158,7 @@ export function OrderForm({ menus, dishes, zones, settings, enabled, paymentMeth
         <fieldset className="plain-fieldset"><legend>Välj tillfälle</legend><div className="form-choice">{Object.entries(occasions).map(([value, label]) =>
           <label className="choice" key={value}><input type="radio" name="occasion" checked={form.occasion === value}
             onChange={() => set('occasion', value as Occasion)}/>{label}</label>)}</div></fieldset>
-        <div className="field"><label htmlFor="event-guests">Antal personer</label><input id="event-guests" type="number" required min={custom ? customMinimum : menu?.min_people || 1} max={1000} value={guests || ''}
+        <div className="field"><label htmlFor="event-guests">Antal personer</label><input id="event-guests" type="number" required min={minimum} max={orderLimits.maxGuests} value={guests || ''}
           onChange={event => setDraft(old => ({ ...old, guests: Number(event.target.value) }))}/></div>
         <div className="field-grid">
           <div className="field"><label htmlFor="date">Datum</label><input id="date" type="date" required min={bookingDates.min} max={bookingDates.max} value={form.event_date} onChange={event => set('event_date', event.target.value)}/></div>

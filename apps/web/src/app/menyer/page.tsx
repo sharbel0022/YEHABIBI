@@ -12,7 +12,6 @@ export default async function MenusPage({ searchParams }: { searchParams: Promis
   return <section className="shell section inner-page">
     <span className="eyebrow">SMÅ RÄTTER. STORA UPPLEVELSER.</span><h1>Våra menyer.</h1>
     <p className="intro">Mezze, grill och något sött. Välj en färdig meny eller samla era egna favoriter – vi hjälper er med resten.</p>
-    <MenuCatalog menus={catalog.menus} dishes={catalog.dishes} initialTab={params.val} initialDish={params.ratt}
-      minPeople={catalog.settings.custom_min_people} preview={catalog.demo}/>
+    <MenuCatalog initialCatalog={catalog} initialTab={params.val} initialDish={params.ratt}/>
   </section>;
 }

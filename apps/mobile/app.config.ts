@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: `Cedar Mezze${suffix === '.dev' ? ' Dev' : suffix === '.preview' ? ' Test' : ''}`,
     slug: 'cedar-mezze',
     owner: 'sharbel1423',
-    version: '4.1.0',
+    version: '4.2.0',
     scheme: `cedarmezze${suffix.replace('.', '-')}`,
     orientation: 'portrait',
     userInterfaceStyle: 'light',

@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 import path from 'node:path';
 const nextConfig: NextConfig = {
   agentRules: false,
-  transpilePackages: ['@yehabibi/shared'],
+  transpilePackages: ['@yehabibi/shared', '@yehabibi/api-client'],
   outputFileTracingRoot: path.resolve(process.cwd(), '../..'),
   turbopack: { root: path.resolve(process.cwd(), '../..') },
   reactStrictMode: true,

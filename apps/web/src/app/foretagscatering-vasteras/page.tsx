@@ -1,4 +1,4 @@
 import type { Metadata } from 'next';
 import { Cta } from '@/components/Cta';
-export const metadata: Metadata = { title:'Företagscatering i Västerås – libanesisk catering', description:'Libanesisk catering för företag i Västerås – möten, personalfester och evenemang. Skicka en enkel förfrågan.' };
+export const metadata: Metadata = { alternates: { canonical: '/foretagscatering-vasteras' }, title:'Företagscatering i Västerås – libanesisk catering', description:'Libanesisk catering för företag i Västerås – möten, personalfester och evenemang. Skicka en enkel förfrågan.' };
 export default function CompanyCatering(){return <section className="shell section inner-page"><span className="eyebrow">FÖRETAGSCATERING VÄSTERÅS</span><h1>Samlas kring något gott.</h1><div className="simple-two"><div><p className="intro">Bjud kollegorna på generösa libanesiska smaker vid möten, företagsevent och personalkvällar.</p><p>Berätta hur många ni är och vilken dag ni önskar catering. Vi återkommer med bekräftelse.</p><Cta href="/bestall?typ=foretag">Beställ till företag</Cta></div><img src="/images/grill.webp" alt="Libanesisk grillbuffé för företagsevent"/></div></section>}
