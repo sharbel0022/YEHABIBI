@@ -1,4 +1,38 @@
-# Tester och verifiering – V4.1
+# Tester och verifiering – V4.2
+
+Verifierat 2026-10-17. Kodcommit för granskningen: [0b60953563f0e6e40879d1fc91e6453f1068c4b8](https://github.com/sharbel0022/YEHABIBI/commit/0b60953563f0e6e40879d1fc91e6453f1068c4b8). V4.1:s utgångsläge finns i [V4_1_NULAGE.md](V4_1_NULAGE.md). Äldre resultat nedan är historik och räknas inte som nya enhetstester.
+
+| Kontroll | Faktiskt V4.2-resultat |
+| --- | --- |
+| npm ci | Godkänd. Första försöket blockerades av en gammal Next-process som låste SWC på Windows; servern och Expo stoppades före ren installation. npm 11.4.2 varnade om lockfilens metadata, men installation och npm ls lyckades utan saknade beroenden. |
+| npm run syntax | Godkänd |
+| npm test | 59/59 godkända; 36 tidigare och 23 nya testfall, inklusive nästlade SQL-fall |
+| npm run typecheck | Godkänd för Expo, Next.js och API-klienten; shared kontrolleras genom alla konsumenterna |
+| npm run build | Godkänd med Next.js 16.4.2 webpack; publika katalog-/företagssidor serverrenderas med aktuella data |
+| npm run export:mobile | Android och iOS Hermes samt webbens åtta routes godkända |
+| npm run test:web | Godkänd mot produktionsbygget: nio publika sidor, metadata/canonical, 11 serverrenderade rätter, demo/spärrar, admin401, robots och sitemap. Körs också i CI. |
+| npm run test:integration | Godkänd med PostgreSQL 18.3, PostgREST 16.4 och riktiga Next.js-routes: 6 syntetiska order och 30 idempotenta testmejl |
+| Browserkontroll | Chrome mot lokal produktionsserver: menykategorier, gästantal 8, manuell kataloguppdatering och navigation till order bevarade utkastet. Fyra ordersteg visades, inga konsolfel eller varningar. En viewportkontroll fann ingen horisontell overflow. |
+| Fysiska enheter/EAS | Inga nya fysiska iPhone-/Android-prov eller EAS-nativebyggen har verifierats för V4.2. Export är ett byggtest. |
+
+De nya API-testerna provar samma request-format, katalogprisändring, nätverksfel, timeout inklusive svarsläsning, avbrott, HTTP-fel, felaktiga svar och HTTPS-regler. Domäntesterna provar gemensam demo, styck-/paketpris, portioner, leverans, minimum, orderformat, utkast, kundacceptans och statusflöde. Portionsregressionen 100 × 0,07 ger nu 7 i båda gränssnitten.
+
+Det riktiga HTTP/databastestet gör skyddade adminändringar av pris, bild, zon och kontakt; båda klienternas katalogsvar blir samma. Båda plattformarnas order syns i samma admin. Avpublicering blockerar nya rader men ändrar aldrig äldre priser eller återförsökskvitton. Parallella återförsök, transaktionsrollback, RLS, privata tokens, kundacceptans och signerade dubblettwebhooks verifieras. Signerade händelser med fel belopp, valuta eller session avvisas; en completed-session som fortfarande är obetald bekräftar ingen betalning.
+
+Testtransporter ersätter Supabase Auth, Stripe och Resend. Testmejl är fångade HTTP-svar, inte bekräftad leverans till externa mottagare. Företagets Supabase Auth/Storage, Stripe sandbox/Swish/Apple Pay, Resend samt APNs/FCM återstår att verifiera med företagets egna tjänster. Inga produktionsmigrationer eller livebetalningar har körts.
+
+Kör från roten enligt README. På Windows kan Hermes behöva en skrivbar temporär katalog:
+
+```powershell
+New-Item -ItemType Directory -Force .tmp/verify-temp | Out-Null
+$env:TEMP = (Resolve-Path .tmp/verify-temp).Path
+$env:TMP = $env:TEMP
+npm run export:mobile
+```
+
+---
+
+# Historik: verifiering av V4.1
 
 ## Aktuell V4.1-verifiering, 2026-10-17
 

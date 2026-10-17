@@ -1,59 +1,87 @@
-# Expo SDK 57 i Windows – V4.1
+# Expo SDK 57 i Windows – V4.2
 
-Mobilen använder Expo 57.0.30, React Native 0.86.3 och React 19.2.3. Versionen hålls på **SDK 57** för din iPhone. Det befintliga EAS-projektet är [sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze), projekt-id `a93fde8c-7227-4824-af1f-9bcffe77221d`.
+Mobilen behåller Expo 57.0.30, React Native 0.86.3 och React 19.2.3. V4.2 inför inga nya native-moduler. Appversionen är 4.2.0 och det befintliga [EAS-projektet sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) bevaras, projekt-ID `a93fde8c-7227-4824-af1f-9bcffe77221d`.
 
-V4.1 lägger till SDK57-kompatibla `@react-native-community/datetimepicker` 9.1.0 och `expo-crypto` 57.0.4. Expo Go innehåller dem. Äldre egna V4-APK:er behöver nytt native-bygge för modulerna; koden har en säker text-/sessionsreserv om modulen saknas. V4:s EAS-artefakter nedan är historik och rapporteras inte som nya V4.1-byggen.
+API-anrop och affärsregler finns nu i `packages/api-client` och `packages/shared`. Native navigation, tangentbord, datumväljare, lagring och pushbehörighet stannar i `apps/mobile`. EAS skapar ingen extra backend eller databas.
 
-## Starta på iPhone
+## Starta iPhone och Android
 
-Installera Node 22.13 eller senare. Kör från projektets rot:
+Använd Node.js 22.13 eller senare. Kör från repots rot:
 
 ```powershell
-npm install
-# Kopiera bara första gången, så egna inställningar inte skrivs över.
-Copy-Item apps/web/.env.example apps/web/.env.local
-Copy-Item apps/mobile/.env.example apps/mobile/.env.local
+npm ci
+if (!(Test-Path apps/web/.env.local)) {
+  Copy-Item apps/web/.env.example apps/web/.env.local
+}
+if (!(Test-Path apps/mobile/.env.local)) {
+  Copy-Item apps/mobile/.env.example apps/mobile/.env.local
+}
 ipconfig
 ```
 
-Anslut datorn och iPhone till samma Wi-Fi. Sätt `EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000` i `apps/mobile/.env.local`. Byt exempeltexten mot datorns IPv4-adress från ipconfig. Emulatorns `10.0.2.2` fungerar inte på iPhone.
+Anslut dator och fysisk mobil till samma Wi-Fi. Sätt datorns IPv4-adress som API-bas i `apps/mobile/.env.local`:
+
+```dotenv
+EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000
+APP_ENV=development
+```
+
+`10.0.2.2` fungerar för Android-emulatorn, medan en fysisk iPhone/Android behöver datorns LAN-adress. Publicerade appar kräver företagets HTTPS-adress. HTTP tillåts uttryckligen av API-klienten i utvecklingsläge.
 
 ```powershell
-# Terminal 1, från roten: webb och API
+# Terminal 1, från repots rot: webb och gemensamt API
 npm run dev
-# Terminal 2, från roten: Expo Go för SDK 57
+# Terminal 2, från repots rot: Expo Go med SDK 57
 npm run dev:mobile
 ```
 
-Skanna QR med iPhones Kamera och öppna Expo Go med SDK 57-stöd. Logga vid behov in i Expo Go och CLI på samma konto. Från `apps/mobile` kör du `npx expo whoami` och vid behov `npx expo login`.
+Skanna QR med iPhones Kamera och öppna Expo Go med SDK 57-stöd. Använd samma Expo-konto i CLI och telefonen, här `sharbel1423`. Vid behov kör du `npx expo whoami` och `npx expo login` från `apps/mobile`.
 
-Öppna först `http://DATORNS-LAN-IP:3000/api/health` i Safari om appen inte når API:t. Starta om Metro efter ändrad API-adress. Produktion använder en riktig HTTPS-adress. En Metro-tunnel med `npx expo start --go --tunnel` gör inte ditt lokala API automatiskt tillgängligt.
+Öppna `http://DATORNS-LAN-IP:3000/api/health` i mobilens webbläsare om appen inte når servern. Starta om Metro efter ändrad API-adress. En Metro-tunnel gör inte ditt lokala API automatiskt tillgängligt. Expo Web kräver också korrekt `MOBILE_WEB_ORIGINS` på servern.
 
-Om en tidigare emulatorterminal har en localhost-override, ta bort den innan iPhone-start:
+Om en gammal terminal har en localhost-override kan den tas bort före LAN-start:
 
 ```powershell
 Remove-Item Env:REACT_NATIVE_PACKAGER_HOSTNAME -ErrorAction SilentlyContinue
 ```
 
-## Android Studio
+## Android Studio och egen development build
 
-Starta AVD:n i Android Studio → Device Manager. Verifierad lokal AVD är `Medium_Phone_API_36.0` och SDK ligger i `C:\Users\sharbel\AppData\Local\Android\Sdk`. Sätt mobilens API till `http://10.0.2.2:3000`, starta webb/API och `npm run dev:mobile`, tryck sedan `a` för Expo Go.
+Starta en AVD i Android Studio → Device Manager. Den tidigare lokala installationen använder `Medium_Phone_API_36.0` och SDK i `C:\Users\sharbel\AppData\Local\Android\Sdk`. Ange `http://10.0.2.2:3000` som mobilens API-adress, starta webb/API och Expo, tryck `a` för Expo Go.
 
-`npm run android` använder i stället en installerad egen development build. `npm run build:android` försöker native-kompilera lokalt, men det tidigare Windowsförsöket stoppades av långa CMake-sökvägar. EAS är den verifierade byggvägen; globala Java-inställningar behöver inte ändras.
+`npm run android` använder en installerad egen development build. `npm run build:android` försöker kompilera native lokalt. Ett tidigare Windowsförsök stoppades av långa CMake-sökvägar; det bevisar inte ett aktuellt V4.2-byggfel eller att EAS lyckats med V4.2.
 
-När iPhone använder Expo Go på 8081 kör du den installerade Android-klienten i en separat terminal från `apps/mobile`:
+Om iPhone kör Expo Go på port 8081 kan en separat installerad Android-klient använda port 8082. Kör från `apps/mobile`:
 
 ```powershell
 $env:EXPO_PUBLIC_API_URL='http://10.0.2.2:3000'
 npx expo start --dev-client --host lan --port 8082 --clear
-# Tryck a för Android. Webb/API ska redan köra på port 3000.
 ```
 
-Detta är den verifierade samtidiga konfigurationen för V4 här. Att byta den egna Android-klienten till Expo Go-sessionen på 8081 fastnade vid Bundling 99%; en separat `--dev-client`-session på 8082 löste det. Variabeln ovan gäller bara den terminalen och ändrar inte iPhones LAN-adress i miljöfilen.
+Variabeln gäller bara den terminalen och ändrar inte iPhones LAN-adress i miljöfilen. Använd rätt klient för `--go` respektive `--dev-client`.
 
-## Android- och iOS-byggen med EAS
+## Gemensam katalog, utkast och order
 
-Kör från `apps/mobile`:
+`lib/api.ts` skapar API-klienten med `EXPO_PUBLIC_API_URL`. Alla produkt- och orderanrop går till samma Next.js-backend som webbplatsen. Ingen Supabase service-role, Stripe secret eller Resend-nyckel finns i mobilen.
+
+`CateringProvider` hämtar katalogen vid start, när appen åter blir aktiv och vid drag för att uppdatera. Samtidiga kataloghämtningar delar samma anrop. Adminändringar i priser, bilder, aktivering eller leveransregler blir synliga vid nästa hämtning. Priser i gamla order påverkas inte.
+
+Matutkast sparas i SecureStore på native och localStorage i Expo Web. Kontaktuppgifter sparas inte i utkastet. Privata orderreferenser sparas i SecureStore respektive sessionStorage, högst 20. Samma förfrågan behåller SHA-256-fingerprint och UUID för ett identiskt återförsök efter omstart. Om en äldre native-app saknar Expo Crypto används en tydligt meddelad sessionsreserv.
+
+Demo och nätverksfel behåller tidigare matval. Endast en verifierad katalog rensar avpublicerade val. Nätverksfel stänger möjligheten att skicka en förfrågan tills katalogen kan hämtas igen. Delad formulärvalidering gäller även på servern.
+
+## EAS-profiler och verifieringsgräns
+
+| Profil | Appidentitet | Användning |
+| --- | --- | --- |
+| `development` | `se.cedarmezze.app.dev` | Intern development client; Android debug-APK |
+| `ios-simulator` | `se.cedarmezze.app.dev` | Osignerad simulatorartefakt som körs på Mac |
+| `preview` | `se.cedarmezze.app.preview` | Intern testapp med rätt signering |
+| `production` | `se.cedarmezze.app` | Butiksbygge efter separat verifiering |
+
+`APP_ENV` väljer identitet. `EXPO_PUBLIC_API_URL` väljer backendmiljö. Utvecklings-, staging- och produktionsappar ska peka på avsedd gemensam miljö, inte varsin databas per plattform. Inga butiksuppladdningar sker automatiskt.
+
+För att begära nya molnbyggen kör du från `apps/mobile`:
 
 ```powershell
 npx eas-cli@latest whoami
@@ -62,34 +90,12 @@ npx eas-cli@latest build --platform android --profile development --non-interact
 npx eas-cli@latest build --platform ios --profile ios-simulator --non-interactive --no-wait
 ```
 
-V4:s [Androidjobb](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/121fab5f-cb08-46eb-a03e-5e13f8c4aecb) och [iOS-simulatorjobb](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/10bef8cf-119c-44b7-ad22-57483478318a) bygger app 4.0.0 med SDK 57 från källcommit 65941bb. Aktuell färdigstatus och artefakter anges i [TESTER.md](TESTER.md). Uppladdning betyder inte lyckat bygge.
+Detta är byggkommandon, inget påstående om att nya V4.2-artefakter har skapats. Kontrollera alltid källcommit, appversion, jobbets slutstatus och artefakt. Äldre V4-jobb/APK:er verifierar inte V4.2. Windows kan starta iOS-molnbyggen men kör inte Xcode/iOS Simulator. En fysisk iPhone-development build kräver Apple-behörighet, signering och registrerad enhet.
 
-| Profil | Identitet | Resultat |
-| --- | --- | --- |
-| `development` | `se.cedarmezze.app.dev` | Android debug-APK utan egna releaseuppgifter |
-| `ios-simulator` | `se.cedarmezze.app.dev` | Osignerad simulatorartefakt för Mac |
-| `preview` | `se.cedarmezze.app.preview` | Intern testapp; behöver rätt signering |
-| `production` | `se.cedarmezze.app` | Butiksbygge efter separata lanseringskontroller |
+`npm run export:mobile` från roten paketerar iOS, Android och webb. Det bevisar inte ett nytt native EAS-bygge, installation, APNs/FCM eller test på fysisk telefon. Körda kontroller och kvarvarande enhetstester redovisas i [TESTER.md](TESTER.md).
 
-Windows kan starta iOS-molnbygget men kan inte köra Xcode/iOS Simulator. En egen build för fysisk iPhone använder `--platform ios --profile development` och kräver Apple-behörighet, signering och registrerad enhet. iOS-profilerna behåller SDK 57-byggmiljön `macos-tahoe-26.5-xcode-26.6`. Ingen butiks-submit sker automatiskt.
+## Push och betalningar
 
-För Android: hämta rätt APK, verifiera version/källcommit och installera i emulatorn:
+Fjärrpush kräver en installerad development-/EAS-app, fysisk enhet och företagets APNs/FCM-konfiguration. Expo Go visar kundappen men stöder inte fjärrpush. Native notismoduler laddas först när kunden väljer registrering. Kundens tokenregistrering kräver privat orderkod/token; ägarens registrering kräver verifierad webbadmin. Serverns pushflaggor är avstängda i exempelmiljön.
 
-```powershell
-$adb='C:\Users\sharbel\AppData\Local\Android\Sdk\platform-tools\adb.exe'
-& $adb devices
-& $adb -s emulator-5554 install -r 'DIN-SÖKVÄG\cedar-mezze-v4.apk'
-& $adb -s emulator-5554 reverse tcp:8081 tcp:8081
-# Från repots rot medan webb/API körs:
-npm run android
-```
-
-## Push och betalning
-
-V4 har `expo-notifications`57.0.23 och `expo-device`57.0.2 installerade med `expo install` och låsta exakt. Kundens knapp registrerar notiser via orderns privata kod/token. Serverns `CUSTOMER_PUSH_ENABLED=false` och `OWNER_PUSH_ENABLED=false` är grundläget. Ägarens registrering kräver adminsession på webben; ingen separat mobilroll skapas.
-
-Fjärrpush kräver en installerad development-/EAS-app och företagets FCM/APNs-konfiguration. Expo Go visar kundappen men stöder inte fjärrpush. Native moduler laddas för registrering först efter knapptryck och enhetskontroll. [Expos installationsguide](https://docs.expo.dev/push-notifications/push-notifications-setup/) och [Notifications för SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/) beskriver förutsättningarna.
-
-Checkout öppnas i systemwebbläsaren, där Stripe visar faktiskt tillgängliga metoder. Apple Pay hör till kortvalet på kompatibla enheter. Se [BETALNINGAR.md](BETALNINGAR.md).
-
-Appen känner bara API-adressen och publik konfiguration. Hemliga nycklar får inte ha prefixet `EXPO_PUBLIC_`. Menyutkast sparar matval utan kontaktuppgifter. Privata orderreferenser sparas i SecureStore på native och sessionStorage på webben. EAS-miljöer skapar inte egna backendservrar; konfigurera API-adress separat för utveckling/test/produktion.
+Checkout använder samma serverlogik som webbplatsen och öppnas i systemwebbläsaren. Återkomsten markerar inte ordern betald; servern måste verifiera betalningen. Apple Pay hör till kortbetalning på kompatibla enheter. Företagets externa betalningar och verklig pushleverans behöver egna tester enligt [BETALNINGAR.md](BETALNINGAR.md).

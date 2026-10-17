@@ -1,6 +1,8 @@
-# Databasen
+# Databasen i V4.2
 
 Supabase kör PostgreSQL. Webben, mobilappen och admin använder samma server-API. Mobilen gör inga direkta databasfrågor och har ingen service-role-nyckel.
+
+V4.2 återanvänder exakt den befintliga migrationskedjan. Inga nya tabeller, migrationer eller databasmiljöer skapas av refaktoreringen. Det finns inga separata ordertabeller för iPhone, Android och webb. En gemensam företagsägd Supabase-databas används per konfigurerad miljö; utveckling, staging och produktion ska vara separerade. Företagets riktiga produktionstjänster behöver fortfarande verifieras enligt [TESTER.md](TESTER.md).
 
 ## Migrationer
 
@@ -27,6 +29,8 @@ På en tom testdatabas körs alla fem i ordning. På en befintlig databas tillä
 | `payment_events` | Unika Stripe-händelser kopplade till order, för idempotent webhookhantering |
 | `order_rate_limits` | HMAC-hashade spamnycklar, timfönster och antal försök |
 | `owner_push_tokens` | Expo-token kopplad till verifierad administratör i `auth.users`, med senaste leveransticket/tid |
+| `order_push_tokens` | Kundens registrerade Expo-enheter för en privat order |
+| `order_notifications` | Beständig kö med händelsens snapshot och separata leveranskvittensfält |
 
 `orders.menu_id` pekar på paketet, eller är `null` för egen catering. `orders.delivery_zone_id` pekar på vald zon vid leverans. `order_items.order_id` är en foreign key till ordern. Historiska titlar, enheter och priser sparas på raderna, så senare menyändringar ändrar inte redan skapade order.
 
@@ -44,7 +48,7 @@ Admin tar normalt bort något från katalogen genom **avpublicering**, `active=f
 
 Alla belopp lagras som heltalsöre: `12500` betyder 125 kr. Paket har pris per person. Egna maträtter har styckpris × antal; pris per person visas som totalsumman för maten delad med gästantalet och avrundad till öre. Leveransavgiften är separat. Hämtning har ingen leveransavgift.
 
-`packages/shared/pricing/index.ts` ger samma regler i UI och server. API:t hämtar sedan aktuella databaspriser och validerar igen. Databasfunktionen `create_catering_order` läser och låser inställningar, zon och valda produkter, räknar om belopp och sparar order + rader i **en transaktion**. Om någon ändrar pris samtidigt stoppas ett oförenligt belopp i stället för att delvis spara ordern.
+`packages/shared/pricing/index.ts` ger samma beräkningsregler i UI och server. `packages/shared/ordering/index.ts` samlar förhandsvisning, minimiantal, portionsförslag, formulärregler och samma orderformat. Klienten skickar produkt-ID och antal, inga auktoritativa priser. API:t hämtar aktuella databaspriser och validerar igen. Databasfunktionen `create_catering_order` läser och låser inställningar, zon och valda produkter, räknar om belopp och sparar order + rader i **en transaktion**. Om någon ändrar pris samtidigt stoppas ett oförenligt belopp i stället för att delvis spara ordern.
 
 Leverans kräver en aktiv zon som matchar början av det normaliserade femsiffriga svenska postnumret. Exempel: prefix `721` matchar `72130`. Som i V2 vinner längst matchande prefix, därefter lägsta avgift vid lika specifika zoner. V2:s allmänna leveransavgift importeras som bred reservzon för att befintlig leverans inte ska försvinna. Ägaren behöver granska att den faktiskt motsvarar företagets godkända leveransområde före produktion.
 
@@ -65,7 +69,7 @@ RLS är aktiverat på affärstabellerna. Direkta rättigheter för `anon` och `a
 
 Ägaren finns i Supabase Auth. `requireAdmin` verifierar användaren med `getUser`, kräver bekräftad e-post och jämför den mot serverns `ADMIN_EMAILS`. En egen admin-tabell behövs inte för denna enkla allowlist. Inloggad betyder inte automatiskt administratör.
 
-Publik orderläsning kräver både kod och hemlig token. Databasen sparar tokenhash; API:t jämför säkert och returnerar ett begränsat `PublicOrder` utan kontaktuppgifter och adminnoteringar. Skicka inte privata länkar till analysverktyg eller loggar.
+Publik orderläsning kräver både kod och hemlig token. Databasen sparar tokenhash; API:t jämför säkert och returnerar ett begränsat `PublicOrder` utan kundens kontaktuppgifter och adress. Svaret innehåller orderrader, status, eventuellt prisförslag, beskedsfältet `admin_note` och en tillåten Checkout-länk. Lägg inte interna hemligheter i ett kundsynligt besked. Skicka inte privata länkar till analysverktyg eller loggar.
 
 `create_catering_order` är `SECURITY INVOKER` och kan bara anropas av `service_role`. V2:s begränsnings-/betalningsfunktioner har också uttryckligt borttagna publika körningsrättigheter. V2:s bucket `catering-media` är avsedd för företagets publika bilder/filmer, inte kunddokument.
 
@@ -95,3 +99,11 @@ Orderändring, Stripe-händelse och notifieringskö uppdateras atomärt. Köpost
 V4.1 låter inställningsformuläret hantera V2:s äldre prefixzoner medan `/admin/catalog` behåller moderna zoners ID, avgift och aktivering. En avpublicerad bred grundzon återaktiveras inte när kontaktuppgifter sparas. Ogiltigt postnummer eller ingen aktiv matchning stoppar leverans. Lokal PostgreSQL/HTTP-verifiering hittade och kontrollerade just detta gränsfall.
 
 Nya tabeller har RLS och saknar läsrättigheter för `anon`/`authenticated`. Funktionerna är `SECURITY INVOKER` och får bara anropas av serverrollen. API:t verifierar också adminsession eller kundens privata kod/token. Webbpubliceringen kör inga migrationer i företagets fjärrdatabas.
+
+## V4.2: samma källa för alla kundplattformar
+
+Admin uppdaterar `dishes`, `menus`, zoner eller inställningar genom den befintliga skyddade backendservern. Serverrenderade webbsidor läser aktuella data utan statiskt fryst katalog. Webbens kundvyer och Expo uppdaterar därefter via samma `/api/catalog`. API-klienten har ingen egen databas eller produktlista och använder `cache: 'no-store'`.
+
+Menyutkast lagrar matval och mängder. De innehåller inga historiska orderpriser och rensar inte tidigare val bara för att API:t är nere eller visar demo. Avpublicerade val tas bort efter verifierad kataloghämtning. Historiska order hämtas alltid från `orders` och `order_items`; de räknas inte om från dagens katalog.
+
+`request_id` följer med oförändrat genom `packages/api-client`. Klienternas beständiga fingerprint/UUID och serverns HMAC/SQL-lås kompletterar varandra. Därför kan en oförändrad förfrågan efter timeout ge tillbaka samma order även om katalogen har ändrats efter första försöket. Ändrat innehåll med samma nyckel avvisas. Se [V4.2-guiden](UNIFIED_ARCHITECTURE_V4_2.md) för hela flödet.

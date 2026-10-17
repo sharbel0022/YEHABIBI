@@ -1,64 +1,78 @@
-# Arkitektur i V4.1
+# Arkitektur i V4.2
 
-Vi behåller en databas och ett ordersystem för Expo, webb och admin. V4 förbättrar befintlig kod i stället för att lägga till separata system.
+Yehabibi har en logisk backend: Next.js-servern. Webb, Expo och den gemensamma adminpanelen använder samma Supabase/PostgreSQL inom respektive miljö. V4.2 lägger till ett delat API-klientpaket och flyttar återkommande regler till shared. Befintliga API-rutter, tabeller och orderhistorik bevaras.
 
 ```mermaid
 flowchart LR
-  Mobil[Expo SDK 57] -->|HTTPS / JSON| API[Next.js API]
-  Webb[Webb och skyddad admin] --> API
-  API --> DB[(Supabase / PostgreSQL)]
-  API --> Checkout[Stripe Checkout]
-  Checkout -->|signerad webhook| API
-  API --> Notiser[Resend och Expo Push]
-  Shared[packages/shared] -. typer / regler .-> Mobil
-  Shared -. typer / regler .-> Webb
-  Shared -. typer / regler .-> API
+  Webb[Next.js webb] --> Klient[packages/api-client]
+  Mobil[Expo iPhone och Android] --> Klient
+  Klient -->|JSON| API[Next.js API]
+  Admin[Skyddad webbadmin] --> API
+  Webb -->|Serverrenderad katalog| Data[Serverns data.ts]
+  API --> Data
+  Data --> DB[(Gemensam Supabase PostgreSQL)]
+  API --> Stripe[Stripe Checkout]
+  Stripe -->|Signerad webhook| API
+  API --> Besked[Resend och Expo Push]
+  Shared[packages/shared] -. regler och typer .-> Webb
+  Shared -. regler och typer .-> Mobil
+  Shared -. regler och typer .-> API
 ```
 
 ## Läs koden i den här ordningen
 
-1. `apps/mobile/app/index.tsx` visar startsidan. `app/menyer.tsx` och `app/bygg.tsx` väljer maten.
-2. `apps/mobile/lib/store.tsx` håller katalog, menyutkast och privata orderreferenser i en React Context.
-3. `packages/shared` ger typer, validering, öresberäkning, datum, zonval och statusregler utan React eller databasnycklar.
-4. `apps/mobile/lib/api.ts` skickar formuläret till samma `apps/web/src/app/api/orders/route.ts` som webben använder.
-5. API:t validerar igen och låter PostgreSQL skapa order och rader atomärt från aktuella databaspriser.
-6. Ägaren hanterar ordern i webbens admin. Kunden följer den via privat kod och token.
+1. `packages/shared/types/index.ts` beskriver katalog, matval, order och svar.
+2. `packages/shared/ordering/index.ts` bygger samma orderformat och beräknar förhandsvisningen.
+3. `packages/api-client/index.ts` skickar de publika anropen med timeout och tydliga fel.
+4. `apps/web/src/components/OrderForm.tsx` och `apps/mobile/app/bestall.tsx` visar respektive plattforms formulär.
+5. `apps/web/src/app/api/orders/route.ts` verifierar förfrågan och aktuella databaspriser.
+6. `create_catering_order` i befintliga SQL-migrationer sparar order och rader atomärt.
 
-[Filguiden](FIL_FOR_FIL.md) förklarar filernas ansvar och var du ändrar dem.
+[Filguiden](FIL_FOR_FIL.md) förklarar ansvaren. [V4.2-guiden](UNIFIED_ARCHITECTURE_V4_2.md) visar före/efter och vanliga ändringar.
 
-## Appar och delad kod
+## Paketens gränser
 
 | Del | Ansvar |
 | --- | --- |
-| `apps/mobile` | Sex kundskärmar och tre stödfiler; Expo SDK 57, React Native 0.86.3 och React 19.2.3 |
-| `apps/web` | Next.js16.4.2: responsiv webb, SEO, admin, API, serveråtkomst och betalningar |
-| `packages/shared/types` | Samma katalog-, order-, förslags- och betalningstyper överallt |
-| `packages/shared/pricing` | Rena funktioner för priser, datum, leveranszoner och tillåtna statusbyten |
-| `packages/shared/validation` | Zod kontrollerar indata även när någon kringgår gränssnittet |
-| `supabase/migrations` | Additiva SQL-ändringar, transaktioner, historiska priser och behörigheter |
+| `packages/shared/types` | Katalog, matval, orderformat, privata referenser och API-svar |
+| `packages/shared/pricing` | Heltalsöre, zonval, datum, statusövergångar och formattering |
+| `packages/shared/ordering` | Portionsförslag, minimiantal, utkast, offert, formulärfel och kundens statusflöde |
+| `packages/shared/validation` | Samma Zod-scheman i formulär och server |
+| `packages/shared/limits.ts` | Gemensamma gränser för gäster, mängder och totalsummor |
+| `packages/shared/design` | Färger, kategorinamn och formulärsteg |
+| `packages/shared/catalog` | Samma tydligt avstängda förhandsvisning utan bokningsbara priser |
+| `packages/api-client` | Publika fetch-anrop; inga administrativa eller serverprivata anrop |
+| `apps/web` | HTML, SEO, SSR, admin, API och tjänsteintegrationer |
+| `apps/mobile` | Native navigation, tangentbord, datumväljare, SecureStore och pushbehörighet |
 
-Frontend visar en uppskattning med samma regler som servern. Servern läser alltid priserna på nytt. Pris per person är en jämförelse och delar inte upp betalningen.
+Shared och API-klienten fungerar utan React, Next.js och Expo. API-klienten använder gemensamma typer och vanlig fetch. Den stöder same-origin på webben och uttrycklig basadress i Expo. Den återförsöker inte en order automatiskt; gränssnittet skickar samma beständiga `request_id` när kunden försöker igen.
 
-## Förfrågan och ändringsförslag
+Inget `packages/ui` behövs för denna ändring. Webbens `ItemPicker` och mobilens `DishCard`, `Stepper`, `Amount` och `Screen` återanvänds redan inom sin plattform. Deras regler och designvärden delas nu, medan HTML och React Native behåller sina tydliga, skilda renderingsdelar.
 
-Kunden väljer mat → datum/leverans → kontakt → bekräftar förfrågan. Menyval sparas utan kontaktuppgifter. Ett stabilt `request_id` och databaskontroll hindrar dubbla order vid dubbeltryck/återförsök. Mobilen sparar bara SHA-256 och UUID för samma inskick efter omstart, aldrig formulärets kontakttext. Äldre native-byggen utan Expo Crypto får en sessionsnyckel och tydlig begränsning.
+## Aktuell katalog och bevarade val
 
-Ägaren granskar och godkänner före betalning. Ett prisförslag sparas separat med förklaring, revisionsnummer och total. Kunden måste uttryckligen acceptera rätt revision via sin privata token. Det ursprungliga priset och orderraderna finns kvar för spårbarhet; en godkänd justering redovisas separat.
+Webbens serverkomponenter läser katalogen direkt genom `data.ts` inför första renderingen. Sidramen använder dynamisk serverrendering så adminändringar inte fryses i ett statiskt bygge. Det bevarar serverrenderat innehåll och metadata; en HTTP-omväg till den egna servern behövs inte. `useCatalog` uppdaterar sedan meny och formulär via API-klienten vid fokus, synlig flik, online och manuell uppdatering.
 
-Order- och betalningsstatus är olika fält. Bara signerad Stripe-webhook kan markera onlinebetalning betald. Kontanter gäller hämtning och registreras manuellt av ägaren. Läs [BETALNINGAR.md](BETALNINGAR.md).
+Expo laddar katalogen genom samma `/api/catalog` och uppdaterar när appen åter blir aktiv eller kunden drar för att uppdatera. Samtidiga kataloghämtningar slås samman. Efter en lyckad hämtning rensas avpublicerade matval med `reconcileSelection`. Demo eller nätverksfel raderar inte ett sparat utkast. Ett misslyckat anrop stänger beställning tills katalogen har verifierats igen.
 
-## Notifieringar och privata data
+Menyutkast innehåller matval, inga kontaktuppgifter eller frysta katalogpriser. Lagringen är plattformsspecifik: webbflikens sessionStorage respektive SecureStore på native. Expo Web använder localStorage för matutkast och sessionStorage för privata orderreferenser. Upp till 20 privata orderreferenser sparas på mobilen.
 
-PostgreSQL köar order-, pris-, status- och betalningsbesked i samma transaktion som ändringen. Händelsens snapshot gör återförsöket stabilt; kund och ägare kvitteras var för sig med Resend-idempotens. Ordern finns kvar även om ett mejl misslyckas. Nästa relevanta anrop eller adminens återsändning försöker igen; ingen fristående bakgrundsarbetare är konfigurerad. Ägarens nya ordermejl innehåller kontakt, adress, rättmängder/paket, datum, belopp och betalningsönskemål.
+## Order, priser och betalning
 
-Expo Push används för registrerade enheter. Kundens tokenregistrering skyddas av orderns privata åtkomsttoken; ägarens registrering kräver verifierad adminsession. Fjärrpush fungerar inte i Expo Go. FCM/APNs och faktisk leverans måste provas i företagets miljö.
+Frontendens belopp är en förhandsvisning. Servern läser aktuella priser och leveransregler på nytt; SQL-funktionen kontrollerar dem i samma transaktion som orderraderna sparas. En katalogändring ändrar inte historiska orderpriser.
 
-Mobilen sparar högst 20 privata orderreferenser i SecureStore på iOS/Android; Expo Web använder sessionStorage. Webbens privata status kräver samma kod/token. Länken är en behörighetsnyckel och ska inte skickas till analysverktyg.
+Samma UUID och innehåll ger samma order vid återförsök. Ett återanvänt UUID med ändrat innehåll avvisas. Förfrågan börjar obetald och ska granskas av ägaren. Ett prisförslag sparas separat och kräver kundens acceptans av rätt revision. Ursprungliga orderrader och godkänd prisjustering hålls spårbara.
 
-API:t kontrollerar admin med Supabase `getUser`, bekräftad e-post och serverns allowlist. Inga service-role-, Stripe- eller mejlnycklar finns i appen. RLS och indragna publika rättigheter skyddar databasen. CORS tillåter bara angivna webborigins.
+Orderstatus och betalningsstatus är olika fält. En Checkout-länk kommer från servern efter godkännande. Bara signerad Stripe-webhook bekräftar onlinebetalning. Kontant gäller hämtning och registreras av ägaren efter mottagna pengar. Läs [BETALNINGAR.md](BETALNINGAR.md).
 
-## Publicering
+## Behörighet och besked
 
-GitHub-källan är en monorepo. Sites har ett separat bevarat Worker/Vinext-bygglager: webbens `src`/`public` flyttas till roten där och samma shared/API används. Sites-identitet och inställningar bevaras. Expo byggs i det befintliga EAS-projektet. Ingen publicering aktiverar automatiskt riktiga order, betalningar eller databasändringar.
+Admin kräver serververifierad Supabase-användare, bekräftad e-post och `ADMIN_EMAILS`. Kundstatus och kundåtgärder kräver orderkod och privat token. Supabase service-role, Stripe secret och Resend-nyckeln finns endast på servern. RLS, indragna publika rättigheter och begränsade SQL-funktioner skyddar tabellerna.
 
-V2:s katalog-ID:n och orderdata bevaras genom migrationskedjan. Gamla filguider/acceptansdokument är historik. [DATABAS.md](DATABAS.md), [TESTER.md](TESTER.md) och [EXPO.md](EXPO.md) visar detaljer och verifieringsgränser.
+Databasen köar besked atomärt med orderändringen. Serverns `mailer.ts` och `push.ts` levererar till Resend/Expo och kvitterar mottagare. Händelsens snapshot bevarar rätt innehåll vid återförsök. Ingen extra backend eller fristående bakgrundsarbetare tillkommer.
+
+## Miljöer och publicering
+
+Utveckling, staging och produktion ska ha separata databasmiljöer och tjänsteuppgifter. Webb och mobil inom samma miljö delar backend och databas. EAS bygger mobilappen; det skapar inte en separat orderserver.
+
+Sites bevarar sitt befintliga Worker/Vinext-bygglager och synkroniserar webbens källkod och båda gemensamma paketen från granskad GitHub-main. Faktisk synkronisering och publiceringsstatus finns i [PUBLICERING.md](PUBLICERING.md). En grön export eller CI verifierar kod; företagets externa tjänster och fysiska mobilflöden behöver egna tester enligt [TESTER.md](TESTER.md).

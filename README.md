@@ -1,93 +1,101 @@
-# YEHABIBI V4.1 – Cedar Mezze
+# YEHABIBI V4.2 – Cedar Mezze
 
-Libanesisk catering för hemma, fest och företag. **Expo SDK 57** driver iPhone/Android, Next.js driver webb/admin och båda använder samma API och Supabase/PostgreSQL. V4.1 behåller designen och rättar menybyggaren, datumval, orderbekräftelse, leveransområden och notifieringarnas återförsök.
+Libanesisk catering för hemma, fest och företag. Next.js driver webb, admin och den gemensamma backendservern. Expo SDK 57 driver iPhone och Android. Alla plattformar använder samma katalog, orderkontrakt och Supabase/PostgreSQL inom respektive miljö.
 
-Det befintliga [EAS-projektet Cedar Mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) och dess identiteter bevaras. Expo Go är standard på iPhone. Push kräver en egen development build och riktiga APNs/FCM-uppgifter; e-post är reservvägen. Faktiska V4.1-resultat och externa begränsningar finns i [TESTER.md](docs/TESTER.md).
+V4.2 flyttar upprepade affärsregler och demodata till `packages/shared` och publika HTTP-anrop till `packages/api-client`. Next.js och Expo behåller sina fungerande gränssnitt. Ingen extra backend, databas eller databasmigration tillkommer.
 
-Källan finns på [GitHub](https://github.com/sharbel0022/YEHABIBI/tree/main) och webbplatsen på [Sites](https://yehabibi.asdasdsa213.chatgpt.site). [Felrapporten och ändringsöversikten](docs/V4_FÖRÄNDRINGAR.md) beskriver V4.1. Publika riktiga order och betalningar är fortfarande avstängda: företagskonton och godkända produktuppgifter saknas. Det anslutna inaktiva Supabase-projektet och Stripe-miljön Quick match används inte, enligt användarens beslut.
+Läs [V4.2-guiden](docs/UNIFIED_ARCHITECTURE_V4_2.md) för före/efter, beroendekarta och exempel på var du ändrar en regel. [TESTER.md](docs/TESTER.md) redovisar faktiskt testutfall. GitHub/CI och Sites senaste verifierade publicering beskrivs i [PUBLICERING.md](docs/PUBLICERING.md).
 
-## Starta
+## Starta i Windows
 
-Installera Node.js **22.13 eller senare**, npm och Android Studio om du vill köra Android-emulatorn. Kör i repots rot:
+Använd Node.js 22.13 eller senare. Kör i repots rot:
 
 ```powershell
 npm ci
-Copy-Item apps/web/.env.example apps/web/.env.local
-Copy-Item apps/mobile/.env.example apps/mobile/.env.local
+# Kopiera bara miljöfiler som inte redan finns.
+if (!(Test-Path apps/web/.env.local)) {
+  Copy-Item apps/web/.env.example apps/web/.env.local
+}
+if (!(Test-Path apps/mobile/.env.local)) {
+  Copy-Item apps/mobile/.env.example apps/mobile/.env.local
+}
 ```
 
-Kopiera miljöfilerna bara första gången. Anslut iPhone och dator till samma Wi-Fi. Kör `ipconfig` och sätt `EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000` i `apps/mobile/.env.local`. Android-emulatorns `10.0.2.2` fungerar inte på din iPhone.
-
-Starta webben/API:t i en terminal och Expo i en andra, båda från repots rot:
+Starta webb/API i första terminalen och Expo i en andra:
 
 ```powershell
-# Terminal 1
+# Terminal 1, från repots rot
 npm run dev
-# Terminal 2
+# Terminal 2, från repots rot
 npm run dev:mobile
 ```
 
-`npm run dev:mobile` visar **Expo Go-QR för SDK 57**. Skanna med iPhones Kamera och öppna Expo Go. Logga in på samma Expo-konto i CLI och telefonen, här `sharbel1423`; vid behov kör du `npx expo login` från `apps/mobile`. [EXPO.md](docs/EXPO.md) beskriver Wi-Fi, inloggning och felsökning.
+Webben öppnas på `http://localhost:3000`. Expo visar QR för Expo Go med SDK 57. För en fysisk mobil på samma Wi-Fi anger du datorns IPv4-adress från `ipconfig` i `apps/mobile/.env.local`:
 
-EAS bygger Android development-APK och iOS-simulator från Windows. Kontrollera alltid version och källcommit på byggsidan; V3:s APK bevisar inte V4:s nya native-moduler. Följ [EXPO.md](docs/EXPO.md).
+```dotenv
+EXPO_PUBLIC_API_URL=http://DATORNS-LAN-IP:3000
+```
 
-`EXPO_PUBLIC_API_URL` i `apps/mobile/.env.local` är:
-
-| Körning | API-adress |
+| Körning | API-adress i mobilen |
 | --- | --- |
 | Android Studio-emulator | `http://10.0.2.2:3000` |
-| Fysisk mobil på samma Wi-Fi | `http://DATORNS-LAN-IP:3000` |
-| Expo Web | `http://localhost:3000` och tillåten webborigin på servern |
+| Fysisk iPhone eller Android på samma Wi-Fi | `http://DATORNS-LAN-IP:3000` |
+| Expo Web | `http://localhost:3000`; tillåt dess webborigin på servern |
 | Publicerad app | Företagets riktiga HTTPS-adress |
 
-Utan anslutna företagskonton visas en demonstration med stängda beställningar. Priser, kontaktuppgifter, recensioner och betalningsresultat hittas inte på.
+Starta om Expo efter ändrad API-adress. `APP_ENV` väljer appidentitet; API-adressen väljer backendmiljö. EAS-projektet [sharbel1423/cedar-mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) bevaras. Fler instruktioner finns i [EXPO.md](docs/EXPO.md).
 
-## Så används plattformen
+## Ett gemensamt system
 
-Kunden väljer paket eller **Alla rätter** → datum/leverans och gästantal → kontakt → kontrollerar och skickar en förfrågan. Valen sparas mellan vyerna. Servern hämtar aktuella priser, kontrollerar leveranszonen och skapar order och rader atomärt en gång även vid återförsök. Bekräftelsen ger ordernummer och en privat statuslänk; förfrågan är ännu obetald och inte godkänd. Ägaren granskar i `/admin` före betalning. Ett ändrat pris kräver kundens uttryckliga godkännande; historiska orderrader bevaras.
+Kunden väljer catering → anpassar → anger datum/plats och kontakt → granskar → skickar förfrågan. Servern läser aktuella priser och skapar order och rader i en databastransaktion. Samma `request_id` återanvänder ordern vid identiska återförsök.
 
-Stripe Checkout öppnas i systemwebbläsaren för kontots tillgängliga betalningsmetoder. Betald status kommer från en signerad webhook. Kontant gäller hämtning och registreras av ägaren. Faktura, Klarna och delbetalning är inte aktiverade. Se [BETALNINGAR.md](docs/BETALNINGAR.md).
+Ägaren granskar i `/admin`. Ett nytt pris kräver kundens uttryckliga godkännande av rätt revision. Betalning sker sedan genom serverns Stripe Checkout. Bara verifierad webhook kan bekräfta onlinebetalning. Ursprungliga orderrader och priser bevaras när katalogen ändras.
+
+Adminändringar läses från samma `/api/catalog` på båda plattformar. Webbens meny/formulär uppdaterar vid fokus, återkomst till synlig flik, återställd anslutning och knappen Uppdatera menyn. Expo uppdaterar vid återkomst till appen och när kunden drar för att uppdatera. Ett nätverksfel behåller matvalen men stänger möjligheten att skicka från en obekräftad katalog.
 
 ## Hitta koden
 
 ```text
-apps/mobile/      Expo: skärmar, API-anrop och säkert orderminne
-apps/web/         Next.js: webb, admin, API och betalningar
-packages/shared/ TypeScript-typer, priser, statusregler och validering
-supabase/        SQL-migrationer som bevarar V2:s databas
-tests/           Affärsregler, SQL och isolerat riktigt PostgreSQL/API-test
-docs/            Korta svenska förklaringar
+apps/web/           Next.js: webb, SEO, admin, API och serverintegrationer
+apps/mobile/        Expo: native skärmar, navigation och enhetslagring
+packages/shared/    Typer, regler, validering, designvärden och avstängd demo
+packages/api-client/ Typade publika fetch-anrop för webb och Expo
+supabase/migrations/ Befintlig migrationskedja till och med V4.1
+tests/              Gemensamma regler, API-kontrakt, SQL och integration
+docs/               Svenska guider och verifieringsresultat
 ```
 
 | Läs | Förklaring |
 | --- | --- |
-| [ARKITEKTUR.md](docs/ARKITEKTUR.md) | Hur app, webb, API och databas hänger ihop |
-| [FIL_FOR_FIL.md](docs/FIL_FOR_FIL.md) | Viktiga filer och varför de finns |
-| [DATABAS.md](docs/DATABAS.md) | Tabeller, priser, RLS och adminbehörighet |
-| [BETALNINGAR.md](docs/BETALNINGAR.md) | Godkännande, prisförslag, Checkout, kontanter och webhook |
-| [EXPO.md](docs/EXPO.md) | Expo Go, Android Studio, development build och EAS |
-| [PUBLICERING.md](docs/PUBLICERING.md) | Webb, miljöer, Google Play och App Store |
-| [TESTER.md](docs/TESTER.md) | Kommandon, faktiska resultat och återstående tester |
+| [UNIFIED_ARCHITECTURE_V4_2.md](docs/UNIFIED_ARCHITECTURE_V4_2.md) | Före/efter, systemflöde och underhåll utan dubbla regler |
+| [V4_1_NULAGE.md](docs/V4_1_NULAGE.md) | Verifierad utgångspunkt, tidigare CI och beroendekarta inför refaktoreringen |
+| [ARKITEKTUR.md](docs/ARKITEKTUR.md) | Beroenden, säkerhet och gränser mellan paketen |
+| [FIL_FOR_FIL.md](docs/FIL_FOR_FIL.md) | Viktiga filer och var du gör en ändring |
+| [DATABAS.md](docs/DATABAS.md) | Tabeller, historiska priser, idempotens och behörigheter |
+| [BETALNINGAR.md](docs/BETALNINGAR.md) | Godkännande, prisförslag, Checkout och webhook |
+| [EXPO.md](docs/EXPO.md) | Windows, Expo Go, Android och EAS |
+| [TESTER.md](docs/TESTER.md) | Körda tester och kvarvarande externa kontroller |
+| [PUBLICERING.md](docs/PUBLICERING.md) | GitHub, miljöer och faktisk Sites-status |
 
-Gamla orderdata och katalog-ID:n bevaras. Kör migrationerna i filnamnsordning; hoppa över redan körda migrationer. V4.1 lägger till en migration efter V4. Se [DATABAS.md](docs/DATABAS.md). V2:s filguide och acceptansdokument finns kvar som historik.
+## Kontrollera en ändring
 
-## Vanliga kommandon
+Kör från roten:
 
-Kör från repots rot:
+```powershell
+npm run syntax
+npm test
+npm run typecheck
+npm run build
+npm run test:web
+npm run export:mobile
+```
 
-| Kommando | Gör |
-| --- | --- |
-| `npm run dev` | Startar Next.js och API på port 3000 |
-| `npm run dev:mobile` | Startar Expo Go-QR för iPhone, SDK 57 |
-| `npm run android` | Öppnar separat installerad SDK 57 development build på Android |
-| `npm run build:android` | Försöker lokalt Android-bygge; se Windows-begränsningar i EXPO.md |
-| `npm run go --workspace @yehabibi/mobile` | Startar Expo Go uttryckligt |
-| `npm run export:mobile` | Exporterar Expo för konfigurerade plattformar |
-| `npm run verify` | Syntax, TypeScript, enhetstester, webbbygge och Expo-export |
-| `npm run test:integration` | Eget tillfälligt PostgreSQL/PostgREST/Next-kluster; kräver lokala testverktyg enligt TESTER.md |
+`npm run verify` samlar dessa kontroller. `npm run test:integration` kör ett separat tillfälligt PostgreSQL/PostgREST/Next-kluster enligt [TESTER.md](docs/TESTER.md). Expo-export verifierar paketering för Android, iOS och webb; den bevisar inte ett nytt signerat EAS-bygge eller test på fysisk telefon.
 
-Installera alla workspaces från roten. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel. Delade typer/prisregler ligger i `packages/shared`, medan Expo och Next.js har egna paketfiler.
+Installera workspaces från roten och uppdatera låsfilen med npm vid beroendeändringar. Använd inte `--force` eller `--legacy-peer-deps` för att dölja beroendefel.
 
-Hemliga nycklar hör endast hemma i `apps/web/.env.local` eller serverns miljövariabler. Allt som börjar med `EXPO_PUBLIC_` kan läsas ur appen. Skicka aldrig Supabase service-role, Stripe secret eller Resend-nycklar till mobilen.
+## Inför riktiga beställningar
 
-Före riktiga beställningar behövs företagets konton, godkända priser/allergener, kontaktuppgifter, villkor och verifierade testbetalningar. Butiksuppladdning sker separat efter verifiering; inga automatiska submits är konfigurerade.
+Utan konfigurerade företagstjänster visas samma avstängda förhandsvisning på webb och mobil. Företagets priser, allergener, kontaktuppgifter, villkor, databasmiljö och externa tjänster måste verifieras före lansering. Order- och betalningsspärrarna aktiveras inte automatiskt av refaktoreringen. Det tidigare anslutna inaktiva Supabase-projektet och Stripe-miljön Quick match används inte enligt tidigare beslut.
+
+Serverhemligheter hör hemma i webbserverns miljövariabler. Allt med prefixet `EXPO_PUBLIC_` kan läsas ur appen. Lägg aldrig Supabase service-role, Stripe secret eller Resend-nycklar där. Separera utveckling, staging och produktion; webb och mobil inom samma miljö ska peka på samma system.
