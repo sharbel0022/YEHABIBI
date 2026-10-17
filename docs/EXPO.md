@@ -160,3 +160,13 @@ Dessa är historik från före användarens byte till SDK 57:
 - [iOS SDK 58 simulatorbuild](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze/builds/1753e7c0-e7db-4627-adb1-0d6ed520def0): **FINISHED**, version 3.0.0 (1), snapshot före senaste medie-/webbläsarändringarna och V2-sammanslagningen.
 
 De bekräftar SDK 58-källan, inte att SDK 57 fungerar på din fysiska iPhone. Aktuella resultat finns i [TESTER.md](TESTER.md). Hosted Stripe Checkout används i systemwebbläsaren utan native PaymentSheet; native Apple Pay och ägarpush skulle kräva egna native-uppgifter/builds utöver Expo Go.
+
+## V4 och pushnotiser
+
+V4 använder fortfarande SDK57 och samma Expo-projekt. Appversionen är4.0.0. Menyutkast sparas mellan besök; de innehåller inga kontaktuppgifter. Orderreferenser ligger fortsatt i SecureStore på native och sessionStorage på webben.
+
+`expo-notifications`57.0.23 och `expo-device`57.0.2 installerades med `expo install` och är låsta till exakta versioner. Kundens knapp för statusnotiser registrerar token via det privata order-API:t. Servern kräver `CUSTOMER_PUSH_ENABLED=true`; grundläget ärfalse. Ägarpush använder den befintliga adminskyddade registreringen. Ägarinloggning finns på webben, inte som separat mobilroll.
+
+Expo Go kan fortfarande visa och använda kundappen på din iPhone men ger inte fjärrpush. Native notiser behöver en ny development build, FCM/APNs-konfiguration och verkligt enhetstest. Registreringen laddas först efter ett uttryckligt knapptryck och kontroll av att det är en installerad app på en fysisk enhet. Se [Expos pushguide](https://docs.expo.dev/push-notifications/push-notifications-setup/) och [SDK57 Notifications](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/).
+
+Bygg V4 från `apps/mobile` med samma EAS-kommandon ovan. De tidigare V3-länkarna är historik; aktuella V4-byggen anges i [TESTER.md](TESTER.md). Build success verifierar kompilering och ersätter inte fysisk iPhone-, push- eller betaltest.

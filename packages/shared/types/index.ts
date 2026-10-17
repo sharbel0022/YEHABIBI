@@ -1,7 +1,7 @@
 export type Occasion = 'hemma' | 'fest' | 'foretag';
 export type Fulfillment = 'delivery' | 'pickup';
 export type PaymentPreference = 'swish' | 'card' | 'apple_pay' | 'cash';
-export type OrderStatus = 'new' | 'changes_requested' | 'approved' | 'preparing' | 'rejected' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'new' | 'reviewing' | 'changes_requested' | 'approved' | 'preparing' | 'rejected' | 'ready' | 'dispatched' | 'completed' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded' | 'failed';
 export type ItemCategory = 'kalla_meze' | 'varma_meze' | 'grill' | 'vegetariskt' | 'brod_saser' | 'dessert';
 /** V2-namn finns kvar för admin/API. Datan kommer från samma dishes-tabell. */
@@ -47,11 +47,17 @@ export type OrderLine = {
   item_id?:string|null; unit_label?:string;
 };
 export type OrderInput = {
+  request_id?: string;
   menu_id?: string; items?: DishSelection[]; delivery_zone_id?: string;
   guests: number; occasion: Occasion; event_date: string; event_time: string;
   fulfillment: Fulfillment; address: string; postal_code: string; city: string;
   full_name: string; email: string; phone: string; notes: string;
   payment_preference: PaymentPreference; terms_accepted: true; website?: string;
+};
+/** Ursprungliga rader bevaras. Förslaget visar en uttrycklig prisjustering. */
+export type OrderProposal = {
+  revision:number; message:string; subtotal_ore:number; delivery_fee_ore:number;
+  total_ore:number; price_adjustment_ore:number; created_at:string;
 };
 export type CateringOrder = {
   id: string; code: string; tracking_hash: string; menu_id: string | null;
@@ -65,8 +71,11 @@ export type CateringOrder = {
   admin_note: string | null; created_at: string; updated_at: string;
   order_items?: OrderLine[];
   items_snapshot:LegacyOrderLine[];
+  request_id?:string|null; request_hash?:string|null;
+  quote_revision?:number; accepted_revision?:number; proposal?:OrderProposal|null;
+  price_adjustment_ore?:number;
 };
-export type PublicOrder = Pick<CateringOrder, 'code' | 'menu_title' | 'guests' | 'event_date' | 'event_time' | 'fulfillment' | 'status' | 'payment_status' | 'payment_preference' | 'subtotal_ore' | 'delivery_fee_ore' | 'total_ore' | 'checkout_url' | 'created_at'> & { items: OrderLine[] };
+export type PublicOrder = Pick<CateringOrder, 'code' | 'menu_title' | 'guests' | 'event_date' | 'event_time' | 'fulfillment' | 'status' | 'payment_status' | 'payment_preference' | 'subtotal_ore' | 'delivery_fee_ore' | 'total_ore' | 'checkout_url' | 'created_at' | 'proposal' | 'price_adjustment_ore'> & { items: OrderLine[]; admin_note?:string|null };
 export type Catalog = {
   menus: Menu[]; dishes: Dish[]; campaigns: Campaign[]; settings: Settings;
   delivery_zones: DeliveryZone[]; orders_enabled: boolean; payment_methods: PaymentPreference[]; demo: boolean;

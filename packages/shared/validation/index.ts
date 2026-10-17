@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const newOrderSchema = z.object({
+  request_id:z.string().uuid().optional(),
   menu_id: z.string().uuid().nullish().transform(value=>value??undefined),
   items: z.array(z.union([
     z.object({dish_id:z.string().uuid(),quantity:z.number().int().min(1).max(1000)}),
@@ -74,9 +75,15 @@ export const settingsSchema = z.object({
   campaign_enabled:z.boolean()
 });
 export const adminActionSchema = z.object({
-  action: z.enum(['approve','reject','request_changes','preparing','ready','complete','cash_paid','refund','payment_link']),
-  admin_note: z.string().trim().max(1000).optional()
-});
+  action: z.enum(['review','approve','reject','request_changes','preparing','ready','dispatched','complete','cancel','cash_paid','refund','payment_link','resend_notifications']),
+  admin_note: z.string().trim().max(1000).optional(),
+  proposed_total_ore:z.number().int().min(1).max(100000000).optional()
+}).refine(value=>value.action!=='request_changes' || Boolean(value.admin_note),'Förklara förslaget för kunden.');
+
+export const customerActionSchema = z.discriminatedUnion('action',[
+  z.object({action:z.literal('accept_changes'),revision:z.number().int().min(2)}),
+  z.object({action:z.literal('register_push'),push_token:z.string().regex(/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,200}\]$/)})
+]);
 
 const mediaUrl = z.union([z.url().refine(value => value.startsWith('https://')), z.string().regex(/^\/images\/[\w.-]+$/), z.literal(''), z.null()]);
 export const dishSchema = z.object({

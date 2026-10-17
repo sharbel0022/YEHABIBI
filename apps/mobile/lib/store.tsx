@@ -5,6 +5,8 @@ import {
   getCatalog,
   readOrderReferences,
   saveOrderReferences,
+  readMenuDraft,
+  saveMenuDraft,
   type OrderReference,
 } from './api';
 
@@ -23,6 +25,7 @@ type Store = {
   setGuests: (value: number) => void;
   setOccasion: (value: Occasion) => void;
   chooseMenu: (id: string) => void;
+  chooseCustom: () => void;
   changeDish: (id: string, difference: number) => void;
   references: OrderReference[];
   rememberOrder: (reference: OrderReference) => Promise<void>;
@@ -30,12 +33,24 @@ type Store = {
 };
 const Context = createContext<Store | null>(null);
 
+// Bara en verifierad katalog får rensa utkastet; demo/offline ska aldrig radera val.
+export function reconcileSelection(catalog: Catalog, selection: Selection): Selection {
+  if (catalog.demo) return selection;
+  const available = new Set(catalog.dishes.filter(dish => dish.active).map(dish => dish.id));
+  const quantities = Object.fromEntries(Object.entries(selection.quantities).filter(([id]) => available.has(id)));
+  const menuId = catalog.menus.some(menu => menu.active && menu.id === selection.menuId) ? selection.menuId : null;
+  return menuId === selection.menuId && Object.keys(quantities).length === Object.keys(selection.quantities).length
+    ? selection : { ...selection, menuId, quantities };
+}
+
 export function CateringProvider({ children }: PropsWithChildren) {
   const [catalog, setCatalog] = useState(demoCatalog);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
   const [storageNotice, setStorageNotice] = useState('');
   const [references, setReferences] = useState<OrderReference[]>([]);
+  const [draftReady, setDraftReady] = useState(false);
+  const [catalogVerified, setCatalogVerified] = useState(false);
   const [selection, setSelection] = useState<Selection>({
     menuId: null,
     quantities: {},
@@ -48,6 +63,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
     try {
       const next = await getCatalog();
       setCatalog(next);
+      setCatalogVerified(!next.demo);
       setNotice(
         next.demo
           ? 'Demonstration: beställningar är stängda tills ägaren har konfigurerat och verifierat tjänsten.'
@@ -56,11 +72,20 @@ export function CateringProvider({ children }: PropsWithChildren) {
     } catch (error) {
       // Gammal prislista får aldrig användas för en beställning när API:t är nere.
       setCatalog((previous) => ({ ...previous, orders_enabled: false }));
+      setCatalogVerified(false);
       setNotice(error instanceof Error ? error.message : 'Servern är inte tillgänglig.');
     } finally {
       setLoading(false);
     }
   }, []);
+  useEffect(() => {
+    if (!draftReady || !catalogVerified) return;
+    const current = reconcileSelection(catalog, selection);
+    if (current !== selection) {
+      setSelection(current);
+      setStorageNotice('Tidigare menyval som inte längre är tillgängliga har tagits bort. Kontrollera din meny.');
+    }
+  }, [catalog, catalogVerified, draftReady, selection]);
 
   useEffect(() => {
     void refresh();
@@ -70,6 +95,29 @@ export function CateringProvider({ children }: PropsWithChildren) {
       .then(setReferences)
       .catch(() => setStorageNotice('Det säkra orderminnet kunde inte öppnas på enheten.'));
   }, []);
+  useEffect(() => {
+    readMenuDraft().then(value => {
+      if (!value || typeof value !== 'object') return;
+      const draft = value as Partial<Selection>;
+      const quantities = Object.fromEntries(Object.entries(draft.quantities || {})
+        .filter(([id, quantity]) => id.length <= 100 && Number.isInteger(quantity) && quantity > 0 && quantity <= 1000)
+        .slice(0, 50));
+      setSelection({
+        menuId: typeof draft.menuId === 'string' && draft.menuId.length <= 100 ? draft.menuId : null,
+        quantities,
+        guests: Number.isInteger(draft.guests) && draft.guests! > 0 && draft.guests! <= 1000 ? draft.guests! : 10,
+        occasion: ['hemma', 'fest', 'foretag'].includes(draft.occasion || '') ? draft.occasion! : 'hemma',
+      });
+    }).catch(() => setStorageNotice('Menyutkastet kunde inte öppnas. Välj dina rätter igen.'))
+      .finally(() => setDraftReady(true));
+  }, []);
+  useEffect(() => {
+    if (!draftReady) return;
+    const timer = setTimeout(() => {
+      void saveMenuDraft(selection).catch(() => setStorageNotice('Menyvalen sparas under besöket, men kunde inte sparas till nästa start.'));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [selection, draftReady]);
 
   async function rememberOrder(reference: OrderReference) {
     const privateReference = { code: reference.code, token: reference.token };
@@ -93,6 +141,7 @@ export function CateringProvider({ children }: PropsWithChildren) {
     references,
     rememberOrder,
     storageNotice,
+    chooseCustom: () => setSelection(previous => ({ ...previous, menuId: null })),
     setGuests: (guests) =>
       setSelection((previous) => ({
         ...previous,

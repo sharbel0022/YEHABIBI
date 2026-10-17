@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: `Cedar Mezze${suffix === '.dev' ? ' Dev' : suffix === '.preview' ? ' Test' : ''}`,
     slug: 'cedar-mezze',
     owner: 'sharbel1423',
-    version: '3.0.0',
+    version: '4.0.0',
     scheme: `cedarmezze${suffix.replace('.', '-')}`,
     orientation: 'portrait',
     userInterfaceStyle: 'light',
@@ -25,6 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      ['expo-notifications', { color: '#155A43', defaultChannel: 'orders' }],
       ['expo-splash-screen', { image: './assets/icon.png', imageWidth: 160, backgroundColor: '#FFFFFF' }],
     ],
     experiments: { typedRoutes: true },

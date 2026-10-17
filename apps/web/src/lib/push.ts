@@ -30,7 +30,7 @@ export async function checkOwnerPushReceipts(adminUserId?:string) {
 }
 
 /** Push är ett frivilligt komplement. Befintliga ordermejl skickas alltid separat. */
-export async function notifyOwnerPush(order:CateringOrder) {
+export async function notifyOwnerPush(order:CateringOrder,title?:string) {
   if(process.env.OWNER_PUSH_ENABLED !== 'true') return;
   await checkOwnerPushReceipts().catch(()=>console.error('Owner push receipts unavailable'));
   const db = adminDb();
@@ -48,7 +48,7 @@ export async function notifyOwnerPush(order:CateringOrder) {
     const response = await fetch('https://exp.host/--/api/v2/push/send',{
       method:'POST',signal:AbortSignal.timeout(8000),
       headers:expoHeaders(),
-      body:JSON.stringify(tokens.map(to=>({to,sound:'default',title:order.payment_preference==='cash'?'Kontantförfrågan – obetald':'Ny cateringförfrågan',body:`${order.code} behöver granskas i admin.`,data:{path:'/admin/orders'},ttl:3600})))
+      body:JSON.stringify(tokens.map(to=>({to,sound:'default',title:title || (order.payment_preference==='cash'?'Kontantförfrågan – obetald':'Ny cateringförfrågan'),body:`${order.code} har uppdaterats i admin.`,data:{path:'/admin/orders'},ttl:3600})))
     });
     if(!response.ok) { console.error('Owner push service unavailable'); return; }
     const result = await response.json();
@@ -60,4 +60,46 @@ export async function notifyOwnerPush(order:CateringOrder) {
       return Promise.resolve();
     }));
   } catch { console.error('Owner push delivery failed; email fallback remains active'); }
+}
+
+/** Kunden registrerar sin enhet med samma hemliga token som skyddar orderlänken. */
+export async function notifyCustomerPush(order:CateringOrder,message:string) {
+  if(process.env.CUSTOMER_PUSH_ENABLED!=='true') return;
+  await checkCustomerPushReceipts(order.id).catch(()=>console.error('Customer push receipts unavailable'));
+  const db = adminDb();
+  const {data,error} = await db.from('order_push_tokens').select('token').eq('order_id',order.id).limit(5);
+  if(error || !data?.length) return;
+  const tokens = data.map(row=>row.token).filter(isExpoPushToken);
+  try {
+    const response = await fetch('https://exp.host/--/api/v2/push/send',{method:'POST',signal:AbortSignal.timeout(8000),headers:expoHeaders(),
+      body:JSON.stringify(tokens.map(to=>({to,sound:'default',title:'Yehabibi · din beställning',body:`${order.code}: ${message}`,data:{code:order.code},ttl:3600}))) });
+    if(!response.ok) { console.error('Customer push unavailable; email remains active'); return; }
+    const result = await response.json();
+    const tickets = Array.isArray(result.data)?result.data:[];
+    await Promise.all(tickets.map((ticket:{id?:string;details?:{error?:string}},index:number)=>{
+      const row = db.from('order_push_tokens');
+      if(ticket.details?.error==='DeviceNotRegistered') return row.delete().eq('token',tokens[index]).eq('order_id',order.id);
+      if(ticket.id) return row.update({last_ticket_id:ticket.id,last_ticket_at:new Date().toISOString()}).eq('token',tokens[index]).eq('order_id',order.id);
+      return Promise.resolve();
+    }));
+  } catch { console.error('Customer push failed; email remains active'); }
+}
+
+async function checkCustomerPushReceipts(orderId:string) {
+  const db = adminDb();
+  const {data,error} = await db.from('order_push_tokens').select('token,last_ticket_id').eq('order_id',orderId)
+    .not('last_ticket_id','is',null).lte('last_ticket_at',new Date(Date.now()-15*60000).toISOString());
+  if(error || !data?.length) return;
+  const response = await fetch('https://exp.host/--/api/v2/push/getReceipts',{method:'POST',signal:AbortSignal.timeout(8000),headers:expoHeaders(),body:JSON.stringify({ids:data.map(row=>row.last_ticket_id)})});
+  if(!response.ok) throw new Error('Pushkvitton kunde inte hämtas.');
+  const result = await response.json();
+  for(const row of data) {
+    const receipt = result.data?.[row.last_ticket_id];
+    if(!receipt) continue;
+    if(receipt.details?.error==='DeviceNotRegistered') await db.from('order_push_tokens').delete().eq('order_id',orderId).eq('token',row.token);
+    else {
+      if(receipt.status==='error') console.error('Customer push receipt reported delivery failure');
+      await db.from('order_push_tokens').update({last_ticket_id:null,last_ticket_at:null}).eq('order_id',orderId).eq('token',row.token);
+    }
+  }
 }

@@ -1,10 +1,10 @@
-# YEHABIBI V3 – Cedar Mezze
+# YEHABIBI V4 – Cedar Mezze
 
-En cateringplattform med **Expo för Android/iPhone**, en Next.js-webbplats och samma beställningssystem i Supabase/PostgreSQL. V2:s webbplats och adminpanel finns kvar i `apps/web`. Appens arbetsnamn är **Cedar Mezze**.
+Libanesisk catering för hemma, fest och företag. **Expo SDK 57** driver iPhone/Android, Next.js driver webb/admin och båda använder samma API och Supabase/PostgreSQL. V4 förbättrar de befintliga skärmarna och komponenterna: vit/sandfärgad design, tydliga rättpriser och portionsförslag, fyra beställningssteg och kundgodkännande av ändrade priser.
 
-Mobilappen använder **Expo SDK 57 för din iPhone i Expo Go**, med Expo Router och samma backend som webben. Det riktiga [EAS-projektet](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) är kopplat till `sharbel1423`. Appstart på fysisk iPhone har bekräftats av användaren, och alla sex skärmar har testats i Androids Expo Go. Kodkontroller och export för Android/iOS/webb är godkända; detaljer finns i [TESTER.md](docs/TESTER.md). Tidigare SDK 58-byggen sparas som historiska tester.
+Det befintliga [EAS-projektet Cedar Mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) och dess identiteter bevaras. Expo Go är standard på iPhone. Push kräver en egen development build och riktiga APNs/FCM-uppgifter; e-post är reservvägen. Verifiering av **V4**, äldre V3-byggen och externa tjänster skiljs åt i [TESTER.md](docs/TESTER.md).
 
-Kodgranskning finns i [PR #2](https://github.com/sharbel0022/YEHABIBI/pull/2) på [branchen expo-mobile-v3](https://github.com/sharbel0022/YEHABIBI/tree/expo-mobile-v3). Lokal `npm run verify` och [GitHub Actions](https://github.com/sharbel0022/YEHABIBI/actions/runs/39035790398) är godkända för SDK 57 och Next.js 16.4.2. Native-körning och molnbyggen redovisas separat i teststatusen.
+Källan utvecklas på [yehabibi-v4](https://github.com/sharbel0022/YEHABIBI/tree/yehabibi-v4) och kontrolleras i GitHub Actions före sammanslagning till main. [Öppna Sites-webben](https://yehabibi.asdasdsa213.chatgpt.site). Ändringsöversikt och gränser finns i [V4_FÖRÄNDRINGAR.md](docs/V4_FÖRÄNDRINGAR.md).
 
 ## Starta
 
@@ -29,7 +29,7 @@ npm run dev:mobile
 
 `npm run dev:mobile` visar **Expo Go-QR för SDK 57**. Skanna med iPhones Kamera och öppna Expo Go. Logga in på samma Expo-konto i CLI och telefonen, här `sharbel1423`; vid behov kör du `npx expo login` från `apps/mobile`. [EXPO.md](docs/EXPO.md) beskriver Wi-Fi, inloggning och felsökning.
 
-SDK 57 har även färdiga EAS-byggen för Android development-APK och iOS-simulator. Hämta rätt artefakt och följ installations-/teststatus i [EXPO.md](docs/EXPO.md). Den äldre SDK 58-APK:n är historik. Lokal native-kompilering med SDK 58 stoppades av Windows-sökvägsproblem; SDK 57 har inte byggts lokalt.
+EAS bygger Android development-APK och iOS-simulator från Windows. Kontrollera alltid version och källcommit på byggsidan; V3:s APK bevisar inte V4:s nya native-moduler. Följ [EXPO.md](docs/EXPO.md).
 
 `EXPO_PUBLIC_API_URL` i `apps/mobile/.env.local` är:
 
@@ -44,9 +44,9 @@ Utan anslutna företagskonton visas en demonstration med stängda beställningar
 
 ## Så används plattformen
 
-Kunden väljer cateringpaket eller egna maträtter och skickar en förfrågan. Servern hämtar aktuella priser och kontrollerar totalsumman. Ägaren granskar förfrågan i webbens `/admin` innan kunden betalar.
+Kunden väljer mat → datum/plats → kontakt/kontroll → skickar en förfrågan. Valen sparas mellan vyerna. Servern hämtar aktuella priser, kontrollerar leveranszonen och skapar ordern en gång även vid återförsök. Ägaren granskar i `/admin` före betalning. Ett ändrat pris kräver kundens uttryckliga godkännande; historiska orderrader bevaras.
 
-Stripe Checkout öppnas i webbläsaren för kort, Swish när kontot stöder det och Apple Pay på stödd enhet. Betald status kommer från en signerad webhook. Kontant gäller hämtning och registreras manuellt av ägaren. Se [ARKITEKTUR.md](docs/ARKITEKTUR.md).
+Stripe Checkout öppnas i systemwebbläsaren för kontots tillgängliga betalningsmetoder. Betald status kommer från en signerad webhook. Kontant gäller hämtning och registreras av ägaren. Faktura, Klarna och delbetalning är inte aktiverade. Se [BETALNINGAR.md](docs/BETALNINGAR.md).
 
 ## Hitta koden
 
@@ -64,11 +64,12 @@ docs/            Korta svenska förklaringar
 | [ARKITEKTUR.md](docs/ARKITEKTUR.md) | Hur app, webb, API och databas hänger ihop |
 | [FIL_FOR_FIL.md](docs/FIL_FOR_FIL.md) | Viktiga filer och varför de finns |
 | [DATABAS.md](docs/DATABAS.md) | Tabeller, priser, RLS och adminbehörighet |
+| [BETALNINGAR.md](docs/BETALNINGAR.md) | Godkännande, prisförslag, Checkout, kontanter och webhook |
 | [EXPO.md](docs/EXPO.md) | Expo Go, Android Studio, development build och EAS |
 | [PUBLICERING.md](docs/PUBLICERING.md) | Webb, miljöer, Google Play och App Store |
 | [TESTER.md](docs/TESTER.md) | Kommandon, faktiska resultat och återstående tester |
 
-V2:s styckrätter, portionshjälp, menykatalog, admin och gamla orderdata bevaras i uppgraderingen. Databasen kör migrationerna **0001 → 0002 → 20261017121516** i ordning; befintlig V2 hoppar över redan körda migrationer. Se [DATABAS.md](docs/DATABAS.md) för kompatibiliteten. [FIL_FOR_FIL_V2.md](docs/FIL_FOR_FIL_V2.md) och [V2_ACCEPTANS.md](docs/V2_ACCEPTANS.md) finns kvar som V2-historik, med webbens flyttade sökvägar.
+Gamla orderdata och katalog-ID:n bevaras. Kör migrationerna i filnamnsordning; hoppa över redan körda migrationer. V4 är en tilläggsmigration ovanpå V3. Se [DATABAS.md](docs/DATABAS.md). V2:s filguide och acceptansdokument finns kvar som historik.
 
 ## Vanliga kommandon
 

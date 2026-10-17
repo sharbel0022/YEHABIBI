@@ -2,6 +2,7 @@ import { useEffect, useState, type PropsWithChildren } from 'react';
 import {
   AccessibilityInfo,
   Image,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -9,13 +10,14 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type ImageSourcePropType,
   type TextInputProps,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { formatSek, safeExternalUrl, type Menu } from '@yehabibi/shared';
+import { formatSek, safeExternalUrl, type Dish, type ItemCategory, type Menu } from '@yehabibi/shared';
 import { useCatering } from './store';
 
 export const colors = {
@@ -23,8 +25,13 @@ export const colors = {
   text: '#202B27',
   red: '#B63842',
   line: '#DEE6E1',
-  soft: '#F4F7F4',
-  muted: '#63746A',
+  soft: '#F7F5F2',
+  muted: '#6B7280',
+  mint: '#E8F2ED',
+};
+export const categories: Record<ItemCategory, string> = {
+  kalla_meze: 'Kalla meze', varma_meze: 'Varma meze', grill: 'Grill',
+  vegetariskt: 'Vegetariskt', brod_saser: 'Bröd & såser', dessert: 'Dessert',
 };
 const photos: Record<string, ImageSourcePropType> = {
   '/images/hero.webp': require('../assets/hero.webp'),
@@ -33,13 +40,13 @@ const photos: Record<string, ImageSourcePropType> = {
   '/images/fest.webp': require('../assets/fest.webp'),
 };
 
-export function Photo({ url, hero = false }: { url?: string | null; hero?: boolean }) {
+export function Photo({ url, hero = false, label }: { url?: string | null; hero?: boolean; label?: string }) {
   const source = photos[url || ''] || (safeExternalUrl(url) ? { uri: url! } : photos['/images/hero.webp']);
   return (
     <Image
       source={source}
       style={hero ? s.hero : s.photo}
-      accessibilityLabel="Libanesisk catering från Cedar Mezze"
+      accessibilityLabel={label || 'Libanesisk catering från Cedar Mezze'}
     />
   );
 }
@@ -97,15 +104,15 @@ export function Screen({ children, title, intro }: PropsWithChildren<{ title?: s
       >
         {title && (
           <View style={s.section}>
-            <Text style={s.eyebrow}>CEDAR MEZZE · VÄSTERÅS</Text>
+            <Text style={s.eyebrow}>HEMMA · FEST · FÖRETAG</Text>
             <Text accessibilityRole="header" style={s.title}>
               {title}
             </Text>
             {intro && <Text style={s.body}>{intro}</Text>}
           </View>
         )}
-        {!!notice && <Notice text={notice} />}
         {children}
+        {!!notice && <Notice text={notice} />}
         <Text style={s.footer}>Tillagat med omsorg. Delat med glädje.</Text>
       </ScrollView>
     </SafeAreaView>
@@ -117,11 +124,13 @@ export function Button({
   onPress,
   disabled = false,
   secondary = false,
+  accent = false,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
+  accent?: boolean;
 }) {
   return (
     <Pressable
@@ -132,6 +141,7 @@ export function Button({
       style={({ pressed }) => [
         s.button,
         secondary && s.secondary,
+        accent && { backgroundColor: colors.red },
         disabled && s.disabled,
         pressed && { opacity: 0.8 },
       ]}
@@ -256,6 +266,37 @@ export function MenuCard({ menu, onChoose }: { menu: Menu; onChoose: () => void 
   );
 }
 
+// Samma kort används på startsidan, i menyn och i byggaren.
+export function DishCard({ dish, compact = false }: { dish: Dish; compact?: boolean }) {
+  const { selection, changeDish } = useCatering();
+  const { width } = useWindowDimensions();
+  const quantity = selection.quantities[dish.id] || 0;
+  const suggested = Math.min(1000, Math.ceil(selection.guests * (dish.suggested_per_person || 0)));
+  return (
+    <View style={[s.card, compact && (width < 360 ? { flexBasis: '100%' } : s.dishCard)]}>
+      <View style={compact && { height: 140, overflow: 'hidden' }}>
+        <Photo url={dish.image_url || (dish.category === 'grill' ? '/images/grill.webp' : dish.category === 'dessert' ? '/images/fest.webp' : '/images/mezze.webp')} label={dish.title} />
+      </View>
+      <View style={[s.cardBody, compact && { padding: 12, gap: 8 }]}>
+        <Text accessibilityRole="header" style={compact ? s.dishTitle : s.heading}>{dish.title}</Text>
+        <Text style={s.detail}>{dish.description}</Text>
+        <Text style={s.price}>{dish.price_ore > 0 ? formatSek(dish.price_ore) : 'Pris bekräftas'}</Text>
+        <Text style={s.detail}>Per {dish.portion_label}</Text>
+        <Text style={s.detail}>Allergener: {dish.allergens.join(', ') || 'Fråga köket'}</Text>
+        {compact && suggested > 0 && <Text style={s.detail}>Förslag: {dish.suggested_per_person} per person</Text>}
+        {!compact && suggested > 0 && <>
+          <Text style={s.detail}>Kökets förslag: {dish.suggested_per_person} per person → {suggested} för {selection.guests} gäster.</Text>
+          <Button secondary title={`Välj förslaget: ${suggested}`} onPress={() => changeDish(dish.id, suggested - quantity)} />
+        </>}
+        <Stepper label={dish.title} value={quantity} onChange={difference => changeDish(dish.id, difference)} />
+        {!!quantity && dish.price_ore > 0 && <Text style={s.detail}>
+          {quantity} × {formatSek(dish.price_ore)} = {formatSek(quantity * dish.price_ore)}
+        </Text>}
+      </View>
+    </View>
+  );
+}
+
 export function Amount({ label, ore, strong = false }: { label: string; ore: number; strong?: boolean }) {
   return (
     <View style={s.row}>
@@ -267,23 +308,27 @@ export function Amount({ label, ore, strong = false }: { label: string; ore: num
 
 export const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: 20, gap: 22, paddingBottom: 40, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  content: { padding: 18, gap: 24, paddingBottom: 40, width: '100%', maxWidth: 760, alignSelf: 'center' },
   section: { gap: 12 },
-  title: { color: colors.text, fontSize: 34, lineHeight: 39, fontWeight: '700', letterSpacing: -1 },
-  heading: { color: colors.text, fontSize: 21, lineHeight: 27, fontWeight: '600' },
+  title: { color: colors.green, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 36, lineHeight: 41, fontWeight: '700', letterSpacing: -1 },
+  heading: { color: colors.green, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 23, lineHeight: 29, fontWeight: '600' },
+  dishTitle: { color: colors.text, fontSize: 17, lineHeight: 22, fontWeight: '600' },
   body: { color: colors.text, fontSize: 16, lineHeight: 24, flexShrink: 1 },
   detail: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   eyebrow: { color: colors.green, fontWeight: '700', fontSize: 10, letterSpacing: 2, lineHeight: 18 },
-  hero: { width: '100%', height: 330, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.soft },
+  hero: { width: '100%', height: 290, borderRadius: 22, overflow: 'hidden', backgroundColor: colors.soft },
   photo: { width: '100%', height: 215, backgroundColor: colors.soft },
   card: {
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 4,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
   },
   cardBody: { padding: 18, gap: 12 },
+  dishGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  dishCard: { flexBasis: '46%', flexGrow: 1 },
+  panel: { padding: 18, gap: 14, borderRadius: 20, backgroundColor: colors.soft },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   price: { color: colors.green, fontWeight: '700', fontSize: 17, lineHeight: 25 },
   button: {
@@ -291,14 +336,14 @@ export const s = StyleSheet.create({
     backgroundColor: colors.green,
     paddingVertical: 15,
     paddingHorizontal: 20,
-    borderRadius: 3,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: { color: '#FFFFFF', fontSize: 15, lineHeight: 21, fontWeight: '600' },
   secondary: { backgroundColor: colors.soft, borderColor: colors.line, borderWidth: 1 },
   disabled: { opacity: 0.45 },
-  notice: { padding: 14, backgroundColor: '#FBF4E9', borderLeftWidth: 3, borderLeftColor: colors.red },
+  notice: { padding: 14, backgroundColor: colors.soft, borderRadius: 14, borderLeftWidth: 3, borderLeftColor: colors.red },
   noticeText: { color: colors.text, fontSize: 13, lineHeight: 20 },
   field: { gap: 7 },
   label: { color: colors.text, fontSize: 14, fontWeight: '600' },
@@ -309,7 +354,7 @@ export const s = StyleSheet.create({
     padding: 14,
     color: colors.text,
     fontSize: 16,
-    borderRadius: 3,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
   },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -319,7 +364,7 @@ export const s = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 3,
+    borderRadius: 24,
     justifyContent: 'center',
   },
   chipSelected: { backgroundColor: colors.green, borderColor: colors.green },
@@ -329,7 +374,7 @@ export const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 3,
+    borderRadius: 12,
   },
   stepButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 24, color: colors.green },

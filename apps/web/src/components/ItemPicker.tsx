@@ -41,11 +41,13 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Pro
         const quantity = quantities[dish.id] || 0;
         const suggestion = Math.ceil(guests * (dish.suggested_per_person || 0));
         const priced = Number.isSafeInteger(dish.price_ore) && dish.price_ore > 0;
-        return <article key={dish.id} className={`dish-card ${dish.image_url ? '' : 'dish-without-image'}`}>
-          {dish.image_url && <img src={dish.image_url} alt={dish.title} loading="lazy" width={320} height={320}/>}
+        const photo = dish.image_url || (dish.category === 'grill' ? '/images/grill.webp' : '/images/mezze.webp');
+        return <article key={dish.id} className={`dish-card ${quantity ? 'dish-selected' : ''}`}>
+          <img src={photo} alt={dish.image_url ? dish.title : 'Libanesisk catering – inspirationsbild'} loading="lazy" width={320} height={320}/>
           <div className="dish-body">
             <h3>{dish.title}</h3><p>{dish.description}</p>
             <strong>{priced ? `${formatSek(dish.price_ore)} / ${dish.portion_label}` : 'Pris fastställs av ägaren'}</strong>
+            {dish.suggested_per_person ? <small>Kökets riktmärke: {dish.suggested_per_person} {dish.portion_label} per person</small> : null}
             <small>Allergener: {dish.allergens.join(', ') || 'Fråga oss före beställning'}</small>
             {priced && suggestion > 0 && suggestion <= 1000 && <button type="button" className="dish-suggestion"
               onClick={() => onQuantityChange(dish.id, suggestion)}>
@@ -54,10 +56,11 @@ export function ItemPicker({ dishes, guests, quantities, onQuantityChange }: Pro
             <div className="dish-controls">
               <button type="button" aria-label={`Ta bort en ${dish.title}`} disabled={quantity === 0}
                 onClick={() => onQuantityChange(dish.id, Math.max(0, quantity - 1))}>−</button>
-              <output aria-live="polite" aria-label={`${quantity} ${dish.portion_label}`}>{quantity}</output>
+              <input type="number" aria-label={`Antal ${dish.title}`} value={quantity} min={0} max={1000} disabled={!priced}
+                onChange={event => onQuantityChange(dish.id, Math.max(0, Math.min(1000, Math.floor(Number(event.target.value) || 0))))}/>
               <button type="button" aria-label={`Lägg till en ${dish.title}`} disabled={!priced || quantity >= 1000}
                 onClick={() => onQuantityChange(dish.id, Math.min(1000, quantity + 1))}>+</button>
-              <span>{priced && quantity > 0 ? formatSek(quantity * dish.price_ore) : 'Välj antal'}</span>
+              <span aria-live="polite">{priced && quantity > 0 ? `${quantity} × ${formatSek(dish.price_ore)} = ${formatSek(quantity * dish.price_ore)}` : 'Välj antal'}</span>
             </div>
           </div>
         </article>;

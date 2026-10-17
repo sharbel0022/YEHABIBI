@@ -1,83 +1,51 @@
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { formatSek } from '@yehabibi/shared';
 import { getQuote, useCatering } from '../lib/store';
-import { Amount, Button, Choices, Notice, Photo, Screen, Stepper, s } from '../lib/ui';
+import { Amount, Button, categories, Choices, DishCard, Notice, Screen, Stepper, s } from '../lib/ui';
 
 export default function Builder() {
-  const { catalog, selection, setGuests, changeDish } = useCatering();
+  const { catalog, selection, setGuests, chooseCustom, storageNotice } = useCatering();
+  const [category, setCategory] = useState('valda');
+  const count = Object.values(selection.quantities).filter(quantity => quantity > 0).length;
   const quote = selection.menuId ? null : getQuote(catalog, selection);
+  const dishes = catalog.dishes.filter(dish => dish.active &&
+    (category === 'alla' || (category === 'valda' ? selection.quantities[dish.id] > 0 : dish.category === category)));
   return (
-    <Screen
-      title="Dina favoriter. Er buffé."
-      intro="Antalet gäller stycken eller portioner enligt varje rätt. Lägg till precis det ni vill dela."
-    >
-      <View style={s.section}>
-        <View style={s.row}>
-          <Text style={s.heading}>Antal personer</Text>
-          <Stepper
-            value={selection.guests}
-            min={catalog.settings.custom_min_people}
-            label="personer"
-            onChange={(difference) => setGuests(selection.guests + difference)}
-          />
-        </View>
-        <Choices
-          values={[5, 8, 10, 20].filter(value => value >= catalog.settings.custom_min_people).map((value) => ({ value: String(value), label: `${value} personer` }))}
-          selected={String(selection.guests)}
-          onSelect={(value) => setGuests(Number(value))}
-        />
+    <Screen title="Bygg din egen meny" intro="Välj fritt, anpassa antal och se priset direkt.">
+      <View style={s.panel}>
+        <Text style={s.label}>Hur många samlas ni?</Text>
+        <Stepper value={selection.guests} min={catalog.settings.custom_min_people} label="personer"
+          onChange={difference => setGuests(selection.guests + difference)} />
+        <Choices values={[6, 10, 25].filter(value => value >= catalog.settings.custom_min_people)
+          .map(value => ({ value: String(value), label: `${value} personer` }))}
+          selected={String(selection.guests)} onSelect={value => setGuests(Number(value))} />
+        <Text style={s.detail}>Från {catalog.settings.custom_min_people} personer. Portionsförslagen kommer från köket och kan ändras.</Text>
       </View>
-      {!catalog.dishes.length && (
-        <Notice text="Ägaren har ännu inte publicerat styckpriser för enskilda rätter. Se våra färdiga menyer så länge." />
-      )}
-      {catalog.dishes
-        .filter((dish) => dish.active)
-        .map((dish) => {
-          const quantity = selection.quantities[dish.id] || 0;
-          return (
-            <View key={dish.id} style={s.card}>
-              {dish.image_url && <Photo url={dish.image_url} />}
-              <View style={s.cardBody}>
-                <Text style={s.heading}>{dish.title}</Text>
-                <Text style={s.body}>{dish.description}</Text>
-                <Text style={s.detail}>
-                  Portion: {dish.portion_label}. Allergener:{' '}
-                  {dish.allergens.join(', ') || 'Kontakta oss för information'}
-                </Text>
-                <Text style={s.price}>
-                  {dish.price_ore > 0
-                    ? `${formatSek(dish.price_ore)} / ${dish.portion_label}`
-                    : 'Pris inväntar bekräftelse'}
-                </Text>
-                <View style={s.row}>
-                  <Text style={s.body}>Antal</Text>
-                  <Stepper
-                    label={dish.title}
-                    value={quantity}
-                    onChange={(difference) => changeDish(dish.id, difference)}
-                  />
-                </View>
-                <Text style={s.detail}>
-                  {dish.price_ore > 0
-                    ? `Radpris: ${quantity} × ${formatSek(dish.price_ore)} = ${formatSek(quantity * dish.price_ore)}`
-                    : 'Radpris visas när priset är bekräftat.'}
-                </Text>
-              </View>
-            </View>
-          );
-        })}
-      {quote && (
-        <View style={s.cardBody}>
+      {selection.menuId && <View style={s.panel}>
+        <Text style={s.body}>Du har valt ett cateringpaket. Byt till en egen meny för att välja enskilda rätter.</Text>
+        <Button title="Bygg egen meny" onPress={chooseCustom} />
+      </View>}
+      <Choices selected={category} onSelect={setCategory} values={[
+        { value: 'valda', label: `Din meny (${count})` }, { value: 'alla', label: 'Alla rätter' },
+        ...Object.entries(categories).map(([value, label]) => ({ value, label })),
+      ]} />
+      {!dishes.length && <View style={s.panel}>
+        <Text style={s.body}>{category === 'valda' ? 'Din meny väntar på dina favoriter.' : 'Inga rätter är publicerade här ännu.'}</Text>
+        <Button secondary title="Utforska alla rätter" onPress={() => setCategory('alla')} />
+      </View>}
+      {dishes.map(dish => <DishCard key={dish.id} dish={dish} />)}
+      <View style={s.panel}>
+        <Text style={s.heading}>Din meny · {count} rätter</Text>
+        {quote ? <>
           <Amount strong label="Summa mat" ore={quote.subtotal_ore} />
           <Amount label="Mat per person, avrundat" ore={quote.price_per_person_ore} />
-          <Text style={s.detail}>
-            Eventuell leverans visas i nästa steg. Servern kontrollerar alltid priserna på nytt.
-          </Text>
-        </View>
-      )}
-      <Button title="Fortsätt till förfrågan" disabled={!quote} onPress={() => router.push('/bestall')} />
-      <Button secondary title="Se färdiga menyer" onPress={() => router.push('/menyer')} />
+          <Text style={s.detail}>Priset per person är en jämförelse. Leveransavgift visas när du väljer adress i nästa steg.</Text>
+        </> : <Text style={s.detail}>Välj prissatta rätter och minst {catalog.settings.custom_min_people} personer för att se totalsumman.</Text>}
+        <Button title="Datum och plats  →" disabled={!quote} onPress={() => router.push('/bestall')} />
+      </View>
+      {!!storageNotice && <Notice text={storageNotice} />}
+      <Button secondary title="Se färdiga cateringpaket" onPress={() => router.push('/menyer')} />
     </Screen>
   );
 }

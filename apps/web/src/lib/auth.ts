@@ -31,7 +31,7 @@ export function publicResponse(request:Request,response:Response) {
 }
 export function publicOptions(request:Request) {
   if(!checkOrigin(request)) return jsonError('Felaktigt anrop.',403);
-  return publicResponse(request,new Response(null,{status:204,headers:{'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'}}));
+  return publicResponse(request,new Response(null,{status:204,headers:{'Access-Control-Allow-Methods':'GET, POST, PATCH, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'}}));
 }
 export function jsonError(message: string, status = 400) {
   return Response.json({ error:message }, { status, headers:{'Cache-Control':'no-store'} });

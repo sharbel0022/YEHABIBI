@@ -1,73 +1,62 @@
-# Arkitektur
+# Arkitektur i V4
 
-V3 lägger till Expo kring V2:s server. Vi har en databas och ett ordersystem för alla plattformar.
+Vi behåller en databas och ett ordersystem för Expo, webb och admin. V4 förbättrar befintlig kod i stället för att lägga till separata system.
 
 ```mermaid
 flowchart LR
-  Mobil[Expo / React Native] -->|HTTPS + JSON| API[Next.js API]
-  Webb[Next.js webb och admin] --> API
-  API -->|servernyckel| DB[(Supabase / PostgreSQL)]
-  API --> Stripe[Stripe Checkout]
-  Stripe -->|signerad webhook| API
-  API --> Mail[Resend / ordermejl]
-  Delat[packages/shared] -. typer och regler .-> Mobil
-  Delat -. typer och regler .-> API
+  Mobil[Expo SDK 57] -->|HTTPS / JSON| API[Next.js API]
+  Webb[Webb och skyddad admin] --> API
+  API --> DB[(Supabase / PostgreSQL)]
+  API --> Checkout[Stripe Checkout]
+  Checkout -->|signerad webhook| API
+  API --> Notiser[Resend och Expo Push]
+  Shared[packages/shared] -. typer / regler .-> Mobil
+  Shared -. typer / regler .-> Webb
+  Shared -. typer / regler .-> API
 ```
 
-## Tre koddelar
+## Läs koden i den här ordningen
 
-**`apps/mobile`** använder Expo SDK 57 för användarens iPhone: React Native 0.86.3, React 19.2.3, TypeScript 6.0.3 och Expo Router. Standardstarten ger Expo Go-QR; en egen development build är ett separat alternativ. Router kopplar filer i `app/` till skärmar. React Native ger mobilvyer. Expo sköter native-moduler, utveckling, export och byggkonfiguration. React Native Web ger en webbförhandsvisning. Webbens verktyg använder TypeScript 5.9.3 separat.
+1. `apps/mobile/app/index.tsx` visar startsidan. `app/menyer.tsx` och `app/bygg.tsx` väljer maten.
+2. `apps/mobile/lib/store.tsx` håller katalog, menyutkast och privata orderreferenser i en React Context.
+3. `packages/shared` ger typer, validering, öresberäkning, datum, zonval och statusregler utan React eller databasnycklar.
+4. `apps/mobile/lib/api.ts` skickar formuläret till samma `apps/web/src/app/api/orders/route.ts` som webben använder.
+5. API:t validerar igen och låter PostgreSQL skapa order och rader atomärt från aktuella databaspriser.
+6. Ägaren hanterar ordern i webbens admin. Kunden följer den via privat kod och token.
 
-**`apps/web`** är den bevarade webben, uppdaterad till Next.js 16.4.2 och samma React 19.2.3 som mobilen. Den renderar publika SEO-sidor och skyddad admin. API-rutter i samma app hanterar databas, inloggning, order, media, mejl och Stripe. Webben behöver därför en servermiljö; en statisk Expo-export ersätter inte backend.
+[Filguiden](FIL_FOR_FIL.md) förklarar filernas ansvar och var du ändrar dem.
 
-**`packages/shared`** innehåller typer, vanliga funktioner och Zod-scheman. Det importerar varken React, databasanslutningar eller hemligheter. UI kan visa ett pris med samma regel som servern; servern hämtar ändå priserna från databasen på nytt.
+## Appar och delad kod
 
-V2:s kategorier, portionshjälp, menykatalog och admin för styckrätter är kvar. Uppgraderingen använder samma rätt-id:n och en SQL-kompatibilitetsvy för gamla kolumnnamn. Gamla ordersnapshots och JSON-inställningar följer med till V3:s normaliserade struktur enligt [DATABAS.md](DATABAS.md). Ingen parallell separat V2-databas behövs.
-
-## En förfrågan från början till slut
-
-1. Mobilen läser `/api/catalog`: aktiva paket, maträtter, aktuella kampanjer, publika företagsinställningar och leveranszoner.
-2. Kunden väljer ett paket **eller** egna maträtter. Delade prisfunktioner visar styckpris, radpris och total i heltalsöre.
-3. `/api/orders` validerar formuläret, datum, leverans, betalningsval och spamgräns. En databasfunktion hämtar aktuella priser och sparar ordern med dess rader atomärt.
-4. Kunden får en privat orderreferens och ägaren får mejl. Ordern är fortfarande obetald.
-5. Ägaren godkänner i `/admin`. Onlinebetalning får då en Stripe Checkout-länk. Kontanter hanteras vid hämtning.
-6. Kunden följer status med orderkod och hemlig token. Bara verifierad Stripe-webhook får bekräfta onlinebetalning.
-
-Mobilen sparar högst 20 orderreferenser med Expo SecureStore på Android/iOS. Expo Web använder `sessionStorage`. Referensen är en privat åtkomstnyckel; appen gör ingen publik sökning på namn eller e-post. Kunden kan också behålla mejlets privata länk.
-
-## Betalningsvalet
-
-V3 öppnar **Stripe-hostad Checkout** i enhetens vanliga webbläsare via React Native `Linking`. Betallänken måste använda HTTPS på `checkout.stripe.com`. Samma flöde används i Expo Go och development builds utan native PaymentSheet. Vanliga kontakt- och policylänkar använder `expo-web-browser`.
-
-Swish stöds av Checkout för SEK när Stripe-kontot och betalmetoden är konfigurerade. Börja med sandbox/testnycklar och `STRIPE_SWISH_ENABLED=false` tills flödet verifierats. Kontots faktiska förutsättningar avgör tillgängligheten. Se [Stripes Swish-guide för Checkout](https://docs.stripe.com/payments/swish/accept-a-payment?payment-ui=checkout).
-
-Apple Pay är en plånbok i kort-Checkout och visas bara när enhet, webbläsare, kort och konto är kompatibla. Ett val i formuläret garanterar inte att plånboken visas. Native Apple Pay skulle kräva en egen build, Merchant ID och rätt certifikat; Expo Go räcker inte för den integrationen.
-
-Återkomsten från Checkout visar status men är inget betalningsbevis. Servern verifierar webhooksignaturen och matchar händelsen mot rätt order/session. Dubbletter hanteras med händelse-id i databasen. Kontantorder blir betald först när ägaren registrerar mottagna pengar.
-
-En öppen Checkout-session återanvänds när ägaren skickar betalningslänken igen. En ny skapas först när föregående session verifierats som utgången. Databasfunktionen `attach_catering_checkout` kontrollerar tidigare status, betalningsstatus och session innan länken kopplas till ordern. En samtidig webhook kan därmed inte skrivas tillbaka från betald till väntande.
-
-## Bibliotekens ansvar
-
-| Bibliotek | Varför |
+| Del | Ansvar |
 | --- | --- |
-| TypeScript | Synliga typer i både app och server |
-| Zod | Kontrollerar indata även när någon kringgår UI:t |
-| Expo Router / React Native | Skärmar, navigation och mobilvyer |
-| Expo SecureStore / WebBrowser / Video | Orderreferenser, externa informationslänkar och ljudlös video |
-| Next.js / React | Befintlig webb, admin och API |
-| Supabase JS / SSR | Serveråtkomst till PostgreSQL och verifierad adminsession |
-| Stripe | Checkout, återbetalning och signerade betalningshändelser |
-| Resend | Mejl till kunden och ägaren |
-| QRCode | SVG-koder till beställning och officiell Google-recensionslänk |
-| Lucide | Webbens ikoner; utseendet styrs av vanlig CSS |
+| `apps/mobile` | Sex kundskärmar och tre stödfiler; Expo SDK57, React Native0.86.3 och React19.2.3 |
+| `apps/web` | Next.js16.4.2: responsiv webb, SEO, admin, API, serveråtkomst och betalningar |
+| `packages/shared/types` | Samma katalog-, order-, förslags- och betalningstyper överallt |
+| `packages/shared/pricing` | Rena funktioner för priser, datum, leveranszoner och tillåtna statusbyten |
+| `packages/shared/validation` | Zod kontrollerar indata även när någon kringgår gränssnittet |
+| `supabase/migrations` | Additiva SQL-ändringar, transaktioner, historiska priser och behörigheter |
 
-CSS sköter webbens design; mobilens färger och små gemensamma UI-delar ligger i `lib/ui.tsx`. Korta skärmfiler och tre delade ämnesfiler håller strukturen begriplig.
+Frontend visar en uppskattning med samma regler som servern. Servern läser alltid priserna på nytt. Pris per person är en jämförelse och delar inte upp betalningen.
 
-## Säkerhetsgränsen
+## Förfrågan och ändringsförslag
 
-Mobilen känner bara API-adressen och publik appkonfiguration. Servern kontrollerar behörighet på varje adminanrop. Databasen har RLS och inga publika orderpolicies. Produktionsappar kräver HTTPS. Demo stänger order när tjänsten inte är konfigurerad.
+Kunden väljer mat → datum/plats → kontakt/kontroll → skickar förfrågan. Menyval sparas utan kontaktuppgifter. Ett stabilt `request_id` och databaskontroll hindrar dubbla order vid dubbeltryck/återförsök.
 
-SEO, sitemap, strukturerad data, Google Maps och QR-koder finns på webben. Riktiga Google-länkar kommer från företagsinställningarna. Ranking eller recensioner genereras inte av systemet.
+Ägaren granskar och godkänner före betalning. Ett prisförslag sparas separat med förklaring, revisionsnummer och total. Kunden måste uttryckligen acceptera rätt revision via sin privata token. Det ursprungliga priset och orderraderna finns kvar för spårbarhet; en godkänd justering redovisas separat.
 
-Mejl är basen för ägarnotiser. Servern har frivilligt Expo-pushstöd och admin kan manuellt registrera en befintlig token. Kundappen innehåller ännu ingen automatisk pushregistrering eller ägarinloggning. En fungerande ägarenhet kräver därför ytterligare enhetsintegration, FCM/APNs-konfiguration och verkliga tester. `OWNER_PUSH_ENABLED=false` är grundläget.
+Order- och betalningsstatus är olika fält. Bara signerad Stripe-webhook kan markera onlinebetalning betald. Kontanter gäller hämtning och registreras manuellt av ägaren. Läs [BETALNINGAR.md](BETALNINGAR.md).
+
+## Notifieringar och privata data
+
+Resend skickar order- och statusmejl när tjänsten är konfigurerad. Expo Push används för registrerade enheter. Kundens tokenregistrering skyddas av orderns privata åtkomsttoken; ägarens registrering kräver verifierad adminsession. Native registrering finns i appen men fjärrpush fungerar inte i Expo Go. FCM/APNs och faktisk leverans måste provas i företagets miljö.
+
+Mobilen sparar högst20 privata orderreferenser i SecureStore på iOS/Android; Expo Web använder sessionStorage. Webbens privata status kräver samma kod/token. Länken är en behörighetsnyckel och ska inte skickas till analysverktyg.
+
+API:t kontrollerar admin med Supabase `getUser`, bekräftad e-post och serverns allowlist. Inga service-role-, Stripe- eller mejlnycklar finns i appen. RLS och indragna publika rättigheter skyddar databasen. CORS tillåter bara angivna webborigins.
+
+## Publicering
+
+GitHub-källan är en monorepo. Sites har ett separat bevarat Worker/Vinext-bygglager: webbens `src`/`public` flyttas till roten där och samma shared/API används. Sites-identitet och inställningar bevaras. Expo byggs i det befintliga EAS-projektet. Ingen publicering aktiverar automatiskt riktiga order, betalningar eller databasändringar.
+
+V2:s katalog-ID:n och orderdata bevaras genom migrationskedjan. Gamla filguider/acceptansdokument är historik. [DATABAS.md](DATABAS.md), [TESTER.md](TESTER.md) och [EXPO.md](EXPO.md) visar detaljer och verifieringsgränser.

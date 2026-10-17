@@ -17,13 +17,13 @@ export function Header(){
   const path=usePathname();
   return <header className="header"><div className="header-inner">
     <Brand/>
-    <nav className={`primary-nav ${open?'open':''}`} aria-label="Huvudmeny">
+    <nav id="primary-navigation" className={`primary-nav ${open?'open':''}`} aria-label="Huvudmeny">
       {links.map(([href,label])=><Link key={href} href={href}
         aria-current={path===href?'page':undefined} onClick={()=>setOpen(false)}>{label}</Link>)}
       <Link href="/bestall" className="nav-mobile-cta" onClick={()=>setOpen(false)}>Beställ</Link>
     </nav>
     <Link href="/bestall" className="btn btn-primary header-cta">Beställ <ArrowUpRight size={16}/></Link>
-    <button type="button" className="nav-toggle" aria-label={open?'Stäng meny':'Öppna meny'} aria-expanded={open} onClick={()=>setOpen(!open)}>
+    <button type="button" className="nav-toggle" aria-controls="primary-navigation" aria-label={open?'Stäng meny':'Öppna meny'} aria-expanded={open} onClick={()=>setOpen(!open)}>
       {open?<X/>:<Menu/>}
     </button>
   </div></header>;

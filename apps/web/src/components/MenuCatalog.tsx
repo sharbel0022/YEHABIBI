@@ -5,20 +5,23 @@ import Link from 'next/link';
 import type { Dish, Menu } from '@/types/domain';
 import { MenuCard } from '@/components/MenuCard';
 import { ItemPicker } from '@/components/ItemPicker';
+import { useMenuDraft } from '@/components/order-draft';
 import { calcDishTotal, formatSek } from '@/lib/domain';
 
-type Props = { menus: Menu[]; dishes: Dish[]; initialTab?: string; preview: boolean; minPeople: number };
+type Props = { menus: Menu[]; dishes: Dish[]; initialTab?: string; initialDish?: string; preview: boolean; minPeople: number };
 
-export function MenuCatalog({ menus, dishes, initialTab, preview, minPeople }: Props) {
+export function MenuCatalog({ menus, dishes, initialTab, initialDish, preview, minPeople }: Props) {
   const [tab, setTab] = useState<'paket' | 'bygg'>(initialTab === 'bygg' ? 'bygg' : 'paket');
-  const [guests, setGuests] = useState(Math.max(minPeople, 6));
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const chosen = dishes.find(dish => dish.id === initialDish && dish.price_ore > 0);
+  const { draft, setDraft } = useMenuDraft(chosen ? { quantities: { [chosen.id]: 1 } } : {}, dishes, minPeople);
+  const { guests, quantities } = draft;
   const selected = dishes.filter(dish => quantities[dish.id] > 0);
   const items = selected.map(dish => ({ dish_id: dish.id, quantity: quantities[dish.id] }));
   let total: ReturnType<typeof calcDishTotal> | null = null;
   let error = '';
   try {
-    if (items.length) total = calcDishTotal(items, dishes, guests, 'pickup', 0);
+    if (!Number.isSafeInteger(guests) || guests < minPeople || guests > 1000) error = `Välj mellan ${minPeople} och 1 000 personer.`;
+    else if (items.length) total = calcDishTotal(items, dishes, guests, 'pickup', 0);
   } catch { error = 'Beställningen överstiger beloppsgränsen. Minska antal eller kontakta oss för en offert.'; }
   const params = new URLSearchParams({ val: 'bygg', personer: String(guests),
     varor: selected.map(dish => `${dish.id}:${quantities[dish.id]}`).join(',') });
@@ -36,22 +39,23 @@ export function MenuCatalog({ menus, dishes, initialTab, preview, minPeople }: P
       {!menus.length && <p>Inga färdiga paket finns ännu.</p>}
     </div> : <>
       <div className="builder-intro">
-        <div><h2>Välj exakt vad ni vill äta.</h2><p>Även för en liten kväll hemma. Alla priser visas per styck och totalt.</p></div>
+        <div><span className="eyebrow">ER MENY, ERA FAVORITER</span><h2>Lite av allt. Precis som ni vill.</h2><p>Börja med antal gäster. Välj sedan rätter och mängder i lugn och ro.</p></div>
         <label className="field">Antal personer
-          <input type="number" min={minPeople} max={1000} value={guests}
-            onChange={event => setGuests(Math.max(minPeople, Math.min(1000, Number(event.target.value) || minPeople)))}/>
+          <input type="number" min={minPeople} max={1000} value={guests || ''}
+            onChange={event => setDraft(old => ({ ...old, guests: Number(event.target.value) }))}/>
         </label>
       </div>
       <ItemPicker dishes={dishes} guests={guests} quantities={quantities}
-        onQuantityChange={(id, quantity) => setQuantities(old => ({ ...old, [id]: quantity }))}/>
+        onQuantityChange={(id, quantity) => setDraft(old => ({ ...old, quantities: { ...old.quantities, [id]: quantity }, mode: 'bygg' }))}/>
       <div className="builder-summary" aria-live="polite">
-        {selected.map(dish => <div className="builder-line" key={dish.id}>
+        <div className="builder-summary-title"><strong>Din meny · {selected.length} rätter</strong><span>{guests} personer</span></div>
+        {selected.length > 0 && <details className="builder-details"><summary>Visa dina val</summary>{selected.map(dish => <div className="builder-line" key={dish.id}>
           <span>{quantities[dish.id]} × {dish.title} ({formatSek(dish.price_ore)})</span>
           <strong>{formatSek(quantities[dish.id] * dish.price_ore)}</strong>
-        </div>)}
+        </div>)}</details>}
         <div><span>Mat totalt (utan leverans)</span><strong>{total ? formatSek(total.subtotal_ore) : 'Välj maträtter'}</strong></div>
         <div><span>Pris per person / {guests} gäster</span><strong>{total ? formatSek(total.price_per_person_ore) : '–'}</strong></div>
-        <p>Leveransavgift visas innan du skickar förfrågan. Det är en gemensam beställning.</p>
+        <p>Dina matval sparas i den här fliken. Pris per person är en jämförelse för hela beställningen. Leverans väljer du i nästa steg.</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         {total && !error ? <Link className="btn btn-primary" href={`/bestall?${params.toString()}`}>Fortsätt till beställning →</Link>
           : <button type="button" className="btn btn-primary" disabled>Välj maträtter för att fortsätta</button>}

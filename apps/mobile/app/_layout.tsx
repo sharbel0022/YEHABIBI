@@ -1,4 +1,4 @@
-import { Image, Text, View } from 'react-native';
+import { Image, Platform, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -8,10 +8,11 @@ import { colors } from '../lib/ui';
 function Brand() {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-      <Image source={require('../assets/icon.png')} style={{ width: 32, height: 32 }} />
-      <Text style={{ color: colors.green, letterSpacing: 2, fontWeight: '700', fontSize: 15 }}>
-        CEDAR MEZZE
-      </Text>
+      <Image source={require('../assets/icon.png')} style={{ width: 46, height: 46 }} accessibilityLabel="Cederträd" />
+      <View>
+        <Text style={{ color: colors.green, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontWeight: '700', fontSize: 25 }}>Yehabibi</Text>
+        <Text style={{ color: colors.green, letterSpacing: 2.4, fontSize: 9 }}>CEDAR MEZZE</Text>
+      </View>
     </View>
   );
 }
@@ -28,8 +29,8 @@ export default function Layout() {
             headerStyle: { backgroundColor: '#FFFFFF' },
             tabBarActiveTintColor: colors.green,
             tabBarInactiveTintColor: colors.muted,
-            tabBarStyle: { borderTopColor: colors.line },
-            tabBarLabelStyle: { fontSize: 10 },
+            tabBarStyle: { borderTopColor: colors.line, paddingTop: 7, backgroundColor: '#FFFFFF' },
+            tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
           }}
         >
           <Tabs.Screen
@@ -49,15 +50,13 @@ export default function Layout() {
           <Tabs.Screen
             name="bygg"
             options={{
-              title: 'Bygg',
-              tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 22 }}>+</Text>,
+              title: 'Din meny', href: null,
             }}
           />
           <Tabs.Screen
             name="bestall"
             options={{
-              title: 'Beställ',
-              tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>▤</Text>,
+              title: 'Förfrågan', href: null,
             }}
           />
           <Tabs.Screen
