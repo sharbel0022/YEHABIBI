@@ -1,3 +1,5 @@
+> Historiskt dokument. Beskrivningar av Stripe gäller dåvarande version och är inte aktiva i V4.3. Aktuell betalningsarkitektur, kontokrav och testgränser finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md).
+
 # V4 och V4.1 – förändringar
 
 ## V4.1: fel- och åtgärdsrapport före ändringar, 2026-10-17

@@ -1,6 +1,8 @@
-# Publicering – V4.2
+# Publicering – V4.3
 
-V4.2 innehåller EAS-profiler och en webbackend. Företagets konton, innehåll och externa betalningsflöden måste verifieras före aktivering. Ingen automatisk butiksuppladdning sker. Användarens beslut 2026-10-17: använd endast isolerad lokal testdatabas; använd inte det inaktiva Supabase-projektet eller Stripe-miljön Quick match.
+V4.3 behåller EAS-profiler och en webbackend samt tillför avstängd Adyen-testadapter. Läs [betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) före kontokonfiguration. Företagets konton, innehåll och externa betalningsflöden måste verifieras före aktivering. Ingen automatisk butiksuppladdning sker. Användarens beslut 2026-10-17: använd endast isolerad lokal testdatabas; använd inte det inaktiva Supabase-projektet. Stripe är avvecklat som aktiv integration.
+
+Föregående publicering är V4.2 (lokalt sparat underlag anger Site-version 6). Den räknas inte som V4.3-synkronisering. Slutlig V4.3-version/deployment och main-SHA ska redovisas efter avslutade operationer.
 
 Aktuell appkälla använder SDK 57 för iPhone/Expo Go. Skapa och verifiera nya SDK 57-artefakter för egna development-/butiksbyggen; de tidigare färdiga SDK 58-byggena är historiska testresultat.
 
@@ -8,13 +10,13 @@ Aktuell appkälla använder SDK 57 för iPhone/Expo Go. Skapa och verifiera nya 
 
 | Miljö | App | Backend och betalningar |
 | --- | --- | --- |
-| Utveckling | `development`, `.dev` | Lokal server/testdatabas, Stripe testnycklar |
-| Test | `preview`, `.preview` | Egen HTTPS-testserver och testdatabas, Stripe sandbox |
+| Utveckling | `development`, `.dev` | Lokal server/testdatabas och kontrollerad simulerad leverantör |
+| Test | `preview`, `.preview` | Egen HTTPS-testserver/testdatabas och företagsägd Adyen-sandbox efter godkännande |
 | Produktion | `production`, utan suffix | Företagets HTTPS-server, produktionsdatabas och godkända livekonton |
 
 Profilerna skiljer apparnas identitet men skapar inte databaser eller backend-servrar automatiskt. Ange olika `EXPO_PUBLIC_API_URL` för EAS-miljöerna. Servern får sin egen konfiguration från hostingen. Lägg aldrig riktiga kunduppgifter i testdata.
 
-`EXPO_PUBLIC_` och `NEXT_PUBLIC_` betyder att värdet kan hamna i klientkoden. Supabase service-role, Stripe secret, webhookhemlighet, Resend och orderhemligheter är **endast servervariabler**. Mobilen behöver ingen Supabase-servernyckel. Utgå från `apps/web/.env.example` och `apps/mobile/.env.example`.
+`EXPO_PUBLIC_` och `NEXT_PUBLIC_` betyder att värdet kan hamna i klientkoden. Supabase service-role, betalnings-API-nyckel, webhook-HMAC, Resend och orderhemligheter är **endast servervariabler**. Mobilen behöver ingen Supabase-servernyckel. Utgå från `apps/web/.env.example` och `apps/mobile/.env.example`.
 
 ## Webb och backend
 
@@ -22,11 +24,11 @@ Profilerna skiljer apparnas identitet men skapar inte databaser eller backend-se
 2. Skapa separata Supabase-miljöer och kör SQL-migrationerna i ordning enligt [DATABAS.md](DATABAS.md). Bjud in ägaren i Supabase Auth, ange `ADMIN_EMAILS` och rätt `/auth/callback`-redirect.
 3. Välj hosting med Next.js-serverstöd. Rotens `npm run build` bygger workspace `@yehabibi/web`. Statiska Expo-filer ersätter inte API-servern.
 4. Ange `NEXT_PUBLIC_SITE_URL` till webbens riktiga HTTPS-domän. Appens API-adress ska nå samma backend. Ordermejl och QR använder webbadressen, aldrig emulatorns `10.0.2.2`.
-5. Konfigurera företagsägd Stripe sandbox, verifierad Resend-avsändare och två olika orderhemligheter på minst 32 tecken. Håll `ORDERS_ENABLED=false` och `PAYMENTS_ENABLED=false` publikt tills innehåll och hela orderflödet verifierats. En separat godkänd testmiljö sätter betalspärren till true med testnyckel. Livebetalningar har dessutom `STRIPE_LIVE_ENABLED` som ska förbli false.
-6. Lägg till Stripe-webhook på `/api/stripe/webhook`: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`. Lägg in dess egen signeringshemlighet.
-7. Verifiera testkort, Swish om kontot stöder det, eventuell Apple Pay på stödd fysisk enhet, kontantflöde och återbetalning. Gå till livekonfiguration först efter godkänt testflöde.
+5. Företaget godkänner leverantör/offert och konto innan anslutning. Konfigurera därefter eget Adyen-testkonto, verifierad Resend-avsändare och två olika orderhemligheter på minst 32 tecken. Håll `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false` och `PAYMENT_PROVIDER=none` publikt. Inga live-endpoints finns i V4.3-adaptern.
+6. Lägg Standard-webhook med HMAC på `/api/payments/webhook` i godkänd testmiljö. Relevanta händelser: `AUTHORISATION`, `CAPTURE`, `CAPTURE_FAILED`, `REFUND`, `REFUND_FAILED`, `REFUNDED_REVERSED`, `CHARGEBACK`, `SETTLED_REVERSED`. Verifiera omedelbar automatisk capture; vanlig auto-capture skickar normalt ingen separat CAPTURE-webhook.
+7. Testa officiella testkort/3D Secure, tillgänglig Swish, Apple Pay på fysisk iPhone, Google Pay på fysisk Android, kontant och återbetalning. Lokal simulering får inte redovisas som Adyen-sandbox. Produktion kräver framtida separat godkänt arbete.
 
-Swish går genom hosted Checkout i SEK. Kontrollera faktisk kontotillgång och sätt först därefter `STRIPE_SWISH_ENABLED=true`. Apple Pay i Checkout visas när plattformen stöder det. Se [Stripes guide](https://docs.stripe.com/payments/swish/accept-a-payment?payment-ui=checkout).
+Adyens dokumenterade stöd garanterar inte merchantbehörighet. Apple Pay i Pay by Link använder Adyens certifikat; Google Pay kräver registrering av den hostade domänen. Se [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) för primärkällor och konfiguration.
 
 ## Befintliga ChatGPT Sites
 
@@ -53,10 +55,10 @@ Katalogen har ingen separat Sites-menylista. Next.js, Expo och Sites använder s
 
 | Tjänst | Behövs på servern och i företagets konto |
 | --- | --- |
-| Supabase | Identifierat aktivt projekt, fem migrationer i ordning, `NEXT_PUBLIC_SUPABASE_URL`, publik anon-nyckel och serverns `SUPABASE_SERVICE_ROLE_KEY`; bjud in/bekräfta admin och ange `ADMIN_EMAILS`. Testa Storage-uppladdning och Auth-callback på rätt domän. |
+| Supabase | Identifierat aktivt projekt, hela migrationskedjan inklusive V4.3 i ordning, `NEXT_PUBLIC_SUPABASE_URL`, publik anon-nyckel och serverns `SUPABASE_SERVICE_ROLE_KEY`; bjud in/bekräfta admin och ange `ADMIN_EMAILS`. Testa Storage-uppladdning och Auth-callback på rätt domän. |
 | Katalog | Admin publicerar verkliga priser i öre, portionsstorlekar, rekommenderade mängder, allergener, bilder, paket, minimum och aktiva leveranszoner. Testpriser från specifikationen används inte publikt. |
 | Order | Två olika slumpade hemligheter på minst 32 tecken: `ORDER_LINK_SECRET`, `ORDER_RATE_LIMIT_SECRET`. Granska villkor och kontakt. Aktivera `ORDERS_ENABLED` endast i verifierad testmiljö först. |
-| Stripe | Företagsägd sandbox/testnyckel, `STRIPE_WEBHOOK_SECRET` för rätt URL och händelserna ovan. `PAYMENTS_ENABLED=true` bara i testmiljön. Verifiera kontoåtkomst till Swish före dess flagga; Apple Pay provas på kompatibel enhet. Liveflaggan förblir false. |
+| Adyen-testkonto | Företagsägd godkänd sandbox, `PAYMENT_PROVIDER=adyen`, `ADYEN_ENVIRONMENT=test`, `ADYEN_CAPTURE_MODE=automatic`, API-/merchant-/HMAC-uppgifter och verifierade metoder i `ADYEN_ENABLED_METHODS`. `PAYMENTS_ENABLED=true` endast i godkänd testmiljö. Inga livebetalningar. |
 | Resend | `RESEND_API_KEY`, verifierad avsändare i `EMAIL_FROM`, rätt `OWNER_NOTIFICATION_EMAIL` och företagets godkända testmottagare. Verifiera faktisk leverans och återförsök, inte bara ett lyckat API-svar. |
 | Expo | `EXPO_PUBLIC_API_URL` till samma HTTPS-testbackend. Enbart API-adressen är publik; inga servernycklar i appen. Push kräver företagets FCM/APNs och fysisk installerad app. |
 

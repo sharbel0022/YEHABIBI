@@ -1,6 +1,6 @@
 # Testplan för ägaren – gör detta före skarp lansering
 
-V2:s ägarchecklista är bevarad här. För V3:s aktuella kommandon, Expo-tester och verkliga verifieringsresultat, börja med [TESTER.md](TESTER.md).
+Ägarchecklista för V4.3. Börja med [betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) och [TESTER.md](TESTER.md). En simulerad lokal webhook räknas inte som Adyen-sandbox.
 
 ## Kundens flöde
 
@@ -18,9 +18,11 @@ V2:s ägarchecklista är bevarad här. För V3:s aktuella kommandon, Expo-tester
 - [ ] Ägaren loggar in med engångslänk, godkänner, nekar och begär ändring.
 - [ ] Kontant beställning skapar tydligt mejl om att den är **obetald**.
 - [ ] Kontant fungerar bara vid hämtning och markeras betald först efter verklig betalning.
-- [ ] Mottagen Stripe-testbetalning uppdaterar ordern en gång även om samma webhook skickas två gånger.
+- [ ] Verifierad Adyen-testbetalning uppdaterar ordern en gång även om samma webhook skickas två gånger; fel belopp/signatur/konto/referens avvisas.
 - [ ] Att bara besöka Checkout-sidan eller återvända till hemsidan markerar **inte** betalningen som klar.
-- [ ] Testa återbetalning i Stripe och kontrollera webhookstatus.
+- [ ] Begär återbetalning i admin och kontrollera pending → verifierad status samt sena refundfel/återföringar.
+- [ ] Testa Swish mobilväxling/desktop-QR, Apple Pay på fysisk iPhone, Google Pay på fysisk Android och kortets 3D Secure i officiell testmiljö efter kontoaktivering.
+- [ ] Ett oklart/utgånget försök skapar ingen ny debitering; ägaren ser avstämningsbehov. Betalspärr stoppar skapande men låter redan utfärdade signerade händelser avstämmas.
 - [ ] Ladda upp en ägarbild och video; byt startsidans video och kontrollera fallback.
 - [ ] Generera QR-kod, skanna med telefon och kontrollera att länken är korrekt.
 

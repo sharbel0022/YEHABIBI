@@ -1,3 +1,5 @@
+> Historiskt dokument. Beskrivningar av Stripe gäller dåvarande version och är inte aktiva i V4.3. Aktuell betalningsarkitektur, kontokrav och testgränser finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md).
+
 # V4.1 – verifierat nuläge inför V4.2
 
 Granskad 2026-10-17. Utgångspunkt är `main`, commit `4c77c4c3b78068ebd0b2ae2ebaa544145b974a11`. [GitHub Actions 39064407515](https://github.com/sharbel0022/YEHABIBI/actions/runs/39064407515) är godkänd för denna commit, inklusive den isolerade HTTP-/databasintegrationen. Rapporten skiljer den verifierade V4.1-källan från V4.2:s senare ändringar och från externa tjänster som ännu saknar företagskonfiguration.

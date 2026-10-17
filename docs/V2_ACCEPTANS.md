@@ -1,3 +1,5 @@
+> Historiskt dokument. Beskrivningar av Stripe gäller dåvarande version och är inte aktiva i V4.3. Aktuell betalningsarkitektur, kontokrav och testgränser finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md).
+
 # Cedar Mezze V2 – leveransstatus och testplan
 
 **V2-historik:** Listan beskriver V2:s funktioner och acceptanskrav före Expo-uppgraderingen. Den bevaras som regressionsunderlag. V3:s aktuella kommandon och faktiska resultat finns i [TESTER.md](TESTER.md). Databasen uppgraderas i ordningen **0001 → 0002 → 20261017121516** enligt [DATABAS.md](DATABAS.md); kör inte om redan tillämpade migrationer.

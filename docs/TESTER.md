@@ -1,3 +1,28 @@
+# Tester och verifiering – V4.3
+
+Lokala slutkontroller körda 2026-10-17. [Betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) skiljer lokal integration, simulerad leverantör, riktig sandbox och fysisk enhet. Ingen Adyen-sandboxtransaktion eller livebetalning har verifierats här.
+
+| Kontroll | Verifierat under V4.3-arbetet |
+| --- | --- |
+| Anpassade historiska/delade enhetstester | 40/40 godkända i `domain.test.mjs`, `v3.test.mjs`, `v4.test.mjs`, `unified-domain.test.mjs`, inklusive sju historiska SQL-underfall. V4/V4.1-SQL kör avsiktligt till den historiska migrationsgränsen; nya fullkedjeregler ligger i betalningssviten. |
+| Ren installation | `npm ci --no-audit --no-fund` godkänd; projektets gamla Next-/Expo-processer stoppades för att frigöra Windows-fillås. Stripe-SDK saknas i den nya beroendekedjan. |
+| Syntax, typer och tester | `npm run verify` godkänd: syntax, typkontroll för alla konsumenter och **80/80 tester** inklusive 18 provider-/SQL-fall. |
+| Next.js och Expo | Produktionsbygge godkänt; iOS/Android Hermes och åtta Expo-webbrutter exporterade med bibehållen SDK 57. Export är inget signerat nativebygge. |
+| Produktions-HTTP/SEO | `npm run test:web` godkänd: nio publika sidor, metadata/canonical, elva SSR-rätter, avstängda order/adminskydd och robots/sitemap. |
+| Riktig lokal HTTP/databas | `npm run test:integration` godkänd med PostgreSQL 18.3/PostgREST och Next: **11 syntetiska order, 64 idempotenta testmejl**. Alla fyra onlinebetalningsmetoder använder uttryckligen simulerad leverantör. |
+| GitHub/CI, merge, Sites och EAS | Slutligt SHA, PR-/main-CI och externa publicerings-/byggresultat ska kontrolleras i den länkade slutleveransen. Dessa externa steg räknas inte som verifierade av de lokala testerna. |
+| Riktig Adyen-sandbox, Swish, Apple Pay, Google Pay, kort/3D Secure | Inte verifierat med företagets konto. Lokala signerade svar och provider-HTTP-dubbel är simuleringar. |
+| Fysiska iPhone-/Android-prov | Återstår för aktuell V4.3. Export/EAS-jobb är inte en betalningskontroll. |
+| Externa tjänster | Företagets Supabase Auth/Storage, Resend-leverans och APNs/FCM kräver egna verifieringar. |
+
+Historiska Stripe-purehelpers har avvecklats. Deras beteende ersätts av provideroberoende försök-/HMAC-/återbetalningstester; gamla order- och migrationsassertions bevaras. Ingen produktionsdatabas, kundbetalning eller oidentifierat konto används.
+
+HTTP-sviten verifierar ägargranskning utan automatisk extern session, uttrycklig prisacceptans, kundens senare metodval, parallell initiering med samma session, privat token och förbjudna klientbelopp, exakt SEK/revision, nekad betalning och återupptagning, signerade dubbletter, asynkron full återbetalning, spärrad leverans under återbetalning, kontantmottagarens adminreferens och uttrycklig inställning för obetalda förfrågningar. Avstängning av nya betalningar blockerar nya sessioner men tillåter fortfarande verifierade tidigare webhooks. Databassviten täcker även externa/delvisa återbetalningar och chargebacks som kräver avstämning, återförda medel, rollback och bevarade historiska Stripe-referenser.
+
+---
+
+> Historisk verifiering nedan beskriver dåvarande versioner. Stripe nämns som historisk testtransport och är inte aktiv betalningslösning i V4.3.
+
 # Tester och verifiering – V4.2
 
 Verifierat 2026-10-17. Kodcommit för granskningen: [0b60953563f0e6e40879d1fc91e6453f1068c4b8](https://github.com/sharbel0022/YEHABIBI/commit/0b60953563f0e6e40879d1fc91e6453f1068c4b8). V4.1:s utgångsläge finns i [V4_1_NULAGE.md](V4_1_NULAGE.md). Äldre resultat nedan är historik och räknas inte som nya enhetstester.

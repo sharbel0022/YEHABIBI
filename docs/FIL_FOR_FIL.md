@@ -1,4 +1,4 @@
-# Fil för fil – V4.2
+# Fil för fil – V4.3
 
 Följ en förfrågan från `OrderForm.tsx` eller `bestall.tsx` → `packages/shared/ordering` → `packages/api-client` → `api/orders/route.ts` → SQL-funktionen `create_catering_order`. Det är samma kontrakt på webb och mobil.
 
@@ -73,14 +73,14 @@ Native navigation, tangentbord, datumväljare, enhetslagring och pushbehörighet
 | `app/api/admin/orders/[id]/route.ts` | Skyddade ägaråtgärder, prisförslag, Checkout, kontanter och återbetalning. |
 | `app/api/admin/{catalog,items,menus,settings}` | Ändra/avpublicera i samma katalog. `items` bevarar V2-kompatibilitet. |
 | `app/api/admin/{upload,push}` | Kontrollerade mediafiler och ägarens notisregistrering. |
-| `app/api/stripe/webhook/route.ts` | Verifierad Stripe-signatur, belopp, valuta, session och idempotent avstämning. |
+| `app/api/payments/{create,status,webhook}/route.ts` | Generisk betalningsinitiering, privat status och HMAC-verifierad avstämning. |
 | `app/api/health/route.ts`, `app/api/qr/[kind]/route.ts` | Beredskapskontroller och företagets riktiga QR-länkar. |
 | `lib/api-client.ts` | Webbens same-origin-instans av `createApiClient`. |
 | `lib/data.ts` | Gemensamma databasläsningar och uttryckligt begränsade publika svar. |
 | `lib/config.ts` | Serverkonfiguration och återexport av delad förhandsvisning. |
 | `lib/supabase.ts`, `lib/auth.ts` | Serverklient, cookies, verifierad admin, origin och CORS. |
 | `lib/tracking.ts` | Privat ordertoken, HMAC och säker jämförelse. |
-| `lib/payments.ts`, `lib/checkout.ts` | Serverns enda Stripe-flöde och återanvändning av rätt Checkout-session. |
+| `lib/payments.ts`, `lib/payments/{provider,service}.ts`, `lib/payments/providers/adyen.ts` | Orderkoppling, providerkontrakt, beständiga försök och avstängd Adyen-testadapter. Gamla `checkout.ts` är avvecklad. |
 | `lib/mailer.ts`, `lib/push.ts` | Köade besked och separat leveranskvittens till kund/ägare. |
 | `lib/browser-upload.ts` | Återanvänt uppladdningsanrop i admin. |
 | `lib/domain.ts`, `lib/validators.ts`, `types/domain.ts` | Tunna kompatibilitetsexporter av shared. Lägg ny gemensam logik i paketet. |
@@ -89,9 +89,9 @@ Native navigation, tangentbord, datumväljare, enhetslagring och pushbehörighet
 
 | Fil/grupp | Varför den finns |
 | --- | --- |
-| `supabase/migrations/*.sql` | Befintlig historik för tabeller, transaktioner, lås och RLS. V4.2 tillför ingen migration. |
+| `supabase/migrations/*.sql` | Historik för tabeller, transaktioner, lås och RLS samt additiv V4.3-migration med generiska betalningsförsök, händelser och refunds. |
 | `tests/unified-domain.test.mjs`, `tests/api-client.test.mjs` | Gemensamma regler, båda plattformarnas kontrakt, uppdaterade priser och nätverksfel. |
-| `tests/domain.test.mjs`, `tests/v2.test.mjs`, `tests/v3.test.mjs`, `tests/v4.test.mjs` | Regressionsskydd för priser, validering, Checkout och SQL. |
+| `tests/domain.test.mjs`, `tests/v2.test.mjs`, `tests/v3.test.mjs`, `tests/v4.test.mjs` | Regressionsskydd för priser och validering samt historiska SQL-kontrakt. Nya provider-/SQL-regler provas i `payments.test.mjs` och `payment-db.test.mjs`. |
 | `tests/integration.mjs` | Isolerat PostgreSQL/PostgREST/Next-HTTP-flöde; se TESTER.md för verktyg och verkliga resultat. |
 | `scripts/check-source.cjs` | Syntaxkontroll för appar och paket. |
 | `scripts/sync-sites.mjs` | Kopierar granskad main-källa till ett öppnat befintligt Sites-projekt och bevarar dess bygglager. Publicerar inte i sig. |

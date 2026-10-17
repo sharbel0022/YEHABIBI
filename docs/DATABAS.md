@@ -1,8 +1,8 @@
-# Databasen i V4.2
+# Databasen i V4.3
 
 Supabase kör PostgreSQL. Webben, mobilappen och admin använder samma server-API. Mobilen gör inga direkta databasfrågor och har ingen service-role-nyckel.
 
-V4.2 återanvänder exakt den befintliga migrationskedjan. Inga nya tabeller, migrationer eller databasmiljöer skapas av refaktoreringen. Det finns inga separata ordertabeller för iPhone, Android och webb. En gemensam företagsägd Supabase-databas används per konfigurerad miljö; utveckling, staging och produktion ska vara separerade. Företagets riktiga produktionstjänster behöver fortfarande verifieras enligt [TESTER.md](TESTER.md).
+V4.3 återanvänder databasen och lägger till en additiv betalningsmigration. Historiska order/priser/betalningsreferenser bevaras. Det finns inga separata ordertabeller för iPhone, Android och webb. En gemensam företagsägd Supabase-databas används per konfigurerad miljö; utveckling, staging och produktion ska vara separerade. Företagets riktiga tjänster behöver fortfarande verifieras enligt [TESTER.md](TESTER.md).
 
 ## Migrationer
 
@@ -12,7 +12,9 @@ V4.2 återanvänder exakt den befintliga migrationskedjan. Inga nya tabeller, mi
 4. `20261017135737_v4_order_review_and_notifications.sql` lägger till återförsök, prisrevisioner, kundacceptans och betalningsnotiser.
 5. `20261017192114_v41_notifications_and_settings.sql` köar alla orderbesked, bevarar moderna zoner/arkiverad grundzon och rättar webhookåterförsök efter sessionsbyte.
 
-På en tom testdatabas körs alla fem i ordning. På en befintlig databas tillämpas endast saknade migrationer efter backup. Kör inte filerna upprepade gånger: de är versionsändringar, inte seed vid varje start. Lokalt testad SQL är inte bevis på att den har applicerats i företagets databas; se [TESTER.md](TESTER.md). Inga migrationer har körts i det anslutna inaktiva projektet.
+6. `20261017203703_generic_payments_without_stripe_v43.sql` tillför generiska betalningsförsök, leverantörshändelser, refunds och avstämningsfält samt explicita serverrollsbehörigheter. Historiska Stripe-RPC:ers körningsrättigheter återkallas.
+
+På en tom testdatabas körs hela kedjan i ordning. På en befintlig databas tillämpas endast saknade migrationer efter backup. Kör inte filerna upprepade gånger: de är versionsändringar, inte seed vid varje start. Lokalt testad SQL är inte bevis på att den har applicerats i företagets databas; se [TESTER.md](TESTER.md). Inga migrationer har körts i det anslutna inaktiva projektet.
 
 ## Tabeller och relationer
 
@@ -26,7 +28,8 @@ På en tom testdatabas körs alla fem i ordning. På en befintlig databas tillä
 | `campaigns` | Rubrik, text, media, start/slut och array med marknadsförda meny-id:n |
 | `orders` | Kundförfrågan, kontakt, leverans, frysta belopp, status och bevarad V2-`items_snapshot` |
 | `order_items` | Normaliserade orderrader med historisk titel/pris och koppling till ordern |
-| `payment_events` | Unika Stripe-händelser kopplade till order, för idempotent webhookhantering |
+| `payment_events` | Historiska Stripehändelser bevarade för spårbarhet; ingen aktiv integration |
+| `payment_attempts`, `payment_provider_events`, `payment_refunds` | Beständiga generiska betalnings-/återbetalningsförsök och verifierade händelser |
 | `order_rate_limits` | HMAC-hashade spamnycklar, timfönster och antal försök |
 | `owner_push_tokens` | Expo-token kopplad till verifierad administratör i `auth.users`, med senaste leveransticket/tid |
 | `order_push_tokens` | Kundens registrerade Expo-enheter för en privat order |
@@ -59,9 +62,9 @@ Leverans kräver en aktiv zon som matchar början av det normaliserade femsiffri
 | `status` | `new`, `reviewing`, `changes_requested`, `approved`, `preparing`, `ready`, `dispatched`, `completed`, `rejected`, `cancelled` |
 | `payment_status` | `unpaid`, `pending`, `paid`, `failed`, `refunded` |
 
-En order kan alltså vara godkänd men fortfarande vänta på betalning. Onlineorder blir inte betald av att kunden återvänder från Checkout. `apply_stripe_event` matchar rätt order/session och sparar händelse-id atomärt med betalningsändringen. Dubbla webhookleveranser räknas inte som nya betalningar. Kontant registreras manuellt av ägaren efter verklig betalning vid hämtning.
+En order kan vara godkänd men fortfarande vänta på betalning. Godkännande/prisacceptans skapar ingen betalsession. Kundens `/api/payments/create` reserverar ett försök före leverantörsanropet. Autentiserad webhook matchar unik försöksreferens, belopp, SEK och PSP-referens; SQL tillämpar händelsen atomärt. Dubbla leveranser skapar ingen ny betalning. `payment_review_required`/orsak och `payment_refund_status` skiljer avvikelse från vanlig betalstatus. Kontant registreras först av behörig admin efter verklig betalning vid hämtning.
 
-`attach_catering_checkout` kopplar en verifierad Checkout-länk till ordern bara om föregående orderstatus, betalningsstatus och session fortfarande stämmer. Om en webhook redan har satt `paid`, eller någon hunnit byta session, avvisas uppdateringen. Funktionen är `SECURITY INVOKER` och endast tillgänglig för `service_role`.
+V4.3 använder generiska RPC:er för att reservera/koppla försök och återbetalningar samt avstämma händelser. De är `SECURITY INVOKER` med rättigheter endast för serverrollen. Gamla `attach_catering_checkout`/`apply_stripe_event` finns kvar som historik men deras körningsrättigheter är indragna. Läs [V4.3-guiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) för fält, säkerhetsgränser och Supabases aktuella GRANT-regler.
 
 ## RLS, administratörer och privata länkar
 
@@ -75,7 +78,9 @@ Publik orderläsning kräver både kod och hemlig token. Databasen sparar tokenh
 
 Se [Supabases RLS-guide](https://supabase.com/docs/guides/database/postgres/row-level-security) för bakgrunden. Verifiera migration, roller och avvisade obehöriga anrop i en riktig testdatabas före produktion.
 
-## V4: återförsök, prisförslag och notiser
+## Historik V4/V4.1: återförsök, prisförslag och notiser
+
+> Nedan beskrivs de dåvarande migrationerna. Stripe-RPC:erna används inte för nya betalningar i aktuell V4.3.
 
 Migrationen `20261017135737_v4_order_review_and_notifications.sql` körs efter V3. Den lägger till fält/funktioner och bevarar befintliga rader. Den gamla prisfunktionen får namnet `create_catering_order_v3` och ett omslag kontrollerar återförsöksnyckeln innan samma prislogik används.
 

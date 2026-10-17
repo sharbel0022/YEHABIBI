@@ -1,10 +1,10 @@
-# YEHABIBI V4.2 – Cedar Mezze
+# YEHABIBI V4.3 – Cedar Mezze
 
 Libanesisk catering för hemma, fest och företag. Next.js driver webb, admin och den gemensamma backendservern. Expo SDK 57 driver iPhone och Android. Alla plattformar använder samma katalog, orderkontrakt och Supabase/PostgreSQL inom respektive miljö.
 
-V4.2 flyttar upprepade affärsregler och demodata till `packages/shared` och publika HTTP-anrop till `packages/api-client`. Next.js och Expo behåller sina fungerande gränssnitt. Ingen extra backend, databas eller databasmigration tillkommer.
+V4.3 ersätter aktiv Stripe-kod med ett gemensamt betalningsgränssnitt och en avstängd Adyen Pay by Link-adapter för **testmiljö**. Swish, Apple Pay, Google Pay och Visa/Mastercard kräver företagets verifierade konton och riktiga sandboxprov. Inga livebetalningar aktiveras. Orderhistoriken bevaras genom en additiv migration.
 
-Läs [V4.2-guiden](docs/UNIFIED_ARCHITECTURE_V4_2.md) för före/efter, beroendekarta och exempel på var du ändrar en regel. [TESTER.md](docs/TESTER.md) redovisar faktiskt testutfall. GitHub/CI och Sites senaste verifierade publicering beskrivs i [PUBLICERING.md](docs/PUBLICERING.md).
+Läs [V4.3-guiden](docs/PAYMENTS_WITHOUT_STRIPE_V4_3.md) för betalningsflöde, leverantörsjämförelse, verifierade priser, installation och kvarvarande företagskrav. [V4.2-guiden](docs/UNIFIED_ARCHITECTURE_V4_2.md) bevarar refaktoreringens bakgrund. [TESTER.md](docs/TESTER.md) redovisar faktiskt testutfall. GitHub/CI och Sites senaste verifierade publicering beskrivs i [PUBLICERING.md](docs/PUBLICERING.md).
 
 ## Starta i Windows
 
@@ -49,7 +49,7 @@ Starta om Expo efter ändrad API-adress. `APP_ENV` väljer appidentitet; API-adr
 
 Kunden väljer catering → anpassar → anger datum/plats och kontakt → granskar → skickar förfrågan. Servern läser aktuella priser och skapar order och rader i en databastransaktion. Samma `request_id` återanvänder ordern vid identiska återförsök.
 
-Ägaren granskar i `/admin`. Ett nytt pris kräver kundens uttryckliga godkännande av rätt revision. Betalning sker sedan genom serverns Stripe Checkout. Bara verifierad webhook kan bekräfta onlinebetalning. Ursprungliga orderrader och priser bevaras när katalogen ändras.
+Ägaren granskar i `/admin`. Ett nytt pris kräver kundens uttryckliga godkännande av rätt revision. Ägaren skickar betalningsbegäran med privat statuslänk; kunden väljer därefter en serververifierad metod och skapar den hostade testbetalningen. Bara autentiserad leverantörsbekräftelse kan bekräfta onlinebetalning. Kontant gäller bara hämtning och kvitteras av behörig administratör. Ursprungliga orderrader och priser bevaras när katalogen ändras.
 
 Adminändringar läses från samma `/api/catalog` på båda plattformar. Webbens meny/formulär uppdaterar vid fokus, återkomst till synlig flik, återställd anslutning och knappen Uppdatera menyn. Expo uppdaterar vid återkomst till appen och när kunden drar för att uppdatera. Ett nätverksfel behåller matvalen men stänger möjligheten att skicka från en obekräftad katalog.
 
@@ -60,7 +60,7 @@ apps/web/           Next.js: webb, SEO, admin, API och serverintegrationer
 apps/mobile/        Expo: native skärmar, navigation och enhetslagring
 packages/shared/    Typer, regler, validering, designvärden och avstängd demo
 packages/api-client/ Typade publika fetch-anrop för webb och Expo
-supabase/migrations/ Befintlig migrationskedja till och med V4.1
+supabase/migrations/ Befintlig historik plus additiv V4.3-betalningsmigration
 tests/              Gemensamma regler, API-kontrakt, SQL och integration
 docs/               Svenska guider och verifieringsresultat
 ```
@@ -72,7 +72,8 @@ docs/               Svenska guider och verifieringsresultat
 | [ARKITEKTUR.md](docs/ARKITEKTUR.md) | Beroenden, säkerhet och gränser mellan paketen |
 | [FIL_FOR_FIL.md](docs/FIL_FOR_FIL.md) | Viktiga filer och var du gör en ändring |
 | [DATABAS.md](docs/DATABAS.md) | Tabeller, historiska priser, idempotens och behörigheter |
-| [BETALNINGAR.md](docs/BETALNINGAR.md) | Godkännande, prisförslag, Checkout och webhook |
+| [PAYMENTS_WITHOUT_STRIPE_V4_3.md](docs/PAYMENTS_WITHOUT_STRIPE_V4_3.md) | Adyen-kandidat, bank-Swish/Nexi, kostnader och installation |
+| [BETALNINGAR.md](docs/BETALNINGAR.md) | Godkännande, prisförslag, hostad betalning och webhook |
 | [EXPO.md](docs/EXPO.md) | Windows, Expo Go, Android och EAS |
 | [TESTER.md](docs/TESTER.md) | Körda tester och kvarvarande externa kontroller |
 | [PUBLICERING.md](docs/PUBLICERING.md) | GitHub, miljöer och faktisk Sites-status |
@@ -96,6 +97,6 @@ Installera workspaces från roten och uppdatera låsfilen med npm vid beroendeä
 
 ## Inför riktiga beställningar
 
-Utan konfigurerade företagstjänster visas samma avstängda förhandsvisning på webb och mobil. Företagets priser, allergener, kontaktuppgifter, villkor, databasmiljö och externa tjänster måste verifieras före lansering. Order- och betalningsspärrarna aktiveras inte automatiskt av refaktoreringen. Det tidigare anslutna inaktiva Supabase-projektet och Stripe-miljön Quick match används inte enligt tidigare beslut.
+Utan konfigurerade företagstjänster visas samma avstängda förhandsvisning på webb och mobil. Företagets priser, allergener, kontaktuppgifter, villkor, databasmiljö och externa tjänster måste verifieras före lansering. Obetald förfrågan kräver uttrycklig företagsinställning. Order- och betalningsspärrarna aktiveras inte automatiskt. Det tidigare anslutna inaktiva Supabase-projektet används inte. Stripe är ingen aktiv betalningslösning; historiska fält/migrationer bevaras för spårbarhet.
 
-Serverhemligheter hör hemma i webbserverns miljövariabler. Allt med prefixet `EXPO_PUBLIC_` kan läsas ur appen. Lägg aldrig Supabase service-role, Stripe secret eller Resend-nycklar där. Separera utveckling, staging och produktion; webb och mobil inom samma miljö ska peka på samma system.
+Serverhemligheter hör hemma i webbserverns godkända secret-hantering. Allt med prefixet `EXPO_PUBLIC_` kan läsas ur appen. Lägg aldrig Supabase service-role, betalnings-API-/HMAC- eller Resendnycklar där och skicka dem aldrig i chatt/GitHub. Separera utveckling, staging och produktion; webb och mobil inom samma miljö ska peka på samma system.

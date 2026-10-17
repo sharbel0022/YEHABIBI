@@ -1,3 +1,5 @@
+> Historiskt dokument. Beskrivningar av Stripe gäller dåvarande version och är inte aktiva i V4.3. Aktuell betalningsarkitektur, kontokrav och testgränser finns i [PAYMENTS_WITHOUT_STRIPE_V4_3.md](PAYMENTS_WITHOUT_STRIPE_V4_3.md).
+
 # Läs koden – Cedar Mezze V2
 
 **V2-historik:** Detta dokument bevarar beskrivningen av versionen på `main` före Expo-uppgraderingen. Webbens sökvägar har flyttats till `apps/web/src/`. För aktuell V3-struktur och datakompatibilitet, läs [FIL_FOR_FIL.md](FIL_FOR_FIL.md) och [DATABAS.md](DATABAS.md). Prisregler och validering delas nu också med Expo genom `packages/shared`.
