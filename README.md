@@ -4,7 +4,7 @@ Libanesisk catering för hemma, fest och företag. **Expo SDK 57** driver iPhone
 
 Det befintliga [EAS-projektet Cedar Mezze](https://expo.dev/accounts/sharbel1423/projects/cedar-mezze) och dess identiteter bevaras. Expo Go är standard på iPhone. Push kräver en egen development build och riktiga APNs/FCM-uppgifter; e-post är reservvägen. Verifiering av **V4**, äldre V3-byggen och externa tjänster skiljs åt i [TESTER.md](docs/TESTER.md).
 
-Källan utvecklas på [yehabibi-v4](https://github.com/sharbel0022/YEHABIBI/tree/yehabibi-v4) och kontrolleras i GitHub Actions före sammanslagning till main. [Öppna Sites-webben](https://yehabibi.asdasdsa213.chatgpt.site). Ändringsöversikt och gränser finns i [V4_FÖRÄNDRINGAR.md](docs/V4_FÖRÄNDRINGAR.md).
+V4 är granskad i [PR #3](https://github.com/sharbel0022/YEHABIBI/pull/3), sammanslagen till [main](https://github.com/sharbel0022/YEHABIBI/tree/main) efter grön CI och publicerad på [Sites](https://yehabibi.asdasdsa213.chatgpt.site). Utvecklingsbranchen [yehabibi-v4](https://github.com/sharbel0022/YEHABIBI/tree/yehabibi-v4) finns kvar. Ändringsöversikt och gränser finns i [V4_FÖRÄNDRINGAR.md](docs/V4_FÖRÄNDRINGAR.md).
 
 ## Starta
 
