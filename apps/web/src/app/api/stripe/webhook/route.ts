@@ -1,6 +1,7 @@
 import { stripeClient } from '@/lib/payments';
 import { adminDb } from '@/lib/supabase';
 import type Stripe from 'stripe';
+import { deliverPaymentNotifications } from '@/lib/mailer';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -33,13 +34,16 @@ export async function POST(request:Request) {
     const charge=event.data.object as Stripe.Charge;
     paymentIntent=typeof charge.payment_intent==='string'?charge.payment_intent:null;
     if(charge.refunded && paymentIntent){
-      const {data}=await db.from('orders').select('id').eq('stripe_payment_intent_id',paymentIntent).maybeSingle();
+      const {data,error}=await db.from('orders').select('id').eq('stripe_payment_intent_id',paymentIntent).maybeSingle();
+      if(error) return new Response('Retry event',{status:500});
       if(data){orderId=data.id;kind='refunded';}
     }
   }
   if(kind && orderId) {
     const {error}=await db.rpc('apply_stripe_event',{p_event_id:event.id,p_event_type:kind,p_order_id:orderId,p_session_id:sessionId,p_payment_intent:paymentIntent});
     if(error){console.error('Payment event failed',error.code);return new Response('Retry event',{status:500});}
+    try { await deliverPaymentNotifications(orderId); }
+    catch { return new Response('Payment saved; retry notification',{status:500}); }
   }
   return new Response('ok',{status:200});
 }

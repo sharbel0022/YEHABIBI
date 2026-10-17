@@ -7,8 +7,8 @@ export const paymentLabels: Record<PaymentPreference, string> = {
   swish: 'Swish', card: 'Kort', apple_pay: 'Apple Pay', cash: 'Kontant vid hämtning'
 };
 export const statusLabels: Record<OrderStatus, string> = {
-  new: 'Ny förfrågan', changes_requested: 'Ändring föreslagen',
-  approved: 'Godkänd', preparing: 'Under förberedelse', rejected: 'Nekad', ready: 'Klar för hämtning/leverans',
+  new: 'Mottagen', reviewing:'Under granskning', changes_requested: 'Ändring föreslagen',
+  approved: 'Godkänd', preparing: 'Under förberedelse', rejected: 'Nekad', ready: 'Klar för hämtning', dispatched:'På väg',
   completed: 'Slutförd', cancelled: 'Avbruten'
 };
 export const paymentStatusLabels: Record<PaymentStatus, string> = {
@@ -66,12 +66,14 @@ export function canUseCash(preference: PaymentPreference, fulfillment: Fulfillme
 }
 
 export function canTransition(status: OrderStatus, action: string, payment: PaymentStatus, preference: PaymentPreference) {
-  if (action === 'approve' || action === 'reject' || action === 'request_changes') {
-    return status === 'new' || status === 'changes_requested';
-  }
+  if (action === 'review') return status === 'new';
+  if (action === 'approve') return status === 'new' || status === 'reviewing';
+  if (action === 'reject' || action === 'request_changes') return ['new','reviewing','changes_requested'].includes(status);
+  if (action === 'cancel') return ['new','reviewing','changes_requested','approved'].includes(status) && payment === 'unpaid';
   if (action === 'preparing') return status === 'approved' && (payment === 'paid' || preference === 'cash');
   if (action === 'ready') return (status === 'approved' || status === 'preparing') && (payment === 'paid' || preference === 'cash');
-  if (action === 'complete') return ['approved','preparing','ready'].includes(status) && payment === 'paid';
+  if (action === 'dispatched') return ['approved','preparing','ready'].includes(status) && payment === 'paid';
+  if (action === 'complete') return ['approved','preparing','ready','dispatched'].includes(status) && payment === 'paid';
   if (action === 'cash_paid') return preference === 'cash' && ['approved','preparing','ready'].includes(status) && payment === 'unpaid';
   return false;
 }

@@ -50,7 +50,7 @@ Leverans kräver en aktiv zon som matchar början av det normaliserade femsiffri
 
 | Fält | Värden |
 | --- | --- |
-| `status` | `new`, `changes_requested`, `approved`, `preparing`, `ready`, `completed`, `rejected`, `cancelled` |
+| `status` | `new`, `reviewing`, `changes_requested`, `approved`, `preparing`, `ready`, `dispatched`, `completed`, `rejected`, `cancelled` |
 | `payment_status` | `unpaid`, `pending`, `paid`, `failed`, `refunded` |
 
 En order kan alltså vara godkänd men fortfarande vänta på betalning. Onlineorder blir inte betald av att kunden återvänder från Checkout. `apply_stripe_event` matchar rätt order/session och sparar händelse-id atomärt med betalningsändringen. Dubbla webhookleveranser räknas inte som nya betalningar. Kontant registreras manuellt av ägaren efter verklig betalning vid hämtning.
@@ -68,3 +68,26 @@ Publik orderläsning kräver både kod och hemlig token. Databasen sparar tokenh
 `create_catering_order` är `SECURITY INVOKER` och kan bara anropas av `service_role`. V2:s begränsnings-/betalningsfunktioner har också uttryckligt borttagna publika körningsrättigheter. V2:s bucket `catering-media` är avsedd för företagets publika bilder/filmer, inte kunddokument.
 
 Se [Supabases RLS-guide](https://supabase.com/docs/guides/database/postgres/row-level-security) för bakgrunden. Verifiera migration, roller och avvisade obehöriga anrop i en riktig testdatabas före produktion.
+
+## V4: återförsök, prisförslag och notiser
+
+Migrationen `20261017135737_v4_order_review_and_notifications.sql` körs efter V3. Den lägger till fält/funktioner och bevarar befintliga rader. Den gamla prisfunktionen får namnet `create_catering_order_v3` och ett omslag kontrollerar återförsöksnyckeln innan samma prislogik används.
+
+| Nytt fält/tabell | Varför |
+| --- | --- |
+| `orders.request_id`, `request_hash` | UUID per förfrågan plus server-HMAC av innehållet; samma nyckel/innehåll ger samma order, ändrat innehåll avvisas |
+| `quote_revision`, `accepted_revision` | Anger vilken offertversion kunden godkänt |
+| `proposal`, `quote_history` | Förklaring, föreslaget belopp och historik; nuvarande pris ändras först vid kundacceptans |
+| `price_adjustment_ore` | Godkänd ändring redovisas separat från ursprungliga orderrader |
+| `order_push_tokens` | Upp till fem Expo-enheter per privat order, med leveranskvitton |
+| `order_notifications` | Beständig kö för betalningsbesked; mottagare kvitteras separat och pushansvar tas en gång |
+
+`propose_catering_change` och `accept_catering_change` låser orderraden. Gamla revisioner avvisas, dubbel acceptans skapar inte ny offert och Checkout blockeras tills accepterad revision matchar. Orderraderna behåller ursprungliga priser. `subtotal_ore` innehåller därefter den godkända justeringen; när justeringen visas separat visar UI matens ursprungsbelopp så summeringen stämmer.
+
+`create_catering_order` använder transaktionslås per `request_id`. Samtidiga återförsök skapar inte en andra order. Gamla order utan nyckel fungerar fortsatt.
+
+Nya orderstatusar är `reviewing` (under granskning) och `dispatched` (på väg). Godkänd/väntar på betalning/betald visas utifrån kombinationen av `status` och `payment_status`.
+
+Betalstatus, Stripe-händelse och notifieringskö uppdateras atomärt. Köposten är unik per order, typ och prisrevision. Dubbla event skapar inte dubbla besked. Misslyckat betalningsmejl lämnas okvitterat och webhooken ber Stripe återkomma. Andra statusmejl kan skickas igen från admin vid tjänstefel.
+
+Nya tabeller har RLS och saknar läsrättigheter för `anon`/`authenticated`. Funktionerna är `SECURITY INVOKER` och får bara anropas av serverrollen. API:t verifierar också adminsession eller kundens privata kod/token. Webbpubliceringen kör inga migrationer i företagets fjärrdatabas.

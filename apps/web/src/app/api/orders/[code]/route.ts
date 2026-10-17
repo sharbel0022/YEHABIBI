@@ -1,31 +1,69 @@
 import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady } from '@/lib/config';
-import { jsonError, publicOptions, publicResponse } from '@/lib/auth';
-import { verifyTrackingToken } from '@/lib/tracking';
-import { safeExternalUrl } from '@/lib/domain';
-import type { CateringOrder, OrderLine, PublicOrder } from '@/types/domain';
+import { checkOrigin, jsonError, publicOptions, publicResponse } from '@/lib/auth';
+import { trackingLink, verifyTrackingToken } from '@/lib/tracking';
+import { customerActionSchema } from '@/lib/validators';
+import { publicOrderView } from '@/lib/data';
+import { createCheckout } from '@/lib/payments';
+import { notifyOrderDecision } from '@/lib/mailer';
+import type { CateringOrder } from '@/types/domain';
 
 export const dynamic = 'force-dynamic';
 export const OPTIONS = publicOptions;
-export async function GET(request:Request,context:{params:Promise<{code:string}>}) {
-  return publicResponse(request,await readOrder(request,context));
-}
-async function readOrder(request:Request,{params}:{params:Promise<{code:string}>}) {
+type Context = {params:Promise<{code:string}>};
+async function trackedOrder(request:Request,{params}:Context) {
   const {code} = await params;
   const token = new URL(request.url).searchParams.get('token') || '';
-  if(!isSupabaseReady() || !/^CM-[A-F0-9]{10}$/.test(code) || !/^[a-f0-9]{64}$/.test(token)) return jsonError('Ordern hittades inte.',404);
+  if(!isSupabaseReady() || !/^CM-[A-F0-9]{10}$/.test(code) || !/^[a-f0-9]{64}$/.test(token)) return null;
   const db = adminDb();
-  const {data,error} = await db.from('orders').select('id,tracking_hash,code,menu_title,guests,event_date,event_time,fulfillment,status,payment_status,payment_preference,subtotal_ore,delivery_fee_ore,total_ore,checkout_url,created_at').eq('code',code).maybeSingle();
-  if(error || !data || !verifyTrackingToken(token,data.tracking_hash)) return jsonError('Ordern hittades inte.',404);
-  const order = data as CateringOrder;
-  const {data:items,error:itemError} = await db.from('order_items').select('dish_id,item_id,menu_id,title,quantity,unit_label,unit_price_ore,total_ore').eq('order_id',order.id).order('id');
-  if(itemError) return jsonError('Kunde inte läsa orderrader.',503);
-  const result: PublicOrder = {
-    code:order.code,menu_title:order.menu_title,guests:order.guests,event_date:order.event_date,event_time:order.event_time,
-    fulfillment:order.fulfillment,status:order.status,payment_status:order.payment_status,payment_preference:order.payment_preference,
-    subtotal_ore:order.subtotal_ore,delivery_fee_ore:order.delivery_fee_ore,total_ore:order.total_ore,created_at:order.created_at,
-    checkout_url:['approved','preparing','ready'].includes(order.status) && ['unpaid','pending','failed'].includes(order.payment_status) ? safeExternalUrl(order.checkout_url) : null,
-    items:(items || []) as OrderLine[]
-  };
-  return Response.json({order:result},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow'}});
+  const {data,error} = await db.from('orders').select('*').eq('code',code).maybeSingle();
+  if(error || !data || !verifyTrackingToken(token,data.tracking_hash)) return null;
+  return data as CateringOrder;
+}
+
+export async function GET(request:Request,context:Context) {
+  try {
+    const order = await trackedOrder(request,context);
+    return publicResponse(request,order ? await customerResponse(order) : jsonError('Ordern hittades inte.',404));
+  } catch { return publicResponse(request,jsonError('Kunde inte läsa ordern.',503)); }
+}
+
+export async function PATCH(request:Request,context:Context) {
+  try { return publicResponse(request,await updateOrder(request,context)); }
+  catch { return publicResponse(request,jsonError('Uppdateringen kunde inte sparas. Försök igen senare.',503)); }
+}
+async function updateOrder(request:Request,context:Context) {
+  if(!checkOrigin(request)) return jsonError('Felaktigt anrop.',403);
+  const parsed = customerActionSchema.safeParse(await request.json().catch(()=>null));
+  if(!parsed.success) return jsonError('Ogiltig åtgärd.');
+  let order = await trackedOrder(request,context);
+  if(!order) return jsonError('Ordern hittades inte.',404);
+  const db = adminDb();
+  if(parsed.data.action==='register_push') {
+    if(process.env.CUSTOMER_PUSH_ENABLED!=='true') return jsonError('Pushnotiser är inte aktiverade. Du får uppdateringar via e-post.',503);
+    const {data:saved,error} = await db.rpc('register_catering_push',{p_order_id:order.id,p_token:parsed.data.push_token});
+    if(error) return jsonError('Notiser kunde inte registreras.',503);
+    return saved ? Response.json({registered:true}) : jsonError('För många registrerade enheter.',429);
+  }
+  const {data:saved,error} = await db.rpc('accept_catering_change',{p_order_id:order.id,p_revision:parsed.data.revision});
+  if(error || !saved) return jsonError('Förslaget har ändrats. Uppdatera sidan och granska det aktuella priset.',409);
+  order = saved as CateringOrder;
+  // Godkännandet sparas även om betaltjänsten tillfälligt är nere. Ägaren kan förnya länken.
+  if(order.payment_preference!=='cash' && order.status==='approved' && !['paid','refunded'].includes(order.payment_status)) {
+    try {
+      const checkout = await createCheckout(order);
+      const {data:attached,error:attachError} = await db.rpc('attach_catering_checkout',{
+        p_order_id:order.id,p_expected_status:order.status,p_expected_payment_status:order.payment_status,
+        p_expected_session_id:order.stripe_checkout_session_id,p_session_id:checkout.id,p_checkout_url:checkout.url
+      });
+      if(!attachError && attached) order = attached as CateringOrder;
+    } catch { console.error('Accepted quote saved; payment link requires retry'); }
+  }
+  if(saved._accepted) await notifyOrderDecision(order,trackingLink(order));
+  return customerResponse(order);
+}
+
+async function customerResponse(order:CateringOrder) {
+  return Response.json({order:await publicOrderView(order)},
+    {headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow'}});
 }

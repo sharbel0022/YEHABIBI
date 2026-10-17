@@ -7,12 +7,12 @@ export const metadata: Metadata = {
   description: 'Beställ libanesisk catering för vänner hemma, fest och företag. Välj ostrullar, hummus, grill och mer. Se pris per rätt och person.'
 };
 
-export default async function MenusPage({ searchParams }: { searchParams: Promise<{ val?: string }> }) {
+export default async function MenusPage({ searchParams }: { searchParams: Promise<{ val?: string; ratt?: string }> }) {
   const [catalog, params] = await Promise.all([getCatalog(), searchParams]);
   return <section className="shell section inner-page">
-    <span className="eyebrow">LIBANESISKA SMAKER</span><h1>Menyer som passar just er.</h1>
-    <p className="intro">Välj ett färdigt paket eller bygg din egen catering. Du bestämmer antal och ser priset direkt – även för ett mindre sällskap hemma.</p>
-    <MenuCatalog menus={catalog.menus} dishes={catalog.dishes} initialTab={params.val}
+    <span className="eyebrow">SMÅ RÄTTER. STORA UPPLEVELSER.</span><h1>Våra menyer.</h1>
+    <p className="intro">Mezze, grill och något sött. Välj en färdig meny eller samla era egna favoriter – vi hjälper er med resten.</p>
+    <MenuCatalog menus={catalog.menus} dishes={catalog.dishes} initialTab={params.val} initialDish={params.ratt}
       minPeople={catalog.settings.custom_min_people} preview={catalog.demo}/>
   </section>;
 }

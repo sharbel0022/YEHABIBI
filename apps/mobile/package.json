@@ -1,6 +1,6 @@
 {
   "name": "@yehabibi/mobile",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -15,12 +15,14 @@
     "doctor": "npx expo-doctor"
   },
   "dependencies": {
-    "@yehabibi/shared": "*",
     "@expo/metro-runtime": "57.0.17",
+    "@yehabibi/shared": "*",
     "expo": "57.0.30",
     "expo-constants": "57.0.22",
     "expo-dev-client": "57.0.20",
+    "expo-device": "57.0.2",
     "expo-linking": "57.0.13",
+    "expo-notifications": "57.0.23",
     "expo-router": "57.0.28",
     "expo-secure-store": "57.0.4",
     "expo-splash-screen": "57.0.10",

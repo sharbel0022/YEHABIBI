@@ -22,6 +22,17 @@ async function createOrder(request: Request) {
   if (!parsed.success) return jsonError('Kontrollera dina uppgifter och försök igen.');
   const input = parsed.data;
   const db = adminDb();
+  const requestId = input.request_id || randomUUID();
+  const {request_id:ignoredId,website:ignoredWebsite,...details} = input;
+  void ignoredId; void ignoredWebsite;
+  const requestHash = createHmac('sha256',process.env.ORDER_RATE_LIMIT_SECRET!).update(JSON.stringify(details)).digest('hex');
+  // Ett återförsök får samma privata länk, även om katalogen ändrats sedan dess.
+  const {data:previous,error:previousError} = await db.from('orders').select('*').eq('request_id',requestId).maybeSingle();
+  if(previousError) return jsonError('Kunde inte kontrollera förfrågan. Försök igen senare.',503);
+  if(previous) {
+    if(previous.request_hash!==requestHash) return jsonError('Förfrågan har ändrats. Starta en ny beställning.',409);
+    return orderReceipt(previous as CateringOrder,200);
+  }
   // Separata beständiga gränser per nätverk och kundmejl; inga IP-adresser lagras.
   const ip = (request.headers.get('x-forwarded-for') || 'unknown').split(',')[0].trim().slice(0,80);
   const limitKey = (value:string) => createHmac('sha256',process.env.ORDER_RATE_LIMIT_SECRET!).update(value).digest('hex');
@@ -59,13 +70,18 @@ async function createOrder(request: Request) {
   const token = trackingToken(id);
   // SQL-funktionen läser priserna igen och sparar order/rader i samma transaktion.
   const {data:saved,error} = await db.rpc('create_catering_order',{
-    p_order:{...input,id,code,tracking_hash:trackingHash(token),menu_id:input.menu_id || null,delivery_zone_id:zone?.id || null,subtotal_ore:prices.subtotal_ore,delivery_fee_ore:prices.delivery_fee_ore},
+    p_order:{...input,id,code,request_id:requestId,request_hash:requestHash,tracking_hash:trackingHash(token),menu_id:input.menu_id || null,delivery_zone_id:zone?.id || null,subtotal_ore:prices.subtotal_ore,delivery_fee_ore:prices.delivery_fee_ore},
     p_items:input.items || []
   });
   if(error || !saved) { console.error('Order transaction failed',error?.code); return jsonError('Priset eller tillgängligheten kan ha ändrats. Uppdatera menyn och försök igen.',409); }
   const order = saved as CateringOrder;
   const followUp = trackingLink(order);
   // Ordern finns kvar i admin även om externa notifieringstjänster tillfälligt fallerar.
-  await Promise.allSettled([notifyNewOrder(order,followUp),notifyOwnerPush(order)]);
-  return Response.json({code,token,tracking_url:followUp},{status:201,headers:{'Referrer-Policy':'no-referrer'}});
+  if(saved._created!==false) await Promise.allSettled([notifyNewOrder(order,followUp),notifyOwnerPush(order)]);
+  return orderReceipt(order,saved._created===false?200:201);
+}
+
+function orderReceipt(order:CateringOrder,status:number) {
+  return Response.json({code:order.code,token:trackingToken(order.id),tracking_url:trackingLink(order)},
+    {status,headers:{'Referrer-Policy':'no-referrer'}});
 }

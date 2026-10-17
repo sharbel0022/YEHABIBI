@@ -1,2 +1,13 @@
+'use client';
+
 import Link from 'next/link';
-export function AdminNav(){return <nav className="admin-tabs" aria-label="Administration"><Link href="/admin">Översikt</Link><Link href="/admin/orders">Beställningar</Link><Link href="/admin/menus">Menyer</Link><Link href="/admin/ratter">Maträtter</Link><Link href="/admin/catalog">Kampanjer och leverans</Link><Link href="/admin/settings">Inställningar</Link></nav>}
+import { usePathname } from 'next/navigation';
+
+const links = [['/admin', 'Översikt'], ['/admin/orders', 'Beställningar'], ['/admin/menus', 'Menyer'],
+  ['/admin/ratter', 'Maträtter'], ['/admin/catalog', 'Kampanjer & leverans'], ['/admin/settings', 'Inställningar']];
+
+export function AdminNav() {
+  const path = usePathname();
+  return <nav className="admin-tabs" aria-label="Administration">{links.map(([href, label]) =>
+    <Link key={href} href={href} aria-current={path === href ? 'page' : undefined}>{label}</Link>)}</nav>;
+}

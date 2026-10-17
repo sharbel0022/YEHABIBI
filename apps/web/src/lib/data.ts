@@ -1,8 +1,8 @@
 import 'server-only';
 import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
-import type { Campaign, Catalog, DeliveryZone, Dish, Menu, MenuItem, PaymentPreference, Settings } from '@/types/domain';
-import { isTestStripeKey } from '@/lib/domain';
+import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, ItemCategory, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings } from '@/types/domain';
+import { isTestStripeKey, safeExternalUrl } from '@/lib/domain';
 
 export async function getMenus(): Promise<Menu[]> {
   if (!isSupabaseReady()) return previewMenus;
@@ -38,10 +38,12 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 }
 
 const dishNames = ['Hummus','Tabbouleh','Ostrullar','Kebbe','Falafel','Vinblad','Kafta','Kycklingspett','Grillmix','Bröd och såser','Dessert'];
+const demoCategories:Record<string,ItemCategory> = {Tabbouleh:'vegetariskt',Ostrullar:'varma_meze',Kebbe:'varma_meze',Falafel:'varma_meze',Kafta:'grill',Kycklingspett:'grill',Grillmix:'grill','Bröd och såser':'brod_saser',Dessert:'dessert'};
 export const previewDishes: Dish[] = dishNames.map((title,index) => ({
   id:`44444444-4444-4444-8444-${String(index+1).padStart(12,'0')}`, slug:`demo-${index+1}`, title,
   description:'Demonstrationsrätt. Pris, portionsstorlek och allergener bekräftas av ägaren före bokning.',
-  allergens:[], price_ore:0, portion_label:'Bekräftas av ägaren', image_url:null, active:true, sort_order:index
+  allergens:[], price_ore:0, portion_label:'Bekräftas av ägaren',category:demoCategories[title] || 'kalla_meze',
+  image_url:demoCategories[title]==='grill'?'/images/grill.webp':title==='Dessert'?'/images/fest.webp':'/images/mezze.webp',active:true,sort_order:index
 }));
 
 export function onlinePaymentsReady() {
@@ -77,9 +79,26 @@ export async function getCatalog(): Promise<Catalog> {
     campaigns = (campaignResult.data || []) as Campaign[];
   }
   const payment_methods: PaymentPreference[] = [];
-  if(onlinePaymentsReady()) { payment_methods.push('card','apple_pay'); if(process.env.STRIPE_SWISH_ENABLED === 'true') payment_methods.push('swish'); }
+  // Apple Pay erbjuds inom kortbetalning först när Stripe verifierat enhetens stöd.
+  if(onlinePaymentsReady()) { payment_methods.push('card'); if(process.env.STRIPE_SWISH_ENABLED === 'true') payment_methods.push('swish'); }
   if(settings.cash_enabled && settings.pickup_enabled) payment_methods.push('cash');
   // Ta bort eventuella framtida privata databasfält genom en explicit kopia.
   const publicSettings: Settings = Object.fromEntries(Object.keys(previewSettings).map(key => [key,settings[key as keyof Settings]])) as Settings;
   return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,demo:!isSupabaseReady()};
+}
+
+/** Privat order läses med token i API:t; bara denna tillåtna vy når kunden. */
+export async function publicOrderView(order:CateringOrder):Promise<PublicOrder> {
+  const {data:items,error} = await adminDb().from('order_items')
+    .select('dish_id,item_id,menu_id,title,quantity,unit_label,unit_price_ore,total_ore').eq('order_id',order.id).order('id');
+  if(error) throw new Error('Kunde inte läsa orderrader.');
+  return {
+    code:order.code,menu_title:order.menu_title,guests:order.guests,event_date:order.event_date,event_time:order.event_time,
+    fulfillment:order.fulfillment,status:order.status,payment_status:order.payment_status,payment_preference:order.payment_preference,
+    subtotal_ore:order.subtotal_ore,delivery_fee_ore:order.delivery_fee_ore,total_ore:order.total_ore,created_at:order.created_at,
+    proposal:order.proposal || null,price_adjustment_ore:order.price_adjustment_ore || 0,admin_note:order.admin_note,
+    checkout_url:!order.proposal && (order.quote_revision||1)===(order.accepted_revision||1) && ['approved','preparing','ready'].includes(order.status)
+      && ['unpaid','pending','failed'].includes(order.payment_status) ? safeExternalUrl(order.checkout_url) : null,
+    items:(items || []) as OrderLine[]
+  };
 }

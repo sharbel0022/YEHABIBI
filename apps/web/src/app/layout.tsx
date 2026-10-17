@@ -22,6 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const settings = await getSettings();
   return <html lang="sv">
     <body>
+      <a href="#main" className="skip-link">Hoppa till innehåll</a>
       <Header />
       <main id="main">{children}</main>
       <Footer settings={settings} />
