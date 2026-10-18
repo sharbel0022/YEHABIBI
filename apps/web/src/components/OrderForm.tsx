@@ -16,6 +16,7 @@ import { usePaymentMethods } from '@/components/use-payment-methods';
 type Props = {
   initialCatalog: Catalog;
   initialMenu?: string; initialOccasion?: string; initialMode?: string; initialItems?: string; initialGuests?: string;
+  initialCampaign?: string;
 };
 type Contact = {
   occasion: Occasion; event_date: string; event_time: string; fulfillment: Fulfillment;
@@ -25,7 +26,7 @@ type Contact = {
 const steps = orderSteps;
 
 export function OrderForm({ initialCatalog,
-  initialMenu, initialOccasion, initialMode, initialItems, initialGuests }: Props) {
+  initialMenu, initialOccasion, initialMode, initialItems, initialGuests, initialCampaign }: Props) {
   const { catalog, ...refreshState } = useCatalog(initialCatalog);
   const { dishes, delivery_zones: zones, settings, orders_enabled: enabled, payment_methods: paymentMethods } = catalog;
   const menus = catalog.menus.filter(menu => menu.catering_enabled !== false);
@@ -76,7 +77,7 @@ export function OrderForm({ initialCatalog,
   function set<K extends keyof Contact>(key: K, value: Contact[K]) { setForm(old => ({ ...old, [key]: value })); }
   function goBack(to: number) { setError(''); setStep(to); }
   function orderInput() {
-    return buildOrderPayload(selection, { ...form, payment_preference: payment || 'unpaid', delivery_zone_id: zone?.id });
+    return buildOrderPayload(selection, { ...form, ...(initialCampaign ? { campaign_id: initialCampaign } : {}), payment_preference: payment || 'unpaid', delivery_zone_id: zone?.id });
   }
   function contactError() {
     return orderContactError(form);
@@ -149,7 +150,7 @@ export function OrderForm({ initialCatalog,
             const chosen = menus.find(item => item.id === event.target.value);
             if (chosen) setDraft(old => ({ ...old, menuId: chosen.id, guests: Math.max(old.guests, chosen.min_people) }));
           }} required><option value="">Välj paket</option>{menus.map(item => <option key={item.id} value={item.id}>
-            {item.title} · {item.price_ore ? `${formatSek(item.price_ore)}/person` : 'Pris på förfrågan'}</option>)}</select>
+            {item.title} · {(item.catering_price_ore ?? item.price_ore) ? `${formatSek(item.catering_price_ore ?? item.price_ore)}/person` : 'Pris på förfrågan'}</option>)}</select>
           {menu && <p className="field-hint">{menu.description}<br/>Innehåller: {menu.included.join(', ')}.<br/>Allergener: {menu.allergens.join(', ') || 'Fråga oss'}.</p>}
         </div> : <ItemPicker dishes={dishes} guests={guests} quantities={quantities}
           summary={<div className="builder-summary"><div className="builder-checkout"><div><span>{deliveryPending ? 'Mat totalt' : 'Totalt'}</span><strong>{total ? formatSek(total.total_ore) : 'Välj maträtter'}</strong>
@@ -221,7 +222,7 @@ export function OrderForm({ initialCatalog,
     </div>
     <aside className="form-sidebar"><span className="eyebrow">DIN CATERING</span><h3>{custom ? 'Din egen meny' : menu?.title || 'Välj ett paket'}</h3><p>{guests} personer · {occasions[form.occasion]}</p>
       {custom && selected.length > 0 ? <div className="summary-lines">{selected.map(dish => <div key={dish.id}><span>{quantities[dish.id]} × {dish.title}<small>{formatSek(dish.price_ore)} / {dish.portion_label}</small></span><strong>{formatSek(quantities[dish.id] * dish.price_ore)}</strong></div>)}</div>
-        : !custom && menu && <p className="field-hint">{guests} × {formatSek(menu.price_ore)} / person<br/>{menu.included.join(', ')}</p>}
+        : !custom && menu && <p className="field-hint">{guests} × {formatSek(menu.catering_price_ore ?? menu.price_ore)} / person<br/>{menu.included.join(', ')}</p>}
       <div className="summary-list"><span>Mat</span><strong>{total ? formatSek(total.subtotal_ore) : 'Ej fastställt'}</strong>
         <span>Leverans</span><strong>{form.fulfillment === 'pickup' ? 'Hämtning: 0 kr' : zone ? formatSek(fee) : 'Ange postnummer'}</strong>
         <span className="total">{deliveryPending ? 'Mat totalt' : 'Totalt'}</span><strong className="total">{total ? formatSek(total.total_ore) : '–'}</strong>

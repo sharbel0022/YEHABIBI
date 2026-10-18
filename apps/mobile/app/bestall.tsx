@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View, type TextInputProps } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   availablePaymentMethods, buildOrderPayload, eventDateBounds, findDeliveryZone, formatSek,
   itemsFromQuantities, minimumGuestsFor, newOrderSchema, occasions, orderContactError,
@@ -18,6 +18,7 @@ const emptyForm = {
 const steps = orderSteps;
 
 export default function OrderScreen() {
+  const params = useLocalSearchParams<{ campaign?: string }>();
   const { catalog, loading, catalogError, selection, setGuests, setOccasion, rememberOrder, storageNotice } = useCatering();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(emptyForm);
@@ -56,7 +57,7 @@ export default function OrderScreen() {
   }
   function payload(accepted: boolean) {
     return buildOrderPayload(selection, {
-      ...form, fulfillment,
+      ...form, fulfillment, ...(params.campaign ? { campaign_id: params.campaign } : {}),
       delivery_zone_id: zone?.id, payment_preference: selectedPayment || 'unpaid', terms_accepted: accepted,
     });
   }
@@ -117,7 +118,7 @@ export default function OrderScreen() {
     return <View style={s.panel}>
       <Text style={s.heading}>{menu?.title || 'Din egen catering'}</Text>
       <Text style={s.detail}>{selection.guests} personer · {occasions[selection.occasion]}</Text>
-      {menu ? <Text style={s.body}>{menu.price_ore > 0 ? `${selection.guests} × ${formatSek(menu.price_ore)}` : 'Menypriset inväntar bekräftelse.'}</Text> : items.map(item => {
+      {menu ? <Text style={s.body}>{(menu.catering_price_ore ?? menu.price_ore) > 0 ? `${selection.guests} × ${formatSek(menu.catering_price_ore ?? menu.price_ore)} / person` : 'Menypriset inväntar bekräftelse.'}</Text> : items.map(item => {
         const dish = catalog.dishes.find(row => row.id === item.dish_id);
         return <View key={item.dish_id} style={s.row}>
           <View style={{ flex: 1, gap: 4 }}>

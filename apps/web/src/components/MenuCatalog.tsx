@@ -16,6 +16,8 @@ type Props = { initialCatalog: Catalog; initialTab?: string; initialDish?: strin
 export function MenuCatalog({ initialCatalog, initialTab, initialDish }: Props) {
   const { catalog, ...refreshState } = useCatalog(initialCatalog);
   const { menus, dishes, demo: preview } = catalog;
+  const orderedMenus = [...menus].sort((a, b) => Number(!!b.direct_order_enabled) - Number(!!a.direct_order_enabled));
+  const groupedMenus = orderedMenus.filter((menu, index) => !menu.direct_order_enabled || orderedMenus.findIndex(item => (item.package_group || item.id) === (menu.package_group || menu.id)) === index);
   const minPeople = catalog.settings.custom_min_people;
   const [tab, setTab] = useState<'paket' | 'bygg'>(initialTab === 'bygg' ? 'bygg' : 'paket');
   const chosen = dishes.find(dish => dish.id === initialDish && dish.price_ore > 0);
@@ -53,7 +55,7 @@ export function MenuCatalog({ initialCatalog, initialTab, initialDish }: Props) 
     </div>
     {preview && <p className="preview-note">Förhandsvisning. Köket behöver publicera och godkänna priser, portionsstorlekar och allergener innan beställningarna öppnar.</p>}
     {tab === 'paket' ? <div className="menu-grid">
-      {menus.map(menu => <MenuCard key={menu.id} menu={menu} preview={preview}/>)}
+      {groupedMenus.map(menu => <MenuCard key={menu.id} menu={menu} preview={preview} testMode={catalog.test_mode} variants={menu.direct_order_enabled ? menus.filter(item => item.direct_order_enabled && (item.package_group || item.id) === (menu.package_group || menu.id)) : []}/>)}
       {!menus.length && <p>Inga färdiga paket finns ännu.</p>}
     </div> : <>
       <div className="builder-intro">

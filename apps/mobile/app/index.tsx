@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { type Occasion } from '@yehabibi/shared';
 import { useCatering } from '../lib/store';
-import { Button, colors, DishCard, Hero, MenuCard, Photo, Screen, s } from '../lib/ui';
+import { Button, colors, DirectPackageCard, DishCard, Hero, MenuCard, Photo, Screen, s } from '../lib/ui';
 
 const occasions: { value: Occasion; title: string; detail: string; icon: string }[] = [
   { value: 'hemma', title: 'Hemma', detail: 'Familj & vänner', icon: '⌂' },
@@ -12,6 +13,9 @@ const occasions: { value: Occasion; title: string; detail: string; icon: string 
 
 export default function Home() {
   const { catalog, selection, setOccasion, chooseMenu } = useCatering();
+  const [packageQuantities, setPackageQuantities] = useState<Record<string, number>>({});
+  const direct = catalog.menus.filter(menu => menu.active && menu.direct_order_enabled);
+  const packages = direct.filter((item, index) => direct.findIndex(other => (other.package_group || other.id) === (item.package_group || item.id)) === index);
   const now = Date.now();
   const campaigns = catalog.campaigns.filter(campaign => campaign.active &&
     Date.parse(campaign.starts_at) <= now && Date.parse(campaign.ends_at) >= now);
@@ -28,6 +32,7 @@ export default function Home() {
         <Button secondary title="Boka catering  →" onPress={() => router.push('/bygg')} />
         <Text style={s.detail}>Färdiga paket med lediga hämtningstider och hemleverans. För större tillfällen kan du bygga din egen catering.</Text>
       </View>
+      {!!packages.length && <View style={s.section}><Text style={s.heading}>Färdiga paket · Beställ nu</Text>{packages.slice(0, 3).map(menu => <DirectPackageCard key={menu.id} menu={menu} quantity={packageQuantities[menu.id] || 1} enabled={!catalog.demo && catalog.orders_enabled && catalog.direct_orders_enabled === true} onChange={difference => setPackageQuantities(old => ({ ...old, [menu.id]: Math.max(1, Math.min(100, (old[menu.id] || 1) + difference)) }))} onOrder={() => router.push({ pathname: '/direkt', params: { menu: menu.id, quantity: packageQuantities[menu.id] || 1 } })}/>)}<Button secondary title="Se alla paket och storlekar" onPress={() => router.push('/menyer')}/></View>}
       <View style={[s.row, { alignItems: 'stretch', gap: 9 }]}>
         {occasions.map(item => <Pressable
           key={item.value} accessibilityRole="radio" accessibilityLabel={`${item.title}, ${item.detail}`}
@@ -61,7 +66,8 @@ export default function Home() {
           <Text style={s.eyebrow}>JUST NU</Text>
           <Text style={s.heading}>{campaign.title}</Text>
           <Text style={s.body}>{campaign.description}</Text>
-          <Button secondary title="Se våra menyer" onPress={() => router.push('/menyer')} />
+          {campaign.menu_ids.map(id => { const menu = catalog.menus.find(item => item.id === id); return menu ? <Button key={id} secondary title={`${menu.title} · ${menu.direct_order_enabled ? 'Beställ paket' : 'Boka catering'}`} onPress={() => { if (menu.direct_order_enabled) router.push({ pathname: '/direkt', params: { menu: id, campaign: campaign.id } }); else { chooseMenu(id); router.push({ pathname: '/bestall', params: { campaign: campaign.id } }); } }}/> : null; })}
+          {!campaign.menu_ids.length && <Button secondary title="Fråga om cateringkampanjen" onPress={() => router.push('/bestall')}/>}
         </View>
       </View>)}
       <View style={s.panel}>

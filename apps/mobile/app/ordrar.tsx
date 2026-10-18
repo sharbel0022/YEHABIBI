@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  canPayOrder, formatScheduledTime, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
+  canPayOrder, directOrderStatus, directReorderDraft, formatScheduledTime, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
   paymentStatusLabels, statusLabels, type OnlinePaymentMethod, type PublicOrder,
 } from '@yehabibi/shared';
 import { api, openWebsite, registerOrderPush } from '../lib/api';
@@ -104,6 +104,8 @@ export default function Orders() {
       {!!updated && <Text style={s.detail}>Senast uppdaterad {updated}</Text>}
       {orders.map(order => {
         const stage = orderProgress(order) - 1;
+        const directStatus = order.order_type === 'direct' ? directOrderStatus(order) : null;
+        const reorder = directReorderDraft(order);
         // Keep the verified panel mounted during background polling so focus and scroll stay stable.
         const canPay = !error && !catalogError && canPayOrder(order);
         const available = orderPaymentMethods(methods, order);
@@ -117,16 +119,18 @@ export default function Orders() {
             <Text style={s.body}>{order.order_type === 'direct' && formatScheduledTime(order.scheduled_at) || `${order.event_date} kl. ${order.event_time}`} · {order.order_type === 'direct'
               ? `${order.package_quantity || 1} paket · ${order.guests} portioner` : `${order.guests} personer`}</Text>
             <View style={[s.panel, { backgroundColor: colors.mint }]}>
-              <Text style={s.price}>{statusLabels[order.status]}</Text>
+              <Text style={s.price}>{directStatus?.label || statusLabels[order.status]}</Text>
+              {directStatus && <Text style={s.body}>{directStatus.detail}</Text>}
+              {directStatus && order.capacity_status === 'held' && order.hold_expires_at && <Text style={s.detail}>Reservation till {formatScheduledTime(order.hold_expires_at)}. Servern avgör när kapaciteten kan frigöras.</Text>}
               <Text style={s.body}>{catalog.test_mode === true || order.payment_provider === 'local_test' ? 'Simulerad betalning' : 'Betalning'}: {paymentStatusLabels[order.payment_status]}</Text>
               <Text style={s.detail}>{paymentMethodLabel(order.payment_preference, catalog.test_mode === true || order.payment_provider === 'local_test')} · {order.fulfillment === 'pickup' ? 'Hämtning' : 'Leverans'}</Text>
             </View>
             {order.payment_review_required && <Notice text={`${order.payment_refund_status === 'needs_review' ? 'Återbetalningen behöver kontrolleras av köket.' : 'Betalningen behöver kontrolleras av köket.'} Kontakta oss innan du betalar igen.`} />}
             {!!order.payment_transaction_reference && <Text style={s.detail}>Transaktionsreferens: {order.payment_transaction_reference}</Text>}
             {order.payment_refund_status === 'pending' && <Notice text="Återbetalning begärd. Väntar på leverantörens bekräftelse." />}
-            {stage >= 0 && <View style={s.section}>{orderTimelineLabels(order).map((label, index) =>
-              <Text key={label} style={[s.detail, { color: index <= stage && (index !== 4 || order.payment_status === 'paid') ? colors.green : colors.muted }]}>
-                {index <= stage && (index !== 4 || order.payment_status === 'paid') ? index === stage ? '●' : '✓' : '○'}  {label}
+            {stage >= 0 && <View style={s.section}>{(directStatus ? ['Bekräftad', 'Tillagas', order.fulfillment === 'pickup' ? 'Klar för hämtning' : 'På väg', 'Slutförd'] : orderTimelineLabels(order)).map((label, index) =>
+              <Text key={label} style={[s.detail, { color: (directStatus ? index < directStatus.progress : index <= stage && (index !== 4 || order.payment_status === 'paid')) ? colors.green : colors.muted }]}>
+                {(directStatus ? index < directStatus.progress : index <= stage && (index !== 4 || order.payment_status === 'paid')) ? '✓' : '○'}  {label}
               </Text>)}</View>}
             {order.items.map((item, index) => <View key={index} style={s.row}>
               <Text style={s.body}>{item.quantity} × {item.title}</Text>
@@ -146,9 +150,9 @@ export default function Orders() {
               <Button title={`Godkänn ${formatSek(order.proposal.total_ore)}`} disabled={!!busy}
                 onPress={() => void action(order, 'accept')} />
             </View>}
-            {order.status === 'new' && <Text style={s.detail}>{order.order_type === 'direct'
-              ? 'Beställningen är mottagen och tiden är reserverad. Köket behöver godkänna innan nästa steg.'
-              : 'Förfrågan är mottagen. Köket bekräftar tillgänglighet och pris.'}</Text>}
+            {!directStatus && order.status === 'new' && <Text style={s.detail}>Förfrågan är mottagen. Köket bekräftar tillgänglighet och pris.</Text>}
+            {reorder && <><Button title="Beställ samma igen →" onPress={() => router.push({ pathname: '/direkt', params: { menu: reorder.menu_id, quantity: reorder.quantity, addons: reorder.addons.map(item => `${item.dish_id}:${item.quantity}`).join(',') } })}/><Text style={s.detail}>Ett nytt utkast med aktuella priser. Välj en ny tid; tidigare betalning kopieras aldrig.</Text></>}
+            {directStatus && order.capacity_status === 'released' && order.payment_status === 'unpaid' && <Button title="Starta en ny beställning →" onPress={() => router.push('/menyer')}/>}
             {order.payment_preference === 'cash' && order.payment_status !== 'paid' && <Text style={s.detail}>Kontant vid hämtning. Ägaren registrerar betalningen när pengarna har tagits emot.</Text>}
             {canPay && available.length > 0 && <View style={s.section}>
               <Text style={s.heading}>{order.payment_provider ? 'Fortsätt din betalning' : 'Välj betalningssätt'}</Text>

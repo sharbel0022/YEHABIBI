@@ -5,7 +5,9 @@ import { Check, ShieldCheck } from 'lucide-react';
 import type { Catalog, OnlinePaymentMethod, PublicOrder } from '@yehabibi/shared';
 import { formatSek, paymentMethodLabel, paymentStatusLabels, safePaymentUrl, statusLabels } from '@/lib/domain';
 import { api } from '@/lib/api-client';
-import { canPayOrder, formatScheduledTime, orderPaymentMethods, orderProgress, orderTimelineLabels } from '@yehabibi/shared';
+import { canPayOrder, directOrderStatus, directReorderDraft, formatScheduledTime, orderPaymentMethods, orderProgress, orderTimelineLabels } from '@yehabibi/shared';
+import Link from 'next/link';
+import './customer.css';
 import { usePaymentMethods } from '@/components/use-payment-methods';
 
 /** Endast kundens token-skyddade publika ordervy skickas till webbläsaren. */
@@ -29,6 +31,9 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
   const current = orderProgress(order);
   const labels = orderTimelineLabels(order);
   const scheduledTime = order.order_type === 'direct' ? formatScheduledTime(order.scheduled_at) : '';
+  const directStatus = order.order_type === 'direct' ? directOrderStatus(order) : null;
+  const reorder = directReorderDraft(order);
+  const reorderUrl = reorder ? `/bestall-nu?${new URLSearchParams({ meny: reorder.menu_id, antal: String(reorder.quantity), tillagg: reorder.addons.map(item => `${item.dish_id}:${item.quantity}`).join(',') })}` : '';
 
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
@@ -78,10 +83,13 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
   }
 
   return <div className="form-layout"><div className="order-panel">
-    <span className="admin-pill">{order.status === 'approved' && order.payment_status === 'pending' ? 'Väntar på betalning' : statusLabels[order.status]}</span>
+    <span className="admin-pill">{directStatus?.label || (order.status === 'approved' && order.payment_status === 'pending' ? 'Väntar på betalning' : statusLabels[order.status])}</span>
     <p className="eyebrow">{order.order_type === 'direct' ? 'DIREKTBESTÄLLNING' : 'CATERINGBOKNING'}</p>
     <h2>{order.menu_title}</h2><p>{order.order_type === 'direct' ? `${order.package_quantity || 1} paket · ` : ''}{order.guests} personer · {scheduledTime || `${order.event_date}, kl ${order.event_time}`}<br/>{order.fulfillment === 'pickup' ? 'Hämtning' : 'Hemleverans'}</p>
     <p className="admin-note">{simulated ? 'Simulerad betalning' : 'Betalning'}: <strong>{paymentStatusLabels[order.payment_status]}</strong> · {paymentMethodLabel(order.payment_preference, simulated)}</p>
+    {directStatus && <div className="direct-status-copy"><strong>{directStatus.label}</strong><p>{directStatus.detail}</p>{order.capacity_status === 'held' && order.hold_expires_at && <p>Reservation till {formatScheduledTime(order.hold_expires_at)}. Servern avgör när kapaciteten kan frigöras.</p>}</div>}
+    {directStatus && order.capacity_status === 'released' && order.payment_status === 'unpaid' && <p><Link className="btn btn-primary" href="/menyer">Starta en ny beställning →</Link></p>}
+    {reorder && <p><Link className="btn btn-primary" href={reorderUrl}>Beställ samma igen →</Link><br/><small>Öppnar ett nytt utkast med aktuella priser. Välj en ny ledig tid.</small></p>}
     {order.payment_review_required && <p className="form-error" role="alert">{order.payment_refund_status === 'needs_review' ? 'Återbetalningen behöver kontrolleras av köket.' : 'Betalningen behöver kontrolleras av köket.'} Kontakta oss innan du betalar igen.</p>}
     {order.payment_transaction_reference && <p className="field-hint">Transaktionsreferens: {order.payment_transaction_reference}</p>}
     {order.payment_refund_status === 'pending' && <p className="preview-note">Återbetalning begärd. Vi väntar på leverantörens bekräftelse.</p>}
@@ -112,12 +120,12 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
     {canPay && !methods.length && <p className="preview-note">{catalog?.payment_unavailable_reason || 'Onlinebetalning är ännu inte aktiverad för din enhet. Kontakta köket om betalning.'}</p>}
     {order.payment_status === 'pending' && <p className="field-hint">Väntar på verifierad betalningsbekräftelse. Att återvända från betalsidan är inget kvitto.</p>}
     {order.payment_preference === 'cash' && order.payment_status !== 'paid' && order.status === 'approved' && <p className="approval-note"><ShieldCheck size={20}/>Betala kontant vid överenskommen hämtning. Köket bekräftar betalningen när pengarna tagits emot.</p>}
-    {['new', 'reviewing'].includes(order.status) && <p className="approval-note"><ShieldCheck size={20}/>{order.order_type === 'direct' ? 'Din tid är reserverad. Köket granskar beställningen innan betalning och förberedelse.' : 'Din förfrågan granskas av köket. Den är ännu inte bokad eller betald.'}</p>}
+    {!directStatus && ['new', 'reviewing'].includes(order.status) && <p className="approval-note"><ShieldCheck size={20}/>Din förfrågan granskas av köket. Den är ännu inte bokad eller betald.</p>}
     {message && <p role="status" className="form-success">{message}</p>}{error && <p role="alert" className="form-error">{error}</p>}
     <div className="form-actions"><button type="button" className="btn" disabled={busy} onClick={() => update()}>{busy ? 'Uppdaterar…' : 'Uppdatera status'}</button></div>
     <p className="admin-note">Frågor om din förfrågan? Svara på bekräftelsemejlet.</p>
   </div><aside className="form-sidebar"><span className="eyebrow">FRÅN FÖRFRÅGAN TILL MAT</span><h3>Följ din beställning</h3>
-    <ol className="status-timeline">{labels.map((label, index) => { const reached = index + 1 <= current && (index !== 4 || order.payment_status === 'paid');
+    <ol className="status-timeline">{(directStatus ? ['Bekräftad', 'Tillagas', order.fulfillment === 'pickup' ? 'Klar för hämtning' : 'På väg', 'Slutförd'] : labels).map((label, index) => { const reached = directStatus ? index < directStatus.progress : index + 1 <= current && (index !== 4 || order.payment_status === 'paid');
       return <li key={label} className={reached ? 'reached' : ''} aria-current={index + 1 === current ? 'step' : undefined}><span>{reached ? <Check size={13}/> : index + 1}</span>{label}</li>;
     })}</ol><p className="field-hint">Orderstatus och betalningsstatus uppdateras separat. En återkomst från betalsidan är inte en betalningsbekräftelse.</p>
   </aside></div>;

@@ -327,10 +327,12 @@ export function Choices<T extends string>({
 }
 
 export function MenuCard({ menu, onChoose }: { menu: Menu; onChoose: () => void }) {
+  const { catalog } = useCatering();
   return (
     <View style={s.card}>
       <Photo url={menu.image_url} />
       <View style={s.cardBody}>
+        {(!menu.image_url || catalog.demo || catalog.test_mode) && <Text style={s.detail}>Inspirationsbild – den exakta paketbilden behöver bekräftas av köket.</Text>}
         <Text style={s.eyebrow}>FRÅN {menu.min_people} PERSONER</Text>
         <Text accessibilityRole="header" style={s.heading}>
           {menu.title}
@@ -341,9 +343,9 @@ export function MenuCard({ menu, onChoose }: { menu: Menu; onChoose: () => void 
           Allergener: {menu.allergens.join(', ') || 'Kontakta oss för information'}
         </Text>
         <Text style={s.price}>
-          {menu.price_ore > 0 ? `${formatSek(menu.price_ore)} / person` : 'Pris inväntar ägarens bekräftelse'}
+          {(menu.catering_price_ore ?? menu.price_ore) > 0 ? `${formatSek(menu.catering_price_ore ?? menu.price_ore)} / person` : 'Pris inväntar ägarens bekräftelse'}
         </Text>
-        <Button title={menu.price_ore > 0 ? 'Välj cateringpaket' : 'Priset behöver bekräftas'} disabled={menu.price_ore <= 0} onPress={onChoose} />
+        <Button title={(menu.catering_price_ore ?? menu.price_ore) > 0 ? 'Välj cateringpaket' : 'Priset behöver bekräftas'} disabled={(menu.catering_price_ore ?? menu.price_ore) <= 0} onPress={onChoose} />
       </View>
     </View>
   );
@@ -352,9 +354,11 @@ export function MenuCard({ menu, onChoose }: { menu: Menu; onChoose: () => void 
 export function DirectPackageCard({ menu, quantity, onChange, onOrder, enabled }: {
   menu: Menu; quantity: number; onChange: (difference: number) => void; onOrder: () => void; enabled: boolean;
 }) {
+  const { catalog } = useCatering();
   return <View style={s.card}>
     <Photo url={menu.image_url} label={menu.title} />
     <View style={s.cardBody}>
+      {(!menu.image_url || catalog.demo || catalog.test_mode) && <Text style={s.detail}>Inspirationsbild – {catalog.test_mode ? 'syntetiskt testpaket, ingen godkänd produktbild.' : 'den exakta paketbilden behöver bekräftas av köket.'}</Text>}
       <Text style={s.eyebrow}>FÄRDIGT PAKET · BESTÄLL NU</Text>
       <Text accessibilityRole="header" style={s.heading}>{menu.title}</Text>
       <Text style={s.body}>{menu.description}</Text>
@@ -363,13 +367,13 @@ export function DirectPackageCard({ menu, quantity, onChange, onOrder, enabled }
       <Text style={s.detail}>Allergener: {menu.allergens.join(', ') || 'Kontakta köket för information'}</Text>
       <Text style={s.detail}>Tillagning från {menu.preparation_minutes ?? 30} minuter. Ledig tid bekräftas av servern.</Text>
       <Text style={s.price}>{menu.price_ore > 0 ? `${formatSek(menu.price_ore)} / paket` : 'Pris inväntar ägarens bekräftelse'}</Text>
-      <Text style={s.detail}>{enabled ? 'Tillgängligt för direktbeställning. Välj hämtning eller leverans för att se lediga tider.' : 'Direktbeställningar är inte öppna just nu.'}</Text>
+      <Text style={s.detail}>{menu.availability_state === 'sold_out' ? 'Slutsålt' : menu.availability_state === 'paused' ? 'Pausat' : enabled ? 'Välj hämtning eller leverans för att se lediga tider.' : 'Direktbeställningar är inte öppna just nu.'}</Text>
       <View style={s.row}>
         <Text style={s.label}>Antal paket</Text>
         <Stepper label={`paket ${menu.title}`} value={quantity} min={1} max={100} onChange={onChange} />
       </View>
       <Amount strong label={`${quantity} paket`} ore={quantity * menu.price_ore} />
-      <Button title="Beställ nu  →" disabled={!enabled || menu.price_ore <= 0} onPress={onOrder} />
+      <Button title="Beställ nu  →" disabled={!enabled || menu.price_ore <= 0 || !!menu.availability_state && menu.availability_state !== 'available'} onPress={onOrder} />
     </View>
   </View>;
 }
