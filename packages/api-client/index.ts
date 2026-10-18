@@ -1,6 +1,6 @@
 import type {
   Catalog, Menu, OnlinePaymentMethod, OrderInput, OrderReceipt, OrderReference, OrderStatusResponse,
-  PaymentSessionResponse, PushRegistrationResponse, Settings,
+  PaymentSessionResponse, PushRegistrationResponse, Settings, AvailabilityInput, AvailabilityResponse, DirectOrderInput,
 } from '@yehabibi/shared';
 import { safePaymentUrl } from '@yehabibi/shared';
 
@@ -38,6 +38,7 @@ function isCatalog(value: unknown): value is Catalog {
     Array.isArray(value.campaigns) && Array.isArray(value.delivery_zones) &&
     Array.isArray(value.payment_methods) && isObject(value.settings) &&
     typeof value.demo === 'boolean' && typeof value.orders_enabled === 'boolean' &&
+    (value.direct_orders_enabled === undefined || typeof value.direct_orders_enabled === 'boolean') &&
     (value.test_mode === undefined || typeof value.test_mode === 'boolean');
 }
 
@@ -50,6 +51,19 @@ function isOrderResponse(value: unknown): value is OrderStatusResponse {
 function isReceipt(value: unknown): value is OrderReceipt {
   return isObject(value) && typeof value.code === 'string' && typeof value.token === 'string' &&
     typeof value.tracking_url === 'string';
+}
+
+function isAvailability(value:unknown):value is AvailabilityResponse {
+  const instant=(input:unknown)=>typeof input==='string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(input) && Number.isFinite(Date.parse(input));
+  const money=(input:unknown)=>Number.isSafeInteger(input) && Number(input)>=0;
+  return isObject(value) && instant(value.server_now) &&
+    value.timezone==='Europe/Stockholm' && typeof value.enabled==='boolean' && typeof value.pickup_address==='string' &&
+    money(value.total_ore) && money(value.subtotal_ore) && money(value.delivery_fee_ore) &&
+    money(value.preparation_minutes) && (value.reason===undefined || typeof value.reason==='string') &&
+    (value.delivery_zone_id===null || typeof value.delivery_zone_id==='string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value.delivery_zone_id)) &&
+    Array.isArray(value.slots) && value.slots.every(slot=>isObject(slot) && typeof slot.starts_at==='string' &&
+      instant(slot.starts_at) && typeof slot.label==='string' && typeof slot.event_date==='string' &&
+      typeof slot.event_time==='string' && Number.isInteger(slot.remaining_capacity) && Number(slot.remaining_capacity)>0);
 }
 
 function isPaymentSession(value: unknown, origin: string, verifiedTestMode: boolean): value is PaymentSessionResponse {
@@ -149,6 +163,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     createOrder(input: OrderInput, requestOptions?: RequestOptions) {
       return request('/api/orders', isReceipt, { method: 'POST', body: JSON.stringify(input) }, requestOptions);
+    },
+    getAvailability(input: AvailabilityInput, requestOptions?: RequestOptions) {
+      return request('/api/availability',isAvailability,{method:'POST',body:JSON.stringify(input)},requestOptions);
+    },
+    createDirectOrder(input: DirectOrderInput, requestOptions?: RequestOptions) {
+      return request('/api/orders/direct',isReceipt,{method:'POST',body:JSON.stringify(input)},requestOptions);
     },
     getOrderStatus(reference: OrderReference, requestOptions?: RequestOptions) {
       return request(orderPath(reference), isOrderResponse, {}, requestOptions);

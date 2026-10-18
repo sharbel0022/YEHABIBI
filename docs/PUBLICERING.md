@@ -1,4 +1,10 @@
-# Publicering – V4.3
+# Publicering – V4.4
+
+V4.4 använder branchen `direct-orders-and-time-slots-v4-4` och tillför direktpaket samt serververifierade tider. Lokal verifiering är dokumenterad i [TESTER.md](TESTER.md); konfiguration och fullständigt testflöde finns i [DIRECT_ORDERS_V4_4.md](DIRECT_ORDERS_V4_4.md). PR, grön CI, merge-SHA och faktisk Sites-version redovisas efter avslutade externa steg i slutleveransen.
+
+Publicera samma granskade main via den befintliga Sites-källan. `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false` och `PAYMENTS_LIVE_APPROVED=false` ska bevaras. V4.4-migrationen ska finnas i företagets verifierade miljö innan direktbeställning konfigureras där; ingen molndatabas har aktiverats under den lokala verifieringen. Den isolerade testserverns paket, syntetiska kunder och betalningssimulator ska fortsatt stanna lokalt.
+
+## Bevarad V4.3-konfiguration
 
 V4.3 behåller EAS-profiler och en webbackend samt tillför avstängd Adyen-adapter. Läs [betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) före kontokonfiguration. Företagets konton, innehåll och externa betalningsflöden måste verifieras före aktivering. Ingen automatisk butiksuppladdning sker. Lokala tester använder isolerad testdatabas; det identifierade inaktiva Supabase-projektet har inte ändrats. Stripe är avvecklat som aktiv integration.
 

@@ -1,6 +1,8 @@
-# YEHABIBI V4.3 – Cedar Mezze
+# YEHABIBI V4.4 – Cedar Mezze
 
 Libanesisk catering för hemma, fest och företag. Next.js driver webb, admin och den gemensamma backendservern. Expo SDK 57 driver iPhone och Android. Alla plattformar använder samma katalog, orderkontrakt och Supabase/PostgreSQL inom respektive miljö.
+
+V4.4 lägger till **Beställ nu** för färdiga paket, antal paket, hämtning/hemleverans och serverberäknade lediga tider i `Europe/Stockholm`. Kapacitet och aktuellt pris kontrolleras igen i samma transaktion som ordern sparas. Catering med offert och ägargodkännande finns kvar. Läs [direktbeställningsguiden](docs/DIRECT_ORDERS_V4_4.md) för inställningar, tidsberäkning och ett komplett testköp utan riktiga pengar.
 
 V4.3 ersätter aktiv Stripe-kod med ett gemensamt betalningsgränssnitt och en avstängd Adyen Pay by Link-adapter med testmiljö och separat spärrad produktionskonfiguration. Swish, Apple Pay, Google Pay och Visa/Mastercard kräver företagets verifierade konton och riktiga sandboxprov. Inga livebetalningar aktiveras. Orderhistoriken bevaras genom en additiv migration.
 

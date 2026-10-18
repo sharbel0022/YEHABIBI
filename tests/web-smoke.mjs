@@ -83,7 +83,7 @@ async function verifyPublicPage(route) {
 
 try {
   await waitForServer();
-  const routes = ['/', '/menyer', '/bestall', '/om-oss', '/kontakt',
+  const routes = ['/', '/menyer', '/bestall', '/bestall-nu', '/om-oss', '/kontakt',
     '/festcatering-vasteras', '/foretagscatering-vasteras', '/integritet', '/villkor'];
   for (const route of routes) await verifyPublicPage(route);
 
@@ -101,6 +101,7 @@ try {
   const catalog = await catalogResponse.json();
   assert.equal(catalog.demo, true, 'Röktestet ska använda demonstrationskatalogen.');
   assert.equal(catalog.orders_enabled, false, 'Beställningar ska vara avstängda.');
+  assert.equal(catalog.direct_orders_enabled, false, 'Direktbeställningar ska vara avstängda publikt.');
   assert.equal(catalog.dishes.length, 11, 'API och SSR ska visa samma elva rätter.');
   assert.ok(catalog.dishes.every(dish => dish.price_ore === 0), 'Demorätter ska sakna fastställda priser.');
   assert.ok(catalog.menus.length > 0 && catalog.menus.every(menu => menu.price_ore === 0), 'Demopaket ska sakna fastställda priser.');
@@ -130,6 +131,16 @@ try {
   const disabledOrder = await request('/api/orders', { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(disabledOrder.status, 503, 'Avstängd beställning ska avvisas före databasåtkomst.');
+  for (const route of ['/api/orders/direct', '/api/availability']) {
+    const disabledDirect = await request(route, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(disabledDirect.status, 503, `${route}: publik direktbeställning ska vara avstängd.`);
+  }
+  for (const method of ['GET', 'PATCH']) {
+    const scheduling = await request('/api/admin/scheduling', { method,
+      ...(method === 'PATCH' ? { headers: { 'Content-Type': 'application/json' }, body: '{}' } : {}) });
+    assert.equal(scheduling.status, 401, 'Tidsinställningar kräver adminsession.');
+  }
   const unauthorized = await request('/api/admin/settings', { method: 'PATCH',
     headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(unauthorized.status, 401, 'Adminändring utan session ska avvisas.');

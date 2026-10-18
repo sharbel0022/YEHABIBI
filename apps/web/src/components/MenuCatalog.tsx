@@ -49,7 +49,7 @@ export function MenuCatalog({ initialCatalog, initialTab, initialDish }: Props) 
       <button type="button" className={tab === 'paket' ? 'active' : ''} aria-pressed={tab === 'paket'}
         onClick={() => setTab('paket')}>Färdiga paket</button>
       <button type="button" className={tab === 'bygg' ? 'active' : ''} aria-pressed={tab === 'bygg'}
-        onClick={() => setTab('bygg')}>Bygg din egen meny</button>
+        onClick={() => setTab('bygg')}>Boka catering · egen meny</button>
     </div>
     {preview && <p className="preview-note">Förhandsvisning. Köket behöver publicera och godkänna priser, portionsstorlekar och allergener innan beställningarna öppnar.</p>}
     {tab === 'paket' ? <div className="menu-grid">

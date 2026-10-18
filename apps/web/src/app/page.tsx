@@ -23,7 +23,7 @@ export default async function HomePage() {
       <div className="hero-copy"><span className="eyebrow">HEMMA · FEST · FÖRETAG</span>
         <h1 id="hero-title">Äkta libanesisk catering <em>för alla tillfällen.</em></h1>
         <p>Mezze att dela. Smaker att samlas kring. Välj en färdig meny eller bygg er egen – från första favoriten till sista tuggan.</p>
-        <Cta href="/menyer">Se menyer och beställ</Cta>
+        <div className="hero-order-actions"><Cta href="/bestall-nu">Beställ nu</Cta><Link className="btn btn-outline-light" href="/bestall">Boka catering</Link></div>
         <div className="hero-signature"><img src="/brand-mark.svg" alt="" width={28} height={34}/><span>Yehabibi <small>CEDAR MEZZE</small></span></div>
       </div>
       <div className="hero-photo"><HeroMedia videoUrl={safeExternalUrl(settings.hero_video_url)} poster={settings.hero_poster_url || '/images/hero.webp'}/>

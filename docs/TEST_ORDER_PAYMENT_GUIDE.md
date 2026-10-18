@@ -1,6 +1,8 @@
-# Lokal testplattform – V4.3
+# Lokal testplattform – V4.4
 
 **TESTLÄGE – INGA RIKTIGA BESTÄLLNINGAR.** Den här miljön använder syntetiska kunder, menypriser, adresser, e-post och push. Företagets Swish, bankkonto och Adyen-nycklar används inte. En simulerad betalning flyttar inga pengar och är inte en Adyen-sandboxtransaktion.
+
+V4.4 lägger till ett syntetiskt färdigt paket och serverberäknade direktbeställningstider på samma testserver. Öppna **Beställ nu**, välj antal, hämtning eller hemleverans och en ledig tid. Se [DIRECT_ORDERS_V4_4.md](DIRECT_ORDERS_V4_4.md) för hela flödet, öppettider och kapacitetsregler. Cateringprovet på 480 kr nedan finns kvar.
 
 ## Starta i Windows
 

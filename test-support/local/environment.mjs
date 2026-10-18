@@ -16,6 +16,7 @@ export const testDishes = [
   { id: '44444444-4444-4444-8444-000000000004', title: 'TEST Falafel', price: 2000, unit: 'styck', category: 'varma_meze' },
   { id: '44444444-4444-4444-8444-000000000005', title: 'TEST Baklava', price: 3500, unit: 'bit', category: 'dessert' },
 ];
+export const testPackageId='66666666-6666-4666-8666-666666666666';
 export function redacted(value) {
   return String(value).replace(/([?&](?:amp;)?(?:token|password|secret|session|key)=)[^&\s"'<>]+/gi, '$1[REDACTED]')
     .replace(/("(?:token|password|secret|access_token|refresh_token)"\s*:\s*")[^"]*/gi, '$1[REDACTED]')
@@ -162,7 +163,11 @@ export async function startTestEnvironment(options = {}) {
       update public.business_settings set brand_name='Yehabibi TEST – syntetisk catering',contact_email='kitchen@example.test',contact_phone='0700000000',pickup_address='Testgatan 1, Teststad',custom_min_people=5,min_advance_days=1,pickup_enabled=true,delivery_enabled=true,cash_enabled=true,allow_unpaid_requests=true where id=1;
       insert into public.owner_push_tokens(admin_user_id,token) values(${literal(userId)},'ExpoPushToken[isolated_owner_test_device]');`);
     for (const [index, dish] of testDishes.entries()) sql(`insert into public.dishes(id,slug,title,description,price_ore,portion_label,active,suggested_per_person,category,sort_order) values(${literal(dish.id)},${literal(`synthetic-${index}`)},${literal(dish.title)},'Endast syntetisk testdata – inga riktiga beställningar',${dish.price},${literal(dish.unit)},true,${index === 0 ? 2.4 : index === 1 ? 0.4 : 1},${literal(dish.category)},${index});`);
-    sql(`insert into public.delivery_zones(id,name,postal_prefixes,fee_ore,active) values('55555555-5555-4555-8555-555555555555','TEST zon',array['721'],10000,true);`);
+    sql(`insert into public.menus(id,slug,title,description,included,allergens,price_ore,min_people,active,direct_order_enabled,catering_enabled,package_portions,preparation_minutes,extra_preparation_minutes,extra_preparation_every,image_url)
+      values(${literal(testPackageId)},'syntetiskt-testpaket','TEST Libanesiskt paket','Syntetiskt testpaket för samma dag',array['Test hummus','Test falafel'],array['sesam'],12900,5,true,true,true,2,20,5,3,'/images/hero.webp');
+      insert into public.delivery_zones(id,name,postal_prefixes,fee_ore,active,direct_enabled,travel_minutes) values('55555555-5555-4555-8555-555555555555','TEST zon',array['721'],10000,true,true,20);
+      update public.direct_order_settings set enabled=true,auto_approve=true,min_advance_minutes=5,capacity_per_slot=4,
+        weekly_hours=(select jsonb_agg(jsonb_build_object('weekday',day,'closed',false,'opens_at','00:00','closes_at','23:59','cutoff_at','23:45','pickup_from','00:00','pickup_until','23:59','delivery_from','00:00','delivery_until','23:59')) from generate_series(0,6) day) where id=1;`);
     // Registry schema comes from the real additive migration; only this isolated database gets local_test.
     sql(`insert into public.payment_provider_registry(provider,environment,checkout_base_url,active) values('local_test','test',${literal(origin + '/__test/payment/')},true);`);
     // The Windows binary intermittently aborts during startup with exit 3 at -N2; exact upstream cause is unknown.

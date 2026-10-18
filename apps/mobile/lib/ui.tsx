@@ -90,7 +90,9 @@ function HeroVideo({ url, poster }: { url: string; poster: string | null }) {
   );
 }
 
-export function Screen({ children, title, intro, footer }: PropsWithChildren<{ title?: string; intro?: string; footer?: ReactNode }>) {
+export function Screen({ children, title, intro, footer, keepFooterWithKeyboard = false }: PropsWithChildren<{
+  title?: string; intro?: string; footer?: ReactNode; keepFooterWithKeyboard?: boolean;
+}>) {
   const { catalog, loading, refresh, notice, catalogError } = useCatering();
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const insets = useSafeAreaInsets();
@@ -134,7 +136,7 @@ export function Screen({ children, title, intro, footer }: PropsWithChildren<{ t
         {children}
         <Text style={s.footer}>Tillagat med omsorg. Delat med glädje.</Text>
       </ScrollView>
-      {keyboardOpen ? <View style={s.fixed}><Button secondary title="Stäng tangentbord" onPress={Keyboard.dismiss} /></View>
+      {keyboardOpen && !keepFooterWithKeyboard ? <View style={s.fixed}><Button secondary title="Stäng tangentbord" onPress={Keyboard.dismiss} /></View>
         : footer && <View style={s.fixed}>{footer}</View>}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -345,6 +347,31 @@ export function MenuCard({ menu, onChoose }: { menu: Menu; onChoose: () => void 
       </View>
     </View>
   );
+}
+
+export function DirectPackageCard({ menu, quantity, onChange, onOrder, enabled }: {
+  menu: Menu; quantity: number; onChange: (difference: number) => void; onOrder: () => void; enabled: boolean;
+}) {
+  return <View style={s.card}>
+    <Photo url={menu.image_url} label={menu.title} />
+    <View style={s.cardBody}>
+      <Text style={s.eyebrow}>FÄRDIGT PAKET · BESTÄLL NU</Text>
+      <Text accessibilityRole="header" style={s.heading}>{menu.title}</Text>
+      <Text style={s.body}>{menu.description}</Text>
+      <Text style={s.detail}>{menu.included.join(' · ')}</Text>
+      <Text style={s.detail}>Portionsstorlek: {menu.package_portions || 1} personer per paket</Text>
+      <Text style={s.detail}>Allergener: {menu.allergens.join(', ') || 'Kontakta köket för information'}</Text>
+      <Text style={s.detail}>Tillagning från {menu.preparation_minutes ?? 30} minuter. Ledig tid bekräftas av servern.</Text>
+      <Text style={s.price}>{menu.price_ore > 0 ? `${formatSek(menu.price_ore)} / paket` : 'Pris inväntar ägarens bekräftelse'}</Text>
+      <Text style={s.detail}>{enabled ? 'Tillgängligt för direktbeställning. Välj hämtning eller leverans för att se lediga tider.' : 'Direktbeställningar är inte öppna just nu.'}</Text>
+      <View style={s.row}>
+        <Text style={s.label}>Antal paket</Text>
+        <Stepper label={`paket ${menu.title}`} value={quantity} min={1} max={100} onChange={onChange} />
+      </View>
+      <Amount strong label={`${quantity} paket`} ore={quantity * menu.price_ore} />
+      <Button title="Beställ nu  →" disabled={!enabled || menu.price_ore <= 0} onPress={onOrder} />
+    </View>
+  </View>;
 }
 
 // Samma kort används på startsidan, i menyn och i byggaren.

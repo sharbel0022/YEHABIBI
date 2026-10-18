@@ -7,7 +7,7 @@ import { verifyTrackingToken } from '@/lib/tracking';
 import { OrderTracking } from '@/components/OrderTracking';
 import type { CateringOrder } from '@/types/domain';
 
-export const metadata: Metadata = { title: 'Följ din cateringförfrågan', robots: { index: false, follow: false }, referrer: 'no-referrer' };
+export const metadata: Metadata = { title: 'Följ din beställning', robots: { index: false, follow: false }, referrer: 'no-referrer' };
 export const dynamic = 'force-dynamic';
 
 export default async function TrackOrder({ params, searchParams }: {
@@ -22,8 +22,8 @@ export default async function TrackOrder({ params, searchParams }: {
   if (!verifyTrackingToken(token, order.tracking_hash)) notFound();
   const view = await publicOrderView(order);
   return <section className="shell section inner-page form-shell">
-    <span className="eyebrow">DIN FÖRFRÅGAN · {order.code}</span><h1>Från köket till ditt bord.</h1>
-    <p className="intro">Här ser du besked, eventuella ändringsförslag och betalningen för din catering.</p>
+    <span className="eyebrow">DIN BESTÄLLNING · {order.code}</span><h1>Från köket till ditt bord.</h1>
+    <p className="intro">Här ser du kökets besked, eventuella ändringsförslag och betalningen för din beställning.</p>
     <OrderTracking initialOrder={view} token={token}/>
   </section>;
 }

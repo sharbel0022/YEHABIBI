@@ -45,8 +45,10 @@ jobs:
         run: npm run test:integration
       - name: Isolated test orders, simulation, notifications and security boundaries
         run: npm run test:mode
+      - name: Direct packages, atomic slot capacity and simulated payments
+        run: npm run test:direct
       - name: Database test diagnostics on failure
         if: failure()
         shell: bash
         run: |
-          find .tmp -path '*/integration-*/postgres.log' -o -path '*/integration-*/process-*.log' | while IFS= read -r file; do tail -n 60 "$file"; done
+          find .tmp -type f \( -name 'postgres.log' -o -name 'process-*.log' \) | while IFS= read -r file; do tail -n 60 "$file"; done

@@ -27,7 +27,8 @@ const steps = orderSteps;
 export function OrderForm({ initialCatalog,
   initialMenu, initialOccasion, initialMode, initialItems, initialGuests }: Props) {
   const { catalog, ...refreshState } = useCatalog(initialCatalog);
-  const { menus, dishes, delivery_zones: zones, settings, orders_enabled: enabled, payment_methods: paymentMethods } = catalog;
+  const { dishes, delivery_zones: zones, settings, orders_enabled: enabled, payment_methods: paymentMethods } = catalog;
+  const menus = catalog.menus.filter(menu => menu.catering_enabled !== false);
   const customMinimum = settings.custom_min_people;
   const explicitCustom = initialMode === 'bygg' || initialMenu === 'egen' || !!initialItems;
   const { draft, setDraft, clearDraft, requestIdFor, notice } = useMenuDraft({

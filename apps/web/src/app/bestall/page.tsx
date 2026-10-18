@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getCatalog } from '@/lib/data';
 import { OrderForm } from '@/components/OrderForm';
 
@@ -12,8 +13,9 @@ export default async function OrderPage({ searchParams }: {
 }) {
   const [catalog, params] = await Promise.all([getCatalog(), searchParams]);
   return <section className="shell section inner-page form-shell">
-    <span className="eyebrow">ENKELT ATT BESTÄLLA</span><h1>Libanesisk catering på ditt sätt.</h1>
+    <span className="eyebrow">BOKA CATERING I FÖRVÄG</span><h1>Libanesisk catering på ditt sätt.</h1>
     <p className="intro">En kväll med vänner eller en stor fest – välj maten, se priset och skicka en förfrågan. Vi bekräftar innan betalning.</p>
+    <p><Link className="text-link" href="/bestall-nu">Vill du beställa ett färdigt paket? Beställ nu →</Link></p>
     {catalog.menus.length || catalog.dishes.length ? <OrderForm
       initialCatalog={catalog}
       initialMenu={params.meny} initialOccasion={params.typ} initialMode={params.val}

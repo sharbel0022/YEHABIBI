@@ -1,3 +1,29 @@
+# Tester och verifiering – V4.4
+
+Verifierat lokalt 2026-10-18. Inga riktiga pengar eller företagskonton användes. Webb och Expo Web använde samma körande isolerade Next.js/PostgREST/PostgreSQL-testserver.
+
+| Kontroll | Faktiskt resultat |
+| --- | --- |
+| Syntax, typer och enhetstester | Godkänt. **115/115 tester**, inklusive V4.4:s klient- och SQL-regressioner. Typkontroll för webb, Expo och API-klient. |
+| Schemaläggning i PostgreSQL | Samma dag, större antal, framförhållning, buffert, avrundning, stängt, nära stopptid, specialdatum, blockerade intervall, nattöppet, vårens saknade timme och höstens upprepade timme. Tidigaste öppning/senaste stängning samt överlappande kapacitet i båda bokningsordningarna verifierade. |
+| Aktuellt pris och kapacitet | Sparandet avvisar ändrat pris/tillagning, paus och gammal tid. Idempotenta återförsök ger samma order. Nekad/avbruten order frigör plats. RLS och service-only funktioner verifierade. |
+| Direktorder via riktig HTTP/databas | `npm run test:direct`: **9 godkända kontroller** med verklig Next.js → PostgREST → PostgreSQL. Åtta samtidiga bokningsförsök till sista platsen gav **1 skapad order och 7 konflikter**. Fyra order använde signerad lokal simulation av Swish, Apple Pay, Google Pay och kort. Paketmejl, zon/avgift/transportbuffert, gammalt pris/tid, paus, blockerad tid och cateringregression ingår. |
+| Befintlig integration | `npm run test:integration`: **11 order och 64 testmejl**, godkänt. Catering behåller pris per person och manuell granskning. |
+| Befintlig isolerad betalningssvit | `npm run test:mode`: **23 kontroller, 11 order, 83 fångade mejl och 26 fångade pushmeddelanden**, godkänt. |
+| Next.js/produktion | Produktionsbygge godkänt. `npm run test:web` verifierar **10 publika sidor**, SSR, avstängda direkt-/cateringorder, skyddade tidsinställningar och frånvarande simulator i produktionspaketet. |
+| Expo SDK 57 | Android/iOS Hermes och **9 webbrutter** exporterade, inklusive `/direkt`. Ingen SDK-uppgradering. |
+| Praktisk webb: direktorder och Swish | **CM-835C97F38F**, två testpaket för **258 kr**, hämtning 18 oktober 15:15 GMT+2. Kvitto, auto-godkännande utan automatisk betalning, explicit Swish-simulering, Betald → Under förberedelse → Klar för hämtning verifierades i kund och admin. Postnummer `99999` gav begripligt leveransavslag och val av hämtning. Paus sparades i admin och blockerade nya direktorder; öppnades sedan igen. |
+| Praktisk webb: övriga metoder | **Apple Pay CM-395F782503** kl. 15:45, **Google Pay CM-FB11BA6F2D** kl. 16:00 och **kort CM-0D9FB9C9F1** kl. 16:15 den 18 oktober, GMT+2. Ett paket för **129 kr** per order. Varje metod valdes på privata ordervyn, öppnade rätt lokala simulator och följdes tillbaka till **Betald**. |
+| Praktisk Expo Web | **CM-57AE8164E7**, ett paket för **129 kr + 100 kr leverans = 229 kr**, syntetisk adress/postnummer `72100`, 18 oktober 17:30 GMT+2. Expo skapade ordern, öppnade Google Pay-simulatorn och visade samma serverstatus **Betald → Under förberedelse → På väg → Slutförd** efter adminåtgärder. |
+
+Skärmbilder sparades lokalt under `.tmp/v44-direct-paid-ready.png`, `.tmp/v44-other-payments.png` och `.tmp/v44-expo-completed.png`. Innehållet i `.tmp` följer inte med i Git eller publicering.
+
+På Windows avslutades den befintliga PostgREST-binären ibland med kod 3 vid uppstart trots `GHCRTS=-N1`, innan appen startat. Helt nya isolerade sessioner startades; sista HTTP-sviten passerade inklusive mejlkontrollerna. Ingen automatisk omstart eller ändring av V4.3-launchern infördes. Se testguidens tidigare startupdiagnos.
+
+Datum-/DST-gränser, race och gamla pris/tidsvärden verifierades med automatiska SQL-/HTTP-tester; de redovisas inte som manuella klockförflyttningar i webbläsaren. Expo Web är inget fysiskt iPhone-/Android-prov. Företagets verkliga betalningskonton, körda transporter och externa meddelandetjänster är fortsatt overifierade och avstängda publikt.
+
+---
+
 # Tester och verifiering – V4.3
 
 Lokala slutkontroller körda 2026-10-17–18. [Betalningsguiden](PAYMENTS_WITHOUT_STRIPE_V4_3.md) skiljer lokal integration, simulerad leverantör, riktig sandbox och fysisk enhet. Ingen Adyen-sandboxtransaktion eller livebetalning har verifierats här.
