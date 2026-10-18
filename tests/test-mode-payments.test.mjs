@@ -89,6 +89,8 @@ test('test adapter runs all four methods through real SQL, repeated failures, du
     await db.exec(readFileSync(new URL('../test-support/payments/schema.sql',import.meta.url),'utf8'));
     await db.query('insert into public.test_environment_guard(isolation_id,secret_hash) values($1,$2)',[marker.isolation_id,marker.secret_hash]);
     await db.exec('grant usage on schema public to service_role;grant all on all tables in schema public to service_role;set role service_role;');
+    // Four independent adapter scenarios share one slot; do not exhaust the restaurant fixture.
+    await db.exec('update public.direct_order_settings set capacity_per_slot=1000');
     const client=sqlClient(db),settings=testEnvironmentSettings(env);
     const validate=()=>assertTestIsolation(async()=>(await db.query('select isolation_id,secret_hash from public.test_environment_guard')).rows[0],env).then(()=>{});
     const rpc=async(name,args)=>{const result=await client.rpc(name,args);if(result.error)throw result.error;return result.data;};

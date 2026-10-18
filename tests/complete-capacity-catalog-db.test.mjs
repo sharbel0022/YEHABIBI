@@ -126,10 +126,12 @@ test('complete catalogue and shared weighted kitchen/delivery capacity',async t=
 test('additive migration honours existing future obligations without repricing or rejecting overload',async()=>{
   const legacy=randomUUID(),past=randomUUID(),menu=randomUUID();const future='2030-01-02T12:00:00Z';
   const db=await database(async db=>{
+    await db.exec('update public.direct_order_settings set capacity_per_slot=3,enabled=true');
     await db.query("insert into public.menus(id,slug,title,price_ore,active,direct_order_enabled,package_portions,preparation_minutes) values($1,'legacy-future','TEST befintlig',12900,true,true,2,20)",[menu]);
     for(const [id,scheduled] of [[legacy,future],[past,'2020-01-01T12:00:00Z']]) await db.query("insert into public.orders(id,code,tracking_hash,menu_id,menu_title,price_per_person_ore,guests,occasion,event_date,event_time,fulfillment,full_name,email,phone,subtotal_ore,total_ore,payment_preference,payment_status,status,order_type,package_quantity,scheduled_at,slot_interval_minutes) values($1,$2,$3,$4,'TEST befintlig',12900,2,'hemma',$5::timestamptz::date,'13:00','pickup','TEST kund','legacy@example.test','0700000000',12900,12900,'card','paid','approved','direct',1,$5,15)",[id,'CM-'+id.slice(0,10),'a'.repeat(64),menu,scheduled]);
   });
   try {
+    assert.equal((await db.query('select capacity_per_slot from public.direct_order_settings where id=1')).rows[0].capacity_per_slot,3,'Migration must preserve an enabled restaurant owner capacity budget');
     const order=(await db.query('select * from public.orders where id=$1',[legacy])).rows[0];assert.equal(order.capacity_status,'confirmed');assert.equal(order.total_ore,12900);assert.equal(order.payment_status,'paid');assert.equal(order.status,'approved');assert.equal(Date.parse(order.scheduled_at),Date.parse(future));
     assert.equal((await db.query('select count(*)::int n from public.capacity_reservations where order_id=$1',[legacy])).rows[0].n,1);
     assert.equal((await db.query('select capacity_status from public.orders where id=$1',[past])).rows[0].capacity_status,null);

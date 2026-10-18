@@ -18,9 +18,8 @@ alter table public.direct_order_settings add column hold_minutes integer not nul
   add column delivery_capacity_per_slot integer not null default 4 check(delivery_capacity_per_slot between 1 and 1000),
   add column watchdog_enabled boolean not null default false,add column acknowledgement_minutes integer not null default 5 check(acknowledgement_minutes between 1 and 120),
   add column auto_pause_unacknowledged boolean not null default false;
--- Capacity now represents work units, rather than counting unrelated orders.
--- All public ordering remains disabled until configured; the initial unit budget is editable.
-update public.direct_order_settings set capacity_per_slot=greatest(capacity_per_slot,100);
+-- Preserve the owner's configured budget. Work weights default to one; larger
+-- synthetic test budgets belong in the isolated seed, never in this migration.
 alter table public.orders add column campaign_id uuid references public.campaigns(id),
   add column capacity_status text check(capacity_status in ('held','confirmed','released','review')),
   add column hold_expires_at timestamptz,add column preparation_starts_at timestamptz,add column confirmed_at timestamptz,
