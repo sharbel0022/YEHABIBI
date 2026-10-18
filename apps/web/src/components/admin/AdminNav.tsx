@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import './admin.css';
 
-const links = [['/admin', 'Översikt'], ['/admin/orders', 'Beställningar'], ['/admin/menus', 'Menyer'],
-  ['/admin/ratter', 'Maträtter'], ['/admin/tider', 'Tider och kapacitet'], ['/admin/catalog', 'Kampanjer & leverans'], ['/admin/settings', 'Inställningar']];
+const links = [['/admin/orders', 'Beställningar'], ['/admin/menus', 'Meny och paket'],
+  ['/admin/tider', 'Tider och kapacitet'], ['/admin/settings', 'Inställningar']];
 
 export function AdminNav() {
   const path = usePathname();
   return <nav className="admin-tabs" aria-label="Administration">{links.map(([href, label]) =>
-    <Link key={href} href={href} aria-current={path === href ? 'page' : undefined}>{label}</Link>)}</nav>;
+    <Link key={href} href={href} aria-current={path === href || href === '/admin/menus' && ['/admin/catalog','/admin/ratter'].includes(path) ? 'page' : undefined}>{label}</Link>)}</nav>;
 }

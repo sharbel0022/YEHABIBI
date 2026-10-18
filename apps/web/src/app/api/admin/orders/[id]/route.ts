@@ -42,7 +42,7 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
     return Response.json({order,message:'Betalningsbegäran har köats. Kunden väljer bland tillgängliga betalningssätt via sin privata orderlänk.'});
   }
   if(action==='refund') {
-    if(order.payment_preference==='cash'||order.payment_status!=='paid'||!order.payment_provider||order.payment_review_required)return jsonError('Återbetalningen behöver först kontrolleras mot den ursprungliga transaktionen.',400);
+    if(order.payment_preference==='cash'||order.payment_status!=='paid'||!order.payment_provider||(order.payment_review_required&&order.payment_review_reason!=='capacity_unavailable_after_payment'))return jsonError('Återbetalningen behöver först kontrolleras mot den ursprungliga transaktionen.',400);
     await requestRefund(order);
     const {data:latest}=await db.from('orders').select('*').eq('id',id).single();
     return Response.json({order:latest||order,message:'Återbetalning begärd. Avvakta verifierad bekräftelse från betaltjänsten.'});
@@ -50,10 +50,11 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
   if(order.payment_review_required && ['cash_paid','preparing','ready','dispatched','complete'].includes(action))return jsonError('Betalningen behöver kontrolleras hos leverantören före fortsatt hantering.',409);
   const fulfillmentAction = ['preparing','ready','dispatched','complete'].includes(action);
   if(fulfillmentAction && order.payment_refund_status)return jsonError('Ordern kan inte fortsätta när återbetalning har begärts.',409);
-  if(!canTransition(order.status,action,order.payment_status,order.payment_preference))return jsonError('Åtgärden är inte tillåten för orderns nuvarande status.',409);
+  if(action==='cash_paid'&&!canTransition(order.status,action,order.payment_status,order.payment_preference))return jsonError('Kontantregistrering är inte tillgänglig för denna order.',409);
   if(action==='dispatched' && order.fulfillment!=='delivery') return jsonError('På väg gäller bara hemleverans.');
   if(action==='cash_paid' && order.fulfillment!=='pickup') return jsonError('Kontanter får bara registreras vid hämtning.');
   if(action==='request_changes') {
+    if(!canTransition(order.status,action,order.payment_status,order.payment_preference))return jsonError('Åtgärden är inte tillåten för orderns nuvarande status.',409);
     const {data:saved,error:updateError} = await db.rpc('propose_catering_change',{
       p_order_id:id,p_expected_revision:order.quote_revision||1,p_total_ore:proposed_total_ore??order.total_ore,p_note:admin_note
     });
@@ -61,18 +62,6 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
     await deliverOrderNotifications(id).catch(()=>console.error('Proposal saved; notifications pending'));
     return Response.json({order:saved});
   }
-  const changes:Record<string,unknown>={updated_at:new Date().toISOString()};
-  if(admin_note!==undefined)changes.admin_note=admin_note;
-  if(action==='approve') {
-    changes.status='approved';
-  }
-  if(action==='review')changes.status='reviewing';
-  if(action==='reject') { changes.status='rejected'; changes.proposal=null; }
-  if(action==='cancel') { changes.status='cancelled'; changes.proposal=null; }
-  if(action==='preparing')changes.status='preparing';
-  if(action==='ready')changes.status='ready';
-  if(action==='dispatched')changes.status='dispatched';
-  if(action==='complete')changes.status='completed';
   if(action==='cash_paid') {
     const {data:cashOrder,error:cashError}=await db.rpc('record_catering_cash_payment',{p_order_id:id,p_admin_id:administrator.id});
     if(cashError||!cashOrder)return jsonError('Kontantbetalningen kunde inte registreras. Uppdatera ordern.',409);
@@ -80,11 +69,12 @@ async function updateOrder(request:Request,{params}:{params:Promise<{id:string}>
     return Response.json({order:cashOrder},{headers:{'Cache-Control':'no-store'}});
   }
 
-  // Check old status in UPDATE to prevent two administrators from overwriting changes.
-  let update=db.from('orders').update(changes).eq('id',id).eq('status',order.status).eq('payment_status',order.payment_status).eq('quote_revision',order.quote_revision||1).eq('payment_review_required',order.payment_review_required||false);
-  if(fulfillmentAction)update=update.is('payment_refund_status',null);
-  const {data:saved,error:updateError}=await update.select('*').maybeSingle();
-  if(updateError||!saved)return jsonError('Ordern ändrades av någon annan. Ladda om sidan.',409);
+  // PostgreSQL locks capacity and order together and rechecks payment, packing and status.
+  const {data:saved,error:updateError}=await db.rpc('transition_kitchen_order',{
+    p_order_id:id,p_action:action,p_admin_id:administrator.id,p_admin_note:admin_note??null,
+    p_expected_status:order.status,p_data:parsed.data
+  });
+  if(updateError||!saved)return jsonError('Åtgärden kunde inte sparas. Kontrollera kapacitet, betalning och sparad packkontroll, och uppdatera ordern.',409);
   await deliverOrderNotifications(id).catch(()=>console.error('Order updated; notifications pending'));
   return Response.json({order:saved},{headers:{'Cache-Control':'no-store'}});
 }

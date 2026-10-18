@@ -98,8 +98,9 @@ async function run() {
       insert into public.dishes(id,title,price_ore,portion_label,active,suggested_per_person) values('${dishA}','Testostrullar',2500,'styck',true,2),('${dishB}','Testhummus',9000,'fat',true,0.3);
       insert into public.menus(slug,title,included,price_ore,min_people,active) values('testpaket','Testpaket',array['Testostrullar','Testhummus'],25000,6,true);
       update public.delivery_zones set active=false;
-      insert into public.delivery_zones(id,name,postal_prefixes,fee_ore,active) values('${zone}','Isolerad testzon',array['721'],10000,true);`);
-    background(postgrest,[],{PGRST_DB_URI:`postgresql://postgres@127.0.0.1:${pgPort}/postgres`,PGRST_DB_ANON_ROLE:'anon',PGRST_DB_SCHEMAS:'public',PGRST_SERVER_HOST:'127.0.0.1',PGRST_SERVER_PORT:String(restPort),PGRST_JWT_SECRET:jwtSecret});
+      insert into public.delivery_zones(id,name,postal_prefixes,fee_ore,active,capacity_per_slot) values('${zone}','Isolerad testzon',array['721'],10000,true,1000);
+      update public.direct_order_settings set capacity_per_slot=1000,delivery_capacity_per_slot=1000;`);
+    background(postgrest,process.platform==='win32'?['+RTS','-N1','-RTS']:[],{PGRST_DB_URI:`postgresql://postgres@127.0.0.1:${pgPort}/postgres`,PGRST_DB_ANON_ROLE:'anon',PGRST_DB_SCHEMAS:'public',PGRST_SERVER_HOST:'127.0.0.1',PGRST_SERVER_PORT:String(restPort),PGRST_JWT_SECRET:jwtSecret});
     await wait(`http://127.0.0.1:${restPort}/`);
     bridge=http.createServer(async(request,response)=>{
       try {
@@ -224,6 +225,9 @@ async function run() {
     assert.equal(sql(`select count(*) from public.order_notifications where order_id='${orderId}' and kind='paid'`),'1');
     const deferred=[...mails].filter(([key])=>key.startsWith(orderId)&&/:payment_available:/.test(key));
     assert.equal(deferred.length,0);assert.ok(Number(sql(`select count(*) from public.order_notifications where order_id='${orderId}' and superseded_at is not null`))>=1);
+    const packing={packages:true,extras:true,sauces_bread:true,allergen_labels:true,order_number:true};
+    assert.equal((await call('/api/admin/orders/'+orderId,'PATCH',{action:'dispatched'},true)).status,409);
+    assert.equal((await call('/api/admin/orders/'+orderId,'PATCH',{action:'packing',packing_checklist:packing},true)).status,200);
     for(const action of ['preparing','dispatched','complete']) assert.equal((await call('/api/admin/orders/'+orderId,'PATCH',{action},true)).status,200);
     assert.equal((await call(orderPath)).data.order.status,'completed');
     assert.equal((await call('/api/admin/orders/'+orderId,'PATCH',{action:'refund'},true)).status,200);
