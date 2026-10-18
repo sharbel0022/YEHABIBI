@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  canPayOrder, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
+  canPayOrder, formatScheduledTime, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
   paymentStatusLabels, statusLabels, type OnlinePaymentMethod, type PublicOrder,
 } from '@yehabibi/shared';
 import { api, openWebsite, registerOrderPush } from '../lib/api';
@@ -113,7 +113,9 @@ export default function Orders() {
           <View style={s.cardBody}>
             <Text style={s.eyebrow}>{order.code}</Text>
             <Text style={s.heading}>{order.menu_title}</Text>
-            <Text style={s.body}>{order.event_date} kl. {order.event_time} · {order.guests} personer</Text>
+            <Text style={s.eyebrow}>{order.order_type === 'direct' ? 'DIREKTBESTÄLLNING' : 'CATERING'}</Text>
+            <Text style={s.body}>{order.order_type === 'direct' && formatScheduledTime(order.scheduled_at) || `${order.event_date} kl. ${order.event_time}`} · {order.order_type === 'direct'
+              ? `${order.package_quantity || 1} paket · ${order.guests} portioner` : `${order.guests} personer`}</Text>
             <View style={[s.panel, { backgroundColor: colors.mint }]}>
               <Text style={s.price}>{statusLabels[order.status]}</Text>
               <Text style={s.body}>{catalog.test_mode === true || order.payment_provider === 'local_test' ? 'Simulerad betalning' : 'Betalning'}: {paymentStatusLabels[order.payment_status]}</Text>
@@ -144,7 +146,9 @@ export default function Orders() {
               <Button title={`Godkänn ${formatSek(order.proposal.total_ore)}`} disabled={!!busy}
                 onPress={() => void action(order, 'accept')} />
             </View>}
-            {order.status === 'new' && <Text style={s.detail}>Förfrågan är mottagen. Köket bekräftar tillgänglighet och pris.</Text>}
+            {order.status === 'new' && <Text style={s.detail}>{order.order_type === 'direct'
+              ? 'Beställningen är mottagen och tiden är reserverad. Köket behöver godkänna innan nästa steg.'
+              : 'Förfrågan är mottagen. Köket bekräftar tillgänglighet och pris.'}</Text>}
             {order.payment_preference === 'cash' && order.payment_status !== 'paid' && <Text style={s.detail}>Kontant vid hämtning. Ägaren registrerar betalningen när pengarna har tagits emot.</Text>}
             {canPay && available.length > 0 && <View style={s.section}>
               <Text style={s.heading}>{order.payment_provider ? 'Fortsätt din betalning' : 'Välj betalningssätt'}</Text>

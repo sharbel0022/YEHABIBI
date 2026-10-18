@@ -5,3 +5,4 @@ export * from './ordering/index.ts';
 export * from './design/index.ts';
 export * from './catalog/index.ts';
 export * from './limits.ts';
+export * from './scheduling/index.ts';

@@ -19,10 +19,15 @@ export default function Home() {
     <Screen>
       <View style={s.section}>
         <Text style={s.eyebrow}>FRÅN LIBANON. MED KÄRLEK.</Text>
-        <Text accessibilityRole="header" style={s.title}>Äkta libanesisk catering för alla tillfällen.</Text>
+        <Text accessibilityRole="header" style={s.title}>Libanesiska smaker. För idag och fina tillfällen.</Text>
         <Text style={s.body}>Generösa smaker. Fina stunder. Mat att dela.</Text>
       </View>
       <Hero video={catalog.settings.hero_video_url} poster={catalog.settings.hero_poster_url} />
+      <View style={s.section}>
+        <Button title="Beställ nu  →" onPress={() => router.push('/direkt')} />
+        <Button secondary title="Boka catering  →" onPress={() => router.push('/bygg')} />
+        <Text style={s.detail}>Färdiga paket med lediga hämtningstider och hemleverans. För större tillfällen kan du bygga din egen catering.</Text>
+      </View>
       <View style={[s.row, { alignItems: 'stretch', gap: 9 }]}>
         {occasions.map(item => <Pressable
           key={item.value} accessibilityRole="radio" accessibilityLabel={`${item.title}, ${item.detail}`}
@@ -46,7 +51,7 @@ export default function Home() {
         <Button secondary title="Öppna din meny" onPress={() => router.push('/bygg')} />
       </View>}
       <Text accessibilityRole="header" style={s.heading}>Färdiga cateringpaket</Text>
-      {catalog.menus.filter(menu => menu.active).slice(0, 2).map(menu => <MenuCard
+      {catalog.menus.filter(menu => menu.active && menu.catering_enabled !== false).slice(0, 2).map(menu => <MenuCard
         key={menu.id} menu={menu} onChoose={() => { chooseMenu(menu.id); router.push('/bestall'); }}
       />)}
       {campaigns.map(campaign => <View style={s.card} key={campaign.id}>
@@ -61,7 +66,7 @@ export default function Home() {
       </View>)}
       <View style={s.panel}>
         <Text style={s.heading}>Enkelt från första valet</Text>
-        <Text style={s.body}>Välj mat → planera → skicka förfrågan. Vi bekräftar tillgänglighet och pris före betalning.</Text>
+        <Text style={s.body}>Beställ ett färdigt paket och välj en ledig tid. Eller planera catering som köket granskar före betalning.</Text>
         <Text style={s.detail}>{catalog.settings.service_area}</Text>
       </View>
     </Screen>

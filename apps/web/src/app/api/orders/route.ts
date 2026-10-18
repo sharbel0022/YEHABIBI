@@ -57,7 +57,7 @@ async function createOrder(request: Request) {
   const fee = zone?.fee_ore || 0;
   let prices;
   if(input.menu_id) {
-    const {data:menu,error} = await db.from('menus').select('id,price_ore,min_people').eq('id',input.menu_id).eq('active',true).maybeSingle();
+    const {data:menu,error} = await db.from('menus').select('id,price_ore,min_people').eq('id',input.menu_id).eq('active',true).eq('catering_enabled',true).maybeSingle();
     if(error || !menu || menu.price_ore <= 0) return jsonError('Menyn är ännu inte bokningsbar.');
     if(input.guests < menu.min_people) return jsonError(`Den här menyn kräver minst ${menu.min_people} personer.`);
     prices = calcTotal(menu.price_ore,input.guests,input.fulfillment,fee);

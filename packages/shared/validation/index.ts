@@ -54,7 +54,12 @@ export const menuSchema = z.object({
   price_ore:z.number().int().min(0).max(10000000),
   min_people:z.number().int().min(1).max(1000),
   image_url:z.union([z.url().refine(value=>value.startsWith('https://')),z.string().regex(/^\/images\/[\w.-]+$/),z.literal(''),z.null()]).optional(),
-  active:z.boolean(), sort_order:z.number().int().min(0).max(500)
+  active:z.boolean(), sort_order:z.number().int().min(0).max(500),
+  direct_order_enabled:z.boolean().optional(), catering_enabled:z.boolean().optional(),
+  package_portions:z.number().int().min(1).max(10).optional(),
+  preparation_minutes:z.number().int().min(1).max(1440).optional(),
+  extra_preparation_minutes:z.number().int().min(0).max(1440).optional(),
+  extra_preparation_every:z.number().int().min(1).max(100).optional()
 });
 
 export const settingsSchema = z.object({
@@ -109,7 +114,36 @@ export const dishSchema = z.object({
 });
 export const zoneSchema = z.object({
   name:z.string().trim().min(2).max(100), postal_prefixes:z.array(z.string().regex(/^\d{1,5}$/)).min(1).max(100),
-  fee_ore:z.number().int().min(0).max(10000000), active:z.boolean()
+  fee_ore:z.number().int().min(0).max(10000000), active:z.boolean(),
+  direct_enabled:z.boolean().optional(), travel_minutes:z.number().int().min(0).max(480).nullable().optional()
+});
+
+const availabilityFields = {
+  menu_id:z.string().uuid(), quantity:z.number().int().min(1).max(100), fulfillment:z.enum(['pickup','delivery']),
+  postal_code:z.string().trim().max(15).optional(), delivery_zone_id:z.string().uuid().optional()
+};
+export const availabilitySchema = z.object(availabilityFields);
+export const directOrderSchema = z.object({
+  ...availabilityFields, ...contactFields, request_id:z.string().uuid().optional(),
+  scheduled_at:z.iso.datetime({offset:true}), expected_total_ore:z.number().int().min(1).max(100000000),
+  address:z.string().trim().max(220).default(''), postal_code:z.string().trim().max(15).default(''), city:z.string().trim().max(100).default(''),
+  payment_preference:z.enum(['swish','card','apple_pay','google_pay','cash','unpaid']), terms_accepted:z.literal(true), website:z.string().max(0).optional()
+});
+const openingFields = {
+  closed:z.boolean(), opens_at:z.string().regex(eventTimePattern), closes_at:z.string().regex(eventTimePattern),
+  cutoff_at:z.string().regex(eventTimePattern), pickup_from:z.string().regex(eventTimePattern), pickup_until:z.string().regex(eventTimePattern),
+  delivery_from:z.string().regex(eventTimePattern), delivery_until:z.string().regex(eventTimePattern)
+};
+export const schedulingSchema = z.object({
+  enabled:z.boolean(), paused:z.boolean(), auto_approve:z.boolean(), interval_minutes:z.number().int().min(5).max(120),
+  min_advance_minutes:z.number().int().min(0).max(10080), capacity_per_slot:z.number().int().min(1).max(1000),
+  capacity_buffer_minutes:z.number().int().min(0).max(1440), max_days_ahead:z.number().int().min(1).max(30),
+  weekly_hours:z.array(z.object({...openingFields,weekday:z.number().int().min(0).max(6)})).max(7)
+    .refine(days=>new Set(days.map(day=>day.weekday)).size===days.length,'Varje veckodag får bara anges en gång.'),
+  special_hours:z.array(z.object({...openingFields,date:z.iso.date()})).max(100)
+    .refine(days=>new Set(days.map(day=>day.date)).size===days.length,'Varje datum får bara anges en gång.'),
+  blocked_slots:z.array(z.object({starts_at:z.iso.datetime({offset:true}),ends_at:z.iso.datetime({offset:true})})
+    .refine(slot=>Date.parse(slot.ends_at)>Date.parse(slot.starts_at),'Sluttid måste ligga efter starttid.')).max(200)
 });
 export const campaignSchema = z.object({
   title:z.string().trim().min(2).max(100), description:z.string().trim().max(500), media_url:mediaUrl,

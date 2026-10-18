@@ -8,6 +8,7 @@ import {Brand} from '@/components/Brand';
 const links=[
   ['/', 'Hem'],
   ['/menyer', 'Menyer'],
+  ['/bestall', 'Boka catering'],
   ['/#sa-funkar-det', 'Så fungerar det'],
   ['/kontakt', 'Kontakt']
 ];
@@ -20,9 +21,9 @@ export function Header(){
     <nav id="primary-navigation" className={`primary-nav ${open?'open':''}`} aria-label="Huvudmeny">
       {links.map(([href,label])=><Link key={href} href={href}
         aria-current={path===href?'page':undefined} onClick={()=>setOpen(false)}>{label}</Link>)}
-      <Link href="/bestall" className="nav-mobile-cta" onClick={()=>setOpen(false)}>Beställ</Link>
+      <Link href="/bestall-nu" className="nav-mobile-cta" onClick={()=>setOpen(false)}>Beställ nu</Link>
     </nav>
-    <Link href="/bestall" className="btn btn-primary header-cta">Beställ <ArrowUpRight size={16}/></Link>
+    <Link href="/bestall-nu" className="btn btn-primary header-cta">Beställ nu <ArrowUpRight size={16}/></Link>
     <button type="button" className="nav-toggle" aria-controls="primary-navigation" aria-label={open?'Stäng meny':'Öppna meny'} aria-expanded={open} onClick={()=>setOpen(!open)}>
       {open?<X/>:<Menu/>}
     </button>

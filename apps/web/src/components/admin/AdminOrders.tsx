@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { CateringOrder } from '@/types/domain';
 import { canTransition, formatSek, occasions, paymentMethodLabel, paymentStatusLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
+import { formatScheduledTime } from '@yehabibi/shared';
 
 const actions = {
   review: 'Granska', approve: 'Godkänn', request_changes: 'Föreslå ändring', reject: 'Neka',
@@ -12,7 +13,7 @@ const actions = {
 };
 
 export function AdminOrders({ initialOrders, filters = {}, totalCount = initialOrders.length }: {
-  initialOrders: CateringOrder[]; filters?: { search?: string; status?: string; payment?: string }; totalCount?: number;
+  initialOrders: CateringOrder[]; filters?: { search?: string; status?: string; payment?: string; order_type?: string }; totalCount?: number;
 }) {
   const [orders, setOrders] = useState(initialOrders);
   const [busy, setBusy] = useState('');
@@ -47,6 +48,7 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
     <p className="admin-note">Granska först. Kunden behöver godkänna ett ändrat pris innan betalning öppnas. Kontanter registreras när pengarna har tagits emot.</p>
     <form className="admin-filters" method="get" action="/admin/orders">
       <div className="field"><label htmlFor="order-search">Sök kund eller order</label><input id="order-search" name="search" type="search" defaultValue={filters.search || ''} placeholder="Namn, e-post eller ordernummer"/></div>
+      <div className="field"><label htmlFor="order-type">Beställningsläge</label><select id="order-type" name="order_type" defaultValue={filters.order_type || ''}><option value="">Alla beställningar</option><option value="direct">Direktbeställningar</option><option value="catering">Cateringbeställningar</option></select></div>
       <div className="field"><label htmlFor="order-status">Orderstatus</label><select id="order-status" name="status" defaultValue={filters.status || 'alla'}><option value="alla">Alla statusar</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
       <div className="field"><label htmlFor="order-payment">Betalning</label><select id="order-payment" name="payment" defaultValue={filters.payment || 'alla'}><option value="alla">Alla betalningar</option>{Object.entries(paymentStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
       <button type="submit" className="btn btn-primary">Filtrera alla beställningar</button>
@@ -58,8 +60,9 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
     {orders.map(order => {
       const checkout = order.payment_provider && !order.payment_review_required ? safeExternalUrl(order.checkout_url) : null;
       const canPropose = canTransition(order.status, 'request_changes', order.payment_status, order.payment_preference);
+      const scheduledTime = order.order_type === 'direct' ? formatScheduledTime(order.scheduled_at) : '';
       return <article key={order.id} className="admin-order">
-        <div className="admin-top"><div><strong>#{order.code} · {order.menu_title}</strong><p className="admin-note">{order.full_name} · {order.guests} personer · {order.event_date} kl {order.event_time}</p></div>
+        <div className="admin-top"><div><span className="admin-pill">{order.order_type === 'direct' ? 'Direktbeställning' : 'Catering'}</span><br/><strong>#{order.code} · {order.menu_title}</strong><p className="admin-note">{order.full_name} · {order.order_type === 'direct' ? `${order.package_quantity || 1} paket · ` : ''}{order.guests} personer · {scheduledTime || `${order.event_date} kl ${order.event_time}`}</p></div>
           <div><span className="admin-pill">{statusLabels[order.status]}</span> <span className="admin-pill">{paymentStatusLabels[order.payment_status]}</span></div></div>
         <div className="admin-grid"><div><p>{occasions[order.occasion]} · {order.fulfillment === 'pickup' ? 'Hämtning' : `Leverans: ${order.address}, ${order.postal_code} ${order.city}`}<br/>
           <a href={`mailto:${order.email}`}>{order.email}</a> · <a href={`tel:${order.phone}`}>{order.phone}</a><br/>{paymentMethodLabel(order.payment_preference, order.payment_provider === 'local_test')} · <strong>{formatSek(order.total_ore)}</strong></p>

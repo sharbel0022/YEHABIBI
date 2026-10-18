@@ -18,6 +18,8 @@ export type Menu = {
   id: string; slug: string; title: string; description: string;
   included: string[]; allergens: string[]; price_ore: number;
   min_people: number; image_url: string | null; active: boolean; sort_order: number;
+  direct_order_enabled?: boolean; catering_enabled?: boolean; package_portions?: number;
+  preparation_minutes?: number; extra_preparation_minutes?: number; extra_preparation_every?: number;
 };
 export type Dish = {
   id: string; slug: string; title: string; description: string; allergens: string[];
@@ -26,6 +28,7 @@ export type Dish = {
 };
 export type DeliveryZone = {
   id: string; name: string; postal_prefixes: string[]; fee_ore: number; active: boolean;
+  direct_enabled?: boolean; travel_minutes?: number | null;
 };
 export type Campaign = {
   id: string; title: string; description: string; media_url: string | null;
@@ -98,12 +101,41 @@ export type CateringOrder = {
   request_id?:string|null; request_hash?:string|null;
   quote_revision?:number; accepted_revision?:number; proposal?:OrderProposal|null;
   price_adjustment_ore?:number;
+  order_type?: 'direct' | 'catering'; package_quantity?: number | null; scheduled_at?: string | null;
 };
-export type PublicOrder = Pick<CateringOrder, 'code' | 'menu_title' | 'guests' | 'event_date' | 'event_time' | 'fulfillment' | 'status' | 'payment_status' | 'payment_preference' | 'subtotal_ore' | 'delivery_fee_ore' | 'total_ore' | 'checkout_url' | 'created_at' | 'proposal' | 'price_adjustment_ore' | 'payment_provider' | 'provider_payment_id' | 'payment_transaction_reference' | 'payment_method' | 'payment_review_required' | 'payment_review_reason' | 'payment_refund_status'> & { items: OrderLine[]; admin_note?:string|null };
+export type PublicOrder = Pick<CateringOrder, 'code' | 'menu_title' | 'guests' | 'event_date' | 'event_time' | 'fulfillment' | 'status' | 'payment_status' | 'payment_preference' | 'subtotal_ore' | 'delivery_fee_ore' | 'total_ore' | 'checkout_url' | 'created_at' | 'proposal' | 'price_adjustment_ore' | 'payment_provider' | 'provider_payment_id' | 'payment_transaction_reference' | 'payment_method' | 'payment_review_required' | 'payment_review_reason' | 'payment_refund_status'> & { items: OrderLine[]; admin_note?:string|null; order_type?:'direct'|'catering'; package_quantity?:number|null; scheduled_at?:string|null };
 export type Catalog = {
   menus: Menu[]; dishes: Dish[]; campaigns: Campaign[]; settings: Settings;
   delivery_zones: DeliveryZone[]; orders_enabled: boolean; payment_methods: PaymentPreference[]; demo: boolean;
-  payment_unavailable_reason?: string;
+  payment_unavailable_reason?: string; direct_orders_enabled?: boolean;
   /** Endast den isolerade servern får intyga ett fungerande testläge. */
   test_mode?: boolean;
+};
+
+export type OpeningHours = {
+  weekday: number; closed: boolean; opens_at: string; closes_at: string; cutoff_at: string;
+  pickup_from: string; pickup_until: string; delivery_from: string; delivery_until: string;
+};
+export type SpecialOpeningHours = Omit<OpeningHours, 'weekday'> & { date: string };
+export type SchedulingSettings = {
+  id: number; enabled: boolean; paused: boolean; auto_approve: boolean; interval_minutes: number;
+  min_advance_minutes: number; capacity_per_slot: number; capacity_buffer_minutes: number; max_days_ahead: number;
+  weekly_hours: OpeningHours[]; special_hours: SpecialOpeningHours[];
+  blocked_slots: { starts_at: string; ends_at: string }[];
+};
+export type AvailabilityInput = {
+  menu_id: string; quantity: number; fulfillment: Fulfillment; postal_code?: string; delivery_zone_id?: string;
+};
+export type AvailableSlot = {
+  starts_at: string; label: string; event_date: string; event_time: string; remaining_capacity: number;
+};
+export type AvailabilityResponse = {
+  server_now: string; timezone: 'Europe/Stockholm'; enabled: boolean; reason?: string;
+  pickup_address: string; preparation_minutes: number; delivery_fee_ore: number; subtotal_ore: number; total_ore: number;
+  delivery_zone_id: string | null; slots: AvailableSlot[];
+};
+export type DirectOrderInput = AvailabilityInput & {
+  request_id?: string; scheduled_at: string; expected_total_ore: number;
+  address: string; postal_code: string; city: string; full_name: string; email: string; phone: string; notes: string;
+  payment_preference: PaymentPreference; terms_accepted: true; website?: string;
 };

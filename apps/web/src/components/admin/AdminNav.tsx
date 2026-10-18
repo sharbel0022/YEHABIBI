@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const links = [['/admin', 'Översikt'], ['/admin/orders', 'Beställningar'], ['/admin/menus', 'Menyer'],
-  ['/admin/ratter', 'Maträtter'], ['/admin/catalog', 'Kampanjer & leverans'], ['/admin/settings', 'Inställningar']];
+  ['/admin/ratter', 'Maträtter'], ['/admin/tider', 'Tider och kapacitet'], ['/admin/catalog', 'Kampanjer & leverans'], ['/admin/settings', 'Inställningar']];
 
 export function AdminNav() {
   const path = usePathname();

@@ -54,6 +54,10 @@ export default function Layout() {
             }}
           />
           <Tabs.Screen
+            name="direkt"
+            options={{ title: 'Beställ nu', href: null }}
+          />
+          <Tabs.Screen
             name="bestall"
             options={{
               title: 'Förfrågan', href: null,

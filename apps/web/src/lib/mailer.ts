@@ -1,7 +1,7 @@
 import 'server-only';
 import { Resend } from 'resend';
 import type { CateringOrder } from '@/types/domain';
-import { escapeHtml, formatSek, paymentLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
+import { escapeHtml, formatSek, formatScheduledTime, paymentLabels, safeExternalUrl, statusLabels } from '@/lib/domain';
 import { adminDb } from '@/lib/supabase';
 import { trackingLink } from '@/lib/tracking';
 import { notifyCustomerPush, notifyOwnerPush } from '@/lib/push';
@@ -14,11 +14,14 @@ function content(event:Notification,order:Snapshot,current:CateringOrder) {
   const link=trackingLink(order);
   const follow=`<p><a href="${escapeHtml(link)}">Följ din beställning</a></p>`;
   const originalSubtotal=order.subtotal_ore-(order.price_adjustment_ore||0);
-  const rows=order.items_snapshot?.length ? order.items_snapshot : [{title:order.menu_title,quantity:order.guests,unit_label:'person',unit_price_ore:Math.round(originalSubtotal/order.guests),line_total_ore:originalSubtotal}];
+  const direct=order.order_type==='direct';
+  const rows=direct ? [{title:order.menu_title,quantity:order.package_quantity||1,unit_label:'paket',unit_price_ore:Math.round(originalSubtotal/(order.package_quantity||1)),line_total_ore:originalSubtotal}]
+    : order.items_snapshot?.length ? order.items_snapshot : [{title:order.menu_title,quantity:order.guests,unit_label:'person',unit_price_ore:Math.round(originalSubtotal/order.guests),line_total_ore:originalSubtotal}];
   const lines=rows.map(row=>`<li>${row.quantity} × ${escapeHtml(row.title)} (${formatSek(row.unit_price_ore)}/${escapeHtml(row.unit_label)}) = ${formatSek(row.line_total_ore)}</li>`).join('');
   const delivery=order.fulfillment==='delivery' ? `Hemleverans: ${escapeHtml(order.address)}, ${escapeHtml(order.postal_code)} ${escapeHtml(order.city)}` : 'Hämtning';
-  const details=`<p><b>Order ${escapeHtml(order.code)}</b> · ${order.guests} personer<br>${escapeHtml(order.event_date)} kl ${escapeHtml(order.event_time)}<br>${delivery}</p><ul>${lines}</ul>${order.included?.length?`<p>Innehåller: ${order.included.map(escapeHtml).join(', ')}.</p>`:''}<p>Mat ${formatSek(originalSubtotal)}${order.price_adjustment_ore?`, godkänd prisjustering ${formatSek(order.price_adjustment_ore)}`:''}, leverans ${formatSek(order.delivery_fee_ore)}. Totalt <b>${formatSek(order.total_ore)}</b>.<br>Betalningsönskemål: ${escapeHtml(paymentLabels[order.payment_preference])}.</p>`;
-  let message=event.kind==='new'?'Din förfrågan är mottagen men ännu inte godkänd eller betald.'
+  const bookedTime=direct && order.scheduled_at ? escapeHtml(formatScheduledTime(order.scheduled_at)) : `${escapeHtml(order.event_date)} kl ${escapeHtml(order.event_time)}`;
+  const details=`<p><b>Order ${escapeHtml(order.code)}</b> · ${direct?`${order.package_quantity||1} paket · ${order.guests} portioner`:`${order.guests} personer`}<br>${bookedTime}<br>${delivery}</p><ul>${lines}</ul>${order.included?.length?`<p>Innehåller: ${order.included.map(escapeHtml).join(', ')}.</p>`:''}<p>Mat ${formatSek(originalSubtotal)}${order.price_adjustment_ore?`, godkänd prisjustering ${formatSek(order.price_adjustment_ore)}`:''}, leverans ${formatSek(order.delivery_fee_ore)}. Totalt <b>${formatSek(order.total_ore)}</b>.<br>Betalningsönskemål: ${escapeHtml(paymentLabels[order.payment_preference])}.</p>`;
+  let message=event.kind==='new'?(direct && order.status==='approved'?'Din beställning är mottagen och godkänd. Den är ännu inte betald.':'Din förfrågan är mottagen men ännu inte godkänd eller betald.')
     : event.kind==='paid'?'Betalningen är bekräftad.' : event.kind==='refunded'?'Betalningen har återbetalats.'
     : event.kind==='failed'?'Betalningen misslyckades eller sessionen gick ut. Kontakta köket för en ny betalningslänk.'
     : event.kind==='changes_requested'?'Köket föreslår en ändring som du behöver godkänna.'

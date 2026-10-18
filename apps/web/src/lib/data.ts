@@ -1,7 +1,7 @@
 import 'server-only';
 import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
-import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings } from '@/types/domain';
+import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings, SchedulingSettings } from '@/types/domain';
 import { safeExternalUrl, previewDishes } from '@/lib/domain';
 import { paymentCapabilities, paymentsConfigured, paymentRuntimeInfo } from '@/lib/payments';
 
@@ -51,7 +51,7 @@ export function ordersReady() {
 }
 export async function getDeliveryZones(): Promise<DeliveryZone[]> {
   if (!isSupabaseReady()) return [];
-  const {data,error} = await adminDb().from('delivery_zones').select('id,name,postal_prefixes,fee_ore,active').eq('active',true).order('name');
+  const {data,error} = await adminDb().from('delivery_zones').select('id,name,postal_prefixes,fee_ore,active,direct_enabled,travel_minutes').eq('active',true).order('name');
   if(error) throw new Error('Kunde inte läsa leveranszoner. Kör V3-migrationen.');
   return (data || []) as DeliveryZone[];
 }
@@ -78,7 +78,14 @@ export async function getCatalog(): Promise<Catalog> {
   if(settings.allow_unpaid_requests) payment_methods.push('unpaid');
   // Ta bort eventuella framtida privata databasfält genom en explicit kopia.
   const publicSettings: Settings = Object.fromEntries(Object.keys(previewSettings).map(key => [key,settings[key as keyof Settings]])) as Settings;
-  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
+  const scheduling=isSupabaseReady() ? await getSchedulingSettings() : null;
+  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled,catering_enabled,package_portions,preparation_minutes,extra_preparation_minutes,extra_preparation_every}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled:direct_order_enabled??false,catering_enabled:catering_enabled??true,package_portions:package_portions??1,preparation_minutes:preparation_minutes??30,extra_preparation_minutes:extra_preparation_minutes??0,extra_preparation_every:extra_preparation_every??5})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,direct_orders_enabled:ordersReady() && payment_methods.length>0 && Boolean(scheduling?.enabled && !scheduling.paused),demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
+}
+
+export async function getSchedulingSettings():Promise<SchedulingSettings> {
+  const {data,error}=await adminDb().from('direct_order_settings').select('id,enabled,paused,auto_approve,interval_minutes,min_advance_minutes,capacity_per_slot,capacity_buffer_minutes,max_days_ahead,weekly_hours,special_hours,blocked_slots').eq('id',1).single();
+  if(error || !data) throw new Error('Kunde inte läsa tidsinställningar. Kör V4.4-migrationen.');
+  return data as SchedulingSettings;
 }
 
 /** Privat order läses med token i API:t; bara denna tillåtna vy når kunden. */
@@ -89,6 +96,7 @@ export async function publicOrderView(order:CateringOrder):Promise<PublicOrder> 
   const legacyPayment = !order.payment_provider && Boolean(order.stripe_checkout_session_id) && !['paid','refunded'].includes(order.payment_status);
   return {
     code:order.code,menu_title:order.menu_title,guests:order.guests,event_date:order.event_date,event_time:order.event_time,
+    order_type:order.order_type||'catering',package_quantity:order.package_quantity??null,scheduled_at:order.scheduled_at??null,
     fulfillment:order.fulfillment,status:order.status,payment_status:order.payment_status,payment_preference:order.payment_preference,
     subtotal_ore:order.subtotal_ore,delivery_fee_ore:order.delivery_fee_ore,total_ore:order.total_ore,created_at:order.created_at,
     proposal:order.proposal || null,price_adjustment_ore:order.price_adjustment_ore || 0,admin_note:order.admin_note,

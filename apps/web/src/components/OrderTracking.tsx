@@ -5,7 +5,7 @@ import { Check, ShieldCheck } from 'lucide-react';
 import type { Catalog, OnlinePaymentMethod, PublicOrder } from '@yehabibi/shared';
 import { formatSek, paymentMethodLabel, paymentStatusLabels, safePaymentUrl, statusLabels } from '@/lib/domain';
 import { api } from '@/lib/api-client';
-import { canPayOrder, orderPaymentMethods, orderProgress, orderTimelineLabels } from '@yehabibi/shared';
+import { canPayOrder, formatScheduledTime, orderPaymentMethods, orderProgress, orderTimelineLabels } from '@yehabibi/shared';
 import { usePaymentMethods } from '@/components/use-payment-methods';
 
 /** Endast kundens token-skyddade publika ordervy skickas till webbläsaren. */
@@ -28,6 +28,7 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
   const canPay = statusVerified && canPayOrder(order);
   const current = orderProgress(order);
   const labels = orderTimelineLabels(order);
+  const scheduledTime = order.order_type === 'direct' ? formatScheduledTime(order.scheduled_at) : '';
 
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
@@ -78,7 +79,8 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
 
   return <div className="form-layout"><div className="order-panel">
     <span className="admin-pill">{order.status === 'approved' && order.payment_status === 'pending' ? 'Väntar på betalning' : statusLabels[order.status]}</span>
-    <h2>{order.menu_title}</h2><p>{order.guests} personer · {order.event_date}, kl {order.event_time}<br/>{order.fulfillment === 'pickup' ? 'Hämtning' : 'Hemleverans'}</p>
+    <p className="eyebrow">{order.order_type === 'direct' ? 'DIREKTBESTÄLLNING' : 'CATERINGBOKNING'}</p>
+    <h2>{order.menu_title}</h2><p>{order.order_type === 'direct' ? `${order.package_quantity || 1} paket · ` : ''}{order.guests} personer · {scheduledTime || `${order.event_date}, kl ${order.event_time}`}<br/>{order.fulfillment === 'pickup' ? 'Hämtning' : 'Hemleverans'}</p>
     <p className="admin-note">{simulated ? 'Simulerad betalning' : 'Betalning'}: <strong>{paymentStatusLabels[order.payment_status]}</strong> · {paymentMethodLabel(order.payment_preference, simulated)}</p>
     {order.payment_review_required && <p className="form-error" role="alert">{order.payment_refund_status === 'needs_review' ? 'Återbetalningen behöver kontrolleras av köket.' : 'Betalningen behöver kontrolleras av köket.'} Kontakta oss innan du betalar igen.</p>}
     {order.payment_transaction_reference && <p className="field-hint">Transaktionsreferens: {order.payment_transaction_reference}</p>}
@@ -110,7 +112,7 @@ export function OrderTracking({ initialOrder, token }: { initialOrder: PublicOrd
     {canPay && !methods.length && <p className="preview-note">{catalog?.payment_unavailable_reason || 'Onlinebetalning är ännu inte aktiverad för din enhet. Kontakta köket om betalning.'}</p>}
     {order.payment_status === 'pending' && <p className="field-hint">Väntar på verifierad betalningsbekräftelse. Att återvända från betalsidan är inget kvitto.</p>}
     {order.payment_preference === 'cash' && order.payment_status !== 'paid' && order.status === 'approved' && <p className="approval-note"><ShieldCheck size={20}/>Betala kontant vid överenskommen hämtning. Köket bekräftar betalningen när pengarna tagits emot.</p>}
-    {['new', 'reviewing'].includes(order.status) && <p className="approval-note"><ShieldCheck size={20}/>Din förfrågan granskas av köket. Den är ännu inte bokad eller betald.</p>}
+    {['new', 'reviewing'].includes(order.status) && <p className="approval-note"><ShieldCheck size={20}/>{order.order_type === 'direct' ? 'Din tid är reserverad. Köket granskar beställningen innan betalning och förberedelse.' : 'Din förfrågan granskas av köket. Den är ännu inte bokad eller betald.'}</p>}
     {message && <p role="status" className="form-success">{message}</p>}{error && <p role="alert" className="form-error">{error}</p>}
     <div className="form-actions"><button type="button" className="btn" disabled={busy} onClick={() => update()}>{busy ? 'Uppdaterar…' : 'Uppdatera status'}</button></div>
     <p className="admin-note">Frågor om din förfrågan? Svara på bekräftelsemejlet.</p>
