@@ -26,18 +26,26 @@ try {
   for(const method of ['swish','apple_pay','google_pay','card']) {
     quote=(await availability()).data;const body=input(quote,{payment_preference:method});
     const [created,retry]=await Promise.all([send(body),send(body)]);assert.ok([200,201].includes(created.status),created.data?.error);assert.ok([200,201].includes(retry.status),retry.data?.error);assert.equal(created.data.code,retry.data.code);
-    const receipt=created.data,order=await getOrder(receipt);assert.equal(order.order_type,'direct');assert.equal(order.package_quantity,1);assert.equal(order.status,'approved');assert.equal(order.payment_status,'unpaid');assert.equal(order.total_ore,12900);assert.equal(order.items[0].unit_label,'paket');
-    const mail=[...isolated.mails.values()].find(mail=>mail.subject.includes(receipt.code));assert.ok(mail);assert.match(mail.html,/1 paket · 2 portioner/);assert.match(mail.html,/mottagen och godkänd/);
+    const receipt=created.data,order=await getOrder(receipt);assert.equal(order.order_type,'direct');assert.equal(order.package_quantity,1);assert.equal(order.status,'approved');assert.equal(order.capacity_status,'held');assert.equal(order.confirmed_at,null);assert.equal(order.payment_status,'unpaid');assert.equal(order.total_ore,12900);assert.equal(order.items[0].unit_label,'paket');
+    const mail=[...isolated.mails.values()].find(mail=>mail.subject.includes(receipt.code));assert.ok(mail);assert.match(mail.html,/1 paket · 2 portioner/);assert.match(mail.html,/hålls tillfälligt/);
     assert.equal(isolated.rows(`select count(*)::int n from public.orders where request_id='${body.request_id}'`)[0].n,1);
     const pay=await call('/api/payments/create','POST',{code:receipt.code,token:receipt.token,payment_method:method});assert.equal(pay.status,200,pay.data?.error);assert.equal(pay.data.test_mode,true);
     const url=new URL(pay.data.checkout_url,isolated.origin);assert.equal(url.origin,isolated.origin);assert.match(url.pathname,/^\/__test\/payment\//);
     assert.ok([200,303].includes((await call(`${url.pathname}/simulate`,'POST',{action:'success'},false,{Origin:isolated.origin})).status));
-    assert.equal((await getOrder(receipt)).payment_status,'paid');checks.push(`Direct ${method}: idempotent reservation + simulated payment`);
+    assert.equal((await getOrder(receipt)).payment_status,'paid');assert.equal((await getOrder(receipt)).capacity_status,'confirmed');assert.ok((await getOrder(receipt)).confirmed_at);
+    if(method==='swish') {
+      const id=row(receipt).id,action=value=>call(`/api/admin/orders/${id}`,'PATCH',value,true);
+      assert.equal((await action({action:'ready'})).status,409);
+      assert.equal((await action({action:'acknowledge'})).status,200);assert.equal((await action({action:'preparing'})).status,200);
+      assert.equal((await action({action:'packing',packing_checklist:{packages:true,extras:true,sauces_bread:true,allergen_labels:true,order_number:true}})).status,200);
+      assert.equal((await action({action:'ready'})).status,200);assert.equal((await action({action:'complete'})).status,200);assert.equal((await getOrder(receipt)).status,'completed');
+    }
+    checks.push(`Direct ${method}: idempotent reservation + simulated payment`);
   }
   quote=(await availability({quantity:4})).data;assert.equal(quote.subtotal_ore,51600);assert.equal(quote.preparation_minutes,25);
-  const delivery=(await availability({fulfillment:'delivery',postal_code:'721 00'})).data;assert.equal(delivery.enabled,true);assert.equal(delivery.delivery_fee_ore,10000);assert.equal(delivery.total_ore,22900);
+  const delivery=(await availability({fulfillment:'delivery',postal_code:'721 00',addons:[{dish_id:'44444444-4444-4444-8444-000000000001',quantity:2}]})).data;assert.equal(delivery.enabled,true);assert.equal(delivery.delivery_fee_ore,10000);assert.equal(delivery.total_ore,27900);assert.equal(delivery.lines.length,2);
   const outside=(await availability({fulfillment:'delivery',postal_code:'99999'})).data;assert.equal(outside.enabled,false);assert.match(outside.reason,/hämtning/i);
-  const deliveryOrder=await send(input(delivery,{fulfillment:'delivery',postal_code:'72100',address:'Syntetiska testgatan 8',city:'Teststad',delivery_zone_id:delivery.delivery_zone_id}));assert.equal(deliveryOrder.status,201,deliveryOrder.data?.error);assert.equal(row(deliveryOrder.data).delivery_fee_ore,10000);
+  const deliveryOrder=await send(input(delivery,{fulfillment:'delivery',postal_code:'72100',address:'Syntetiska testgatan 8',city:'Teststad',delivery_zone_id:delivery.delivery_zone_id,addons:[{dish_id:'44444444-4444-4444-8444-000000000001',quantity:2}]}));assert.equal(deliveryOrder.status,201,deliveryOrder.data?.error);assert.equal(row(deliveryOrder.data).delivery_fee_ore,10000);assert.equal((await getOrder(deliveryOrder.data)).items.length,2);
   checks.push('Quantity price/prep and configured delivery zone/fee/travel');
   quote=(await availability()).data;const stale=input(quote);isolated.sql(`update public.menus set price_ore=13900 where id='${testPackageId}';`);assert.equal((await send(stale)).status,409);isolated.sql(`update public.menus set price_ore=12900 where id='${testPackageId}';`);
   assert.equal((await send(input(quote,{scheduled_at:'2020-01-01T12:00:00Z'}))).status,409);

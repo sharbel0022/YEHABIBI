@@ -112,3 +112,9 @@ Admin uppdaterar `dishes`, `menus`, zoner eller inställningar genom den befintl
 Menyutkast lagrar matval och mängder. De innehåller inga historiska orderpriser och rensar inte tidigare val bara för att API:t är nere eller visar demo. Avpublicerade val tas bort efter verifierad kataloghämtning. Historiska order hämtas alltid från `orders` och `order_items`; de räknas inte om från dagens katalog.
 
 `request_id` följer med oförändrat genom `packages/api-client`. Klienternas beständiga fingerprint/UUID och serverns HMAC/SQL-lås kompletterar varandra. Därför kan en oförändrad förfrågan efter timeout ge tillbaka samma order även om katalogen har ändrats efter första försöket. Ändrat innehåll med samma nyckel avvisas. Se [V4.2-guiden](UNIFIED_ARCHITECTURE_V4_2.md) för hela flödet.
+# Kompletta V4.4-tillägg
+
+Migrationerna `20261018131608_complete_restaurant_capacity_catalog_v44.sql` och `20261018140000_capacity_payment_lifecycle_v44.sql` läggs efter befintlig historik. Menyrader får storleksgrupp, personpris för catering, tillåtna tillbehör, arbetsenheter och tillgänglighetsstatus. Order får fryst förberedelsestart, kapacitetsstatus, reservtid, kvittering, packning och interna avvikelser. Zoner får resursgräns, paketgräns och leveransfönster; kampanjer stoppdatum, utlämningsdagar och kvot.
+
+`capacity_reservations` har RLS, inga anon/authenticated-rättigheter och uttryckliga service-role-grants. Direktköp, catering och manuella bokningar delar köks-/leveransresurser. Finansiella RPC-omslag behåller den beprövade betalningsmotorn och tar kapacitetslåset först. Gamla framtida accepterade bokningar räknas konservativt utan att originalpriser eller kundtider ändras. Se [fullständiga regler](DIRECT_ORDERS_AND_TIMES.md).
+

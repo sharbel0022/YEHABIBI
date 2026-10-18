@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { requireAdmin, checkOrigin, jsonError } from '@/lib/auth';
 import { adminDb } from '@/lib/supabase';
 import { menuSchema } from '@/lib/validators';
+import { configuredMenuAddons } from '@/lib/admin-catalog';
 
 export const dynamic='force-dynamic';
 export async function POST(request:Request) {
@@ -9,6 +10,7 @@ export async function POST(request:Request) {
   if(!await requireAdmin())return jsonError('Obehörig.',401);
   const parsed=menuSchema.safeParse(await request.json().catch(()=>null));
   if(!parsed.success)return jsonError('Kontrollera menyuppgifterna.');
+  if(!await configuredMenuAddons(parsed.data.allowed_addon_ids))return jsonError('Välj aktiva rätter som har aktiverats som tillbehör.');
   const base=parsed.data.title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,45)||'catering';
   const slug=`${base}-${randomBytes(3).toString('hex')}`;
   const {data,error}=await adminDb().from('menus').insert({...parsed.data,slug}).select('*').single();

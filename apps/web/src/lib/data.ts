@@ -51,7 +51,7 @@ export function ordersReady() {
 }
 export async function getDeliveryZones(): Promise<DeliveryZone[]> {
   if (!isSupabaseReady()) return [];
-  const {data,error} = await adminDb().from('delivery_zones').select('id,name,postal_prefixes,fee_ore,active,direct_enabled,travel_minutes').eq('active',true).order('name');
+  const {data,error} = await adminDb().from('delivery_zones').select('id,name,postal_prefixes,fee_ore,active,direct_enabled,travel_minutes,capacity_per_slot,max_package_quantity,delivery_window_minutes').eq('active',true).order('name');
   if(error) throw new Error('Kunde inte läsa leveranszoner. Kör V3-migrationen.');
   return (data || []) as DeliveryZone[];
 }
@@ -64,8 +64,8 @@ export async function getCatalog(): Promise<Catalog> {
     const db = adminDb();
     const now = new Date().toISOString();
     const [dishResult,campaignResult] = await Promise.all([
-      db.from('dishes').select('id,slug,title,description,allergens,price_ore,portion_label,image_url,active,sort_order,category,suggested_per_person').eq('active',true).order('sort_order'),
-      db.from('campaigns').select('id,title,description,media_url,starts_at,ends_at,menu_ids,active').eq('active',true).lte('starts_at',now).gte('ends_at',now).order('starts_at')
+      db.from('dishes').select('id,slug,title,description,allergens,price_ore,portion_label,image_url,active,sort_order,category,suggested_per_person,direct_addon_enabled,kitchen_units,preparation_minutes').eq('active',true).order('sort_order'),
+      db.from('campaigns').select('id,title,description,media_url,starts_at,ends_at,menu_ids,active,order_cutoff_at,fulfillment_dates,quantity_limit').eq('active',true).lte('starts_at',now).gte('ends_at',now).order('starts_at')
     ]);
     if(dishResult.error || campaignResult.error) throw new Error('Kunde inte läsa katalogen. Kör V3-migrationen.');
     dishes = (dishResult.data || []) as Dish[];
@@ -79,11 +79,11 @@ export async function getCatalog(): Promise<Catalog> {
   // Ta bort eventuella framtida privata databasfält genom en explicit kopia.
   const publicSettings: Settings = Object.fromEntries(Object.keys(previewSettings).map(key => [key,settings[key as keyof Settings]])) as Settings;
   const scheduling=isSupabaseReady() ? await getSchedulingSettings() : null;
-  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled,catering_enabled,package_portions,preparation_minutes,extra_preparation_minutes,extra_preparation_every}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled:direct_order_enabled??false,catering_enabled:catering_enabled??true,package_portions:package_portions??1,preparation_minutes:preparation_minutes??30,extra_preparation_minutes:extra_preparation_minutes??0,extra_preparation_every:extra_preparation_every??5})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,direct_orders_enabled:ordersReady() && payment_methods.length>0 && Boolean(scheduling?.enabled && !scheduling.paused),demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
+  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled,catering_enabled,package_portions,preparation_minutes,extra_preparation_minutes,extra_preparation_every,package_group,size_label,catering_price_ore,availability_state,kitchen_units,allowed_addon_ids}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled:direct_order_enabled??false,catering_enabled:catering_enabled??true,package_portions:package_portions??1,preparation_minutes:preparation_minutes??30,extra_preparation_minutes:extra_preparation_minutes??0,extra_preparation_every:extra_preparation_every??5,package_group:package_group||'',size_label:size_label||'',catering_price_ore:catering_price_ore??price_ore,availability_state:availability_state||'available',kitchen_units:kitchen_units??1,allowed_addon_ids:allowed_addon_ids||[]})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,direct_orders_enabled:ordersReady() && payment_methods.length>0 && Boolean(scheduling?.enabled && !scheduling.paused),opening_hours:scheduling?{weekly_hours:scheduling.weekly_hours,special_hours:scheduling.special_hours}:undefined,demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
 }
 
 export async function getSchedulingSettings():Promise<SchedulingSettings> {
-  const {data,error}=await adminDb().from('direct_order_settings').select('id,enabled,paused,auto_approve,interval_minutes,min_advance_minutes,capacity_per_slot,capacity_buffer_minutes,max_days_ahead,weekly_hours,special_hours,blocked_slots').eq('id',1).single();
+  const {data,error}=await adminDb().from('direct_order_settings').select('id,enabled,paused,auto_approve,interval_minutes,min_advance_minutes,capacity_per_slot,capacity_buffer_minutes,max_days_ahead,weekly_hours,special_hours,blocked_slots,hold_minutes,delivery_capacity_per_slot,watchdog_enabled,acknowledgement_minutes,auto_pause_unacknowledged').eq('id',1).single();
   if(error || !data) throw new Error('Kunde inte läsa tidsinställningar. Kör V4.4-migrationen.');
   return data as SchedulingSettings;
 }
@@ -97,6 +97,7 @@ export async function publicOrderView(order:CateringOrder):Promise<PublicOrder> 
   return {
     code:order.code,menu_title:order.menu_title,guests:order.guests,event_date:order.event_date,event_time:order.event_time,
     order_type:order.order_type||'catering',package_quantity:order.package_quantity??null,scheduled_at:order.scheduled_at??null,
+    capacity_status:order.capacity_status??null,hold_expires_at:order.hold_expires_at??null,preparation_starts_at:order.preparation_starts_at??null,confirmed_at:order.confirmed_at??null,campaign_id:order.campaign_id??null,
     fulfillment:order.fulfillment,status:order.status,payment_status:order.payment_status,payment_preference:order.payment_preference,
     subtotal_ore:order.subtotal_ore,delivery_fee_ore:order.delivery_fee_ore,total_ore:order.total_ore,created_at:order.created_at,
     proposal:order.proposal || null,price_adjustment_ore:order.price_adjustment_ore || 0,admin_note:order.admin_note,

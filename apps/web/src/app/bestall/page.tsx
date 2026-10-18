@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function OrderPage({ searchParams }: {
-  searchParams: Promise<{ meny?: string; typ?: string; val?: string; varor?: string; personer?: string }>
+  searchParams: Promise<{ meny?: string; typ?: string; val?: string; varor?: string; personer?: string; kampanj?: string }>
 }) {
   const [catalog, params] = await Promise.all([getCatalog(), searchParams]);
   return <section className="shell section inner-page form-shell">
@@ -19,7 +19,7 @@ export default async function OrderPage({ searchParams }: {
     {catalog.menus.length || catalog.dishes.length ? <OrderForm
       initialCatalog={catalog}
       initialMenu={params.meny} initialOccasion={params.typ} initialMode={params.val}
-      initialItems={params.varor} initialGuests={params.personer}
+      initialItems={params.varor} initialGuests={params.personer} initialCampaign={params.kampanj}
     /> : <p className="empty-state">Ägaren har inte publicerat några cateringmenyer ännu.</p>}
   </section>;
 }

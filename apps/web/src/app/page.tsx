@@ -16,8 +16,10 @@ const occasions = [
 ];
 
 export default async function HomePage() {
-  const { menus, dishes, settings, campaigns, demo } = await getCatalog();
+  const { menus, dishes, settings, campaigns, demo, test_mode } = await getCatalog();
   const review = safeExternalUrl(settings.google_review_url);
+  const orderedMenus = [...menus].sort((a, b) => Number(!!b.direct_order_enabled) - Number(!!a.direct_order_enabled));
+  const packages = orderedMenus.filter((menu, index) => !menu.direct_order_enabled || orderedMenus.findIndex(item => (item.package_group || item.id) === (menu.package_group || menu.id)) === index);
   return <>
     <section className="hero" aria-labelledby="hero-title">
       <div className="hero-copy"><span className="eyebrow">HEMMA · FEST · FÖRETAG</span>
@@ -30,6 +32,10 @@ export default async function HomePage() {
         <span className="hero-photo-note">Mat att dela. Stunder att minnas.</span></div>
     </section>
     <div className="values-bar shell"><span><Leaf size={19}/> Libanesisk matkultur</span><span><Heart size={19}/> Mat att dela</span><span><Users size={19}/> För små och stora sällskap</span></div>
+    <section className="section shell" id="menyer"><SectionHeading eyebrow="FÄRDIGA PAKET FÖRST" title="Välj mat. Samlas och njut." text="Ett färdigt paket med en ledig tid, eller catering som planeras tillsammans med köket."/>
+      <div className="menu-grid">{packages.slice(0, 3).map(menu => <MenuCard key={menu.id} menu={menu} preview={demo} testMode={test_mode} variants={menu.direct_order_enabled ? menus.filter(item => item.direct_order_enabled && (item.package_group || item.id) === (menu.package_group || menu.id)) : []}/>)}</div>
+      <div className="centered-action"><Cta href="/menyer">Se alla paket och menyer</Cta></div>
+    </section>
     <section className="section shell">
       <SectionHeading eyebrow="VÄLJ TILLFÄLLE" title="Ett bord för varje tillfälle." text="Vad planerar ni? Vi hjälper er hitta maten som passar."/>
       <div className="occasion-cards">{occasions.map(({ type, title, text, icon: Icon }) =>
@@ -47,10 +53,6 @@ export default async function HomePage() {
       </article>)}</div>
       {demo && <p className="field-hint">Menyn visas som inspiration. Godkända priser och allergener publiceras av köket innan beställningarna öppnar.</p>}
     </div></section>}
-    <section className="section shell" id="menyer"><SectionHeading eyebrow="EN MENY SOM PASSAR ER" title="Färdiga favoriter. Er egen mix." text="Låt oss kombinera smakerna, eller välj själv exakt vad som ska stå på bordet."/>
-      <div className="menu-grid">{menus.slice(0, 3).map(menu => <MenuCard key={menu.id} menu={menu} preview={demo}/>)}</div>
-      <div className="centered-action"><Cta href="/menyer?val=bygg">Bygg din egen meny</Cta></div>
-    </section>
     <section className="split-section build-highlight"><div className="split-photo"><img src="/images/mezze.webp" alt="Libanesisk mezze att dela vid bordet" loading="lazy"/></div>
       <div className="split-copy"><span className="eyebrow">PRECIS SÅ SOM NI VILL HA DET</span><h2>Er kväll.<br/><em>Era favoriter.</em></h2>
         <p>Börja med hur många ni blir. Lägg till rätter och anpassa mängden. Varje pris och totalsumman syns längs vägen.</p><Cta href="/menyer?val=bygg">Bygg din meny</Cta></div></section>
@@ -62,8 +64,8 @@ export default async function HomePage() {
           {media && <div className="campaign-media"><HeroMedia videoUrl={video ? media : null} poster={video ? '/images/hero.webp' : media}/></div>}
           <div className="menu-card-body"><h3>{campaign.title}</h3><p>{campaign.description}</p>
             {campaign.menu_ids.length ? campaign.menu_ids.map(id => { const menu = menus.find(item => item.id === id);
-              return menu ? <p key={id}><Link className="text-link" href={`/bestall?meny=${encodeURIComponent(id)}`}>{menu.title} <ArrowRight size={17}/></Link></p> : null;
-            }) : <Cta href="/menyer">Se menyer</Cta>}</div></article>;
+              return menu ? <p key={id}><Link className="text-link" href={`${menu.direct_order_enabled ? '/bestall-nu' : '/bestall'}?meny=${encodeURIComponent(id)}&kampanj=${encodeURIComponent(campaign.id)}`}>{menu.title} · {menu.direct_order_enabled ? 'Beställ paket' : 'Boka catering'} <ArrowRight size={17}/></Link></p> : null;
+            }) : <Cta href="/bestall">Fråga om cateringkampanjen</Cta>}</div></article>;
       })}</div></section>}
     <section className="section shell" id="sa-funkar-det"><SectionHeading eyebrow="FRÅN FÖRSTA VAL TILL DUKAT BORD" title="Enkelt hela vägen."/>
       <div className="steps">{[['Välj mat', 'Ett färdigt paket eller din egen meny.'], ['Datum och plats', 'Antal gäster, tillfälle och leverans eller hämtning.'], ['Kontakt och kontroll', 'Lämna dina uppgifter och kontrollera dina val.'], ['Skicka förfrågan', 'Köket granskar och godkänner innan du betalar.']].map(([title, text], index) =>

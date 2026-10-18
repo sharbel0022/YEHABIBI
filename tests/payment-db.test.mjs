@@ -15,6 +15,8 @@ test('V4.3 payment SQL: reservations, exact references, corrections, refunds, ca
     for(const file of readdirSync(directory).filter(file=>file.endsWith('.sql')).sort()) await db.exec(readFileSync(new URL(file,directory),'utf8').replace('create extension if not exists pgcrypto;',''));
     const adminId=randomUUID();await db.query('insert into auth.users values($1)',[adminId]);
     await db.exec('grant usage on schema public to service_role;grant all on all tables in schema public to service_role;set role service_role;');
+    // These independent financial cases share one time; capacity races have their own suite.
+    await db.exec('update public.direct_order_settings set capacity_per_slot=1000');
     const dishId=randomUUID();await db.query("insert into public.dishes(id,title,price_ore,active) values($1,'Riktig rätt',2500,true)",[dishId]);
     const one=async(sql,args)=>(await db.query(sql,args)).rows[0].saved;
     const order=async(preference='card')=>one('select public.create_catering_order($1::jsonb,$2::jsonb) as saved',[

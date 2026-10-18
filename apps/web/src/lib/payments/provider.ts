@@ -9,7 +9,7 @@ export type PaymentAttempt = {
   provider_reference: string; idempotency_key: string;
   provider_payment_id: string | null; checkout_url: string | null;
   transaction_reference: string | null; expires_at: string | null;
-  status: 'creating' | 'pending' | 'paid' | 'expired' | 'refunded'; created_at: string;
+  status: 'creating' | 'pending' | 'paid' | 'expired' | 'refunded' | 'failed'; created_at: string;
 };
 export type HostedPayment = {
   environment: PaymentEnvironment;

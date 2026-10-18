@@ -96,3 +96,5 @@ Betalningar använder fortsatt `payment_attempts`, `payment_provider_events` och
 `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false` och `PAYMENTS_LIVE_APPROVED=false` ska bevaras publikt tills företagsmiljön har konfigurerats och godkänts. Simulatorn installeras bara i den isolerade testkopian och publiceras aldrig till Sites. En lyckad lokal simulering bevisar inte ett riktigt betalningskonto eller en fysisk plånboksbetalning.
 
 Faktiskt körda kontroller och begränsningar redovisas i [TESTER.md](TESTER.md). GitHub/CI och publicering redovisas i slutleveransen samt [PUBLICERING.md](PUBLICERING.md).
+Den kompletta V4.4-utbyggnaden med viktade reservationer, paketstorlekar, tillbehör och tre steg dokumenteras i [DIRECT_ORDERS_AND_TIMES.md](DIRECT_ORDERS_AND_TIMES.md). Nedan bevaras den första V4.4-versionens bakgrund; dess gamla orderräknade kapacitet har ersatts.
+

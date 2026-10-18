@@ -141,10 +141,10 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     {(message||busy||uploading)&&<p className="preview-note" role="status">{uploading?'Laddar upp filen…':busy?'Sparar…':message}</p>}
     <button className="btn btn-primary" disabled={busy||uploading} type="submit">{busy?'Sparar...':'Spara allt'}</button>
     <div className="divider"/>
-    <h3>QR-koder till cateringbeställning och Google-recensioner</h3>
+    <h3>QR-koder till matbeställning och Google-recensioner</h3>
     <p className="admin-note">Beställningskoden kräver korrekt domän. Googles kod visas bara när en officiell recensionslänk finns.</p>
     <div className="admin-grid">
-      <div><strong>Beställ catering</strong><img style={{width:220,maxWidth:'100%'}} src="/api/qr/bestall" alt="QR-kod för beställning"/>
+      <div><strong>Beställ mat</strong><img style={{width:220,maxWidth:'100%'}} src="/api/qr/bestall" alt="QR-kod för beställning"/>
         <a href="/api/qr/bestall" download="cedar-mezze-bestall.svg" className="text-link">Ladda ner</a></div>
       {form.google_review_url&&<div><strong>Google-omdöme</strong>
         <img style={{width:220,maxWidth:'100%'}} src="/api/qr/google" alt="QR-kod för riktiga Google-recensioner"/>
@@ -152,3 +152,4 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
     </div>
   </form>;
 }
+

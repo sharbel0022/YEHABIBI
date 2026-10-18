@@ -15,19 +15,24 @@ function content(event:Notification,order:Snapshot,current:CateringOrder) {
   const follow=`<p><a href="${escapeHtml(link)}">Följ din beställning</a></p>`;
   const originalSubtotal=order.subtotal_ore-(order.price_adjustment_ore||0);
   const direct=order.order_type==='direct';
-  const rows=direct ? [{title:order.menu_title,quantity:order.package_quantity||1,unit_label:'paket',unit_price_ore:Math.round(originalSubtotal/(order.package_quantity||1)),line_total_ore:originalSubtotal}]
-    : order.items_snapshot?.length ? order.items_snapshot : [{title:order.menu_title,quantity:order.guests,unit_label:'person',unit_price_ore:Math.round(originalSubtotal/order.guests),line_total_ore:originalSubtotal}];
+  const rows=order.items_snapshot?.length ? order.items_snapshot : direct
+    ? [{title:order.menu_title,quantity:order.package_quantity||1,unit_label:'paket',unit_price_ore:Math.round(originalSubtotal/(order.package_quantity||1)),line_total_ore:originalSubtotal}]
+    : [{title:order.menu_title,quantity:order.guests,unit_label:'person',unit_price_ore:Math.round(originalSubtotal/order.guests),line_total_ore:originalSubtotal}];
   const lines=rows.map(row=>`<li>${row.quantity} × ${escapeHtml(row.title)} (${formatSek(row.unit_price_ore)}/${escapeHtml(row.unit_label)}) = ${formatSek(row.line_total_ore)}</li>`).join('');
   const delivery=order.fulfillment==='delivery' ? `Hemleverans: ${escapeHtml(order.address)}, ${escapeHtml(order.postal_code)} ${escapeHtml(order.city)}` : 'Hämtning';
   const bookedTime=direct && order.scheduled_at ? escapeHtml(formatScheduledTime(order.scheduled_at)) : `${escapeHtml(order.event_date)} kl ${escapeHtml(order.event_time)}`;
   const details=`<p><b>Order ${escapeHtml(order.code)}</b> · ${direct?`${order.package_quantity||1} paket · ${order.guests} portioner`:`${order.guests} personer`}<br>${bookedTime}<br>${delivery}</p><ul>${lines}</ul>${order.included?.length?`<p>Innehåller: ${order.included.map(escapeHtml).join(', ')}.</p>`:''}<p>Mat ${formatSek(originalSubtotal)}${order.price_adjustment_ore?`, godkänd prisjustering ${formatSek(order.price_adjustment_ore)}`:''}, leverans ${formatSek(order.delivery_fee_ore)}. Totalt <b>${formatSek(order.total_ore)}</b>.<br>Betalningsönskemål: ${escapeHtml(paymentLabels[order.payment_preference])}.</p>`;
-  let message=event.kind==='new'?(direct && order.status==='approved'?'Din beställning är mottagen och godkänd. Den är ännu inte betald.':'Din förfrågan är mottagen men ännu inte godkänd eller betald.')
-    : event.kind==='paid'?'Betalningen är bekräftad.' : event.kind==='refunded'?'Betalningen har återbetalats.'
+  let message=event.kind==='new'?(direct ? order.capacity_status==='confirmed' && order.payment_preference==='cash'
+      ? 'Din tid är bekräftad. Betala kontant vid hämtning.' : 'Din beställning är mottagen. Tiden hålls tillfälligt och är ännu inte betalningsbekräftad.'
+      :'Din förfrågan är mottagen men ännu inte godkänd eller betald.')
+    : event.kind==='paid'?(direct && current.capacity_status==='confirmed'?'Betalningen och din bokade tid är bekräftade.':'Betalningen är bekräftad.') : event.kind==='refunded'?'Betalningen har återbetalats.'
     : event.kind==='failed'?'Betalningen misslyckades eller sessionen gick ut. Kontakta köket för en ny betalningslänk.'
     : event.kind==='changes_requested'?'Köket föreslår en ändring som du behöver godkänna.'
     : event.kind==='payment_available'?'Din förfrågan är godkänd. Din säkra betalningslänk är tillgänglig.'
     : event.kind==='payment_request'?'Din förfrågan är godkänd. Öppna orderlänken och välj ett tillgängligt betalningssätt.'
-    : event.kind==='payment_review'?'Betalningen behöver kontrolleras av köket. Betala inte på nytt innan du fått besked.' : statusLabels[order.status];
+    : event.kind==='payment_review'?(current.payment_review_reason==='capacity_unavailable_after_payment'
+      ? 'Betalningen är verifierad, men tiden kunde inte bekräftas. Köket hjälper dig med en ny tid eller återbetalning.'
+      :'Betalningen behöver kontrolleras av köket. Betala inte på nytt innan du fått besked.') : statusLabels[order.status];
   if(event.kind==='approved' && order.payment_preference==='cash') message+=' Du betalar kontant vid hämtning. Ordern är fortfarande obetald.';
   const proposal=order.proposal ? `<p>${escapeHtml(order.proposal.message)}<br>Nuvarande totalpris ${formatSek(order.total_ore)}. Föreslaget totalpris <b>${formatSek(order.proposal.total_ore)}</b>.</p><p>Granska och godkänn förslaget via orderlänken före betalning.</p>` : '';
   // En försenad notis får aldrig erbjuda en ersatt, betald eller ändrad betalning.

@@ -61,8 +61,8 @@ export function quoteSelection(catalog: Pick<Catalog, 'menus' | 'dishes' | 'sett
     if (selection.menuId) {
       if (!menu || menu.price_ore <= 0 || selection.guests < minimumGuestsFor(menu, catalog.settings.custom_min_people)) return null;
       return {
-        ...calcTotal(menu.price_ore, selection.guests, fulfillment, fee),
-        price_per_person_ore: menu.price_ore,
+        ...calcTotal(menu.catering_price_ore??menu.price_ore, selection.guests, fulfillment, fee),
+        price_per_person_ore: menu.catering_price_ore??menu.price_ore,
       };
     }
     if (selection.guests < minimumGuestsFor(null, catalog.settings.custom_min_people)) return null;
@@ -108,6 +108,7 @@ export function canOfferDelivery(catalog: Pick<Catalog, 'payment_methods' | 'set
 /** Samma orderformat för webb och mobil; klientbelopp skickas aldrig till servern. */
 export function buildOrderPayload(selection: MenuSelection, contact: OrderContactInput): OrderPayload {
   return {
+    ...(contact.campaign_id?{campaign_id:contact.campaign_id}:{}),
     menu_id: selection.menuId || undefined,
     items: selection.menuId ? undefined : itemsFromQuantities(selection.quantities),
     delivery_zone_id: contact.fulfillment === 'delivery' ? contact.delivery_zone_id : undefined,
@@ -158,7 +159,8 @@ export function orderDetailsError(input: OrderDetails, settings: Settings, zones
 }
 
 /** Visningsregel. Bara backend och signerade webhooks kan bekräfta betalningen. */
-export function canPayOrder(order: Pick<PublicOrder, 'status' | 'payment_status' | 'payment_preference' | 'checkout_url' | 'proposal' | 'payment_review_required'>) {
+export function canPayOrder(order: Pick<PublicOrder, 'status' | 'payment_status' | 'payment_preference' | 'checkout_url' | 'proposal' | 'payment_review_required' | 'capacity_status'>) {
+  if(order.capacity_status==='review' || order.capacity_status==='released' && order.payment_status!=='failed')return false;
   if (order.payment_review_required || order.proposal || order.payment_preference === 'cash' ||
       !['approved', 'preparing', 'ready'].includes(order.status) ||
       !['unpaid', 'pending', 'failed'].includes(order.payment_status)) return false;
