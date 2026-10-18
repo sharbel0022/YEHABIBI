@@ -196,3 +196,5 @@ Företagets Supabase, Stripe, Resend och FCM/APNs är inte anslutna i demonstrat
 Betalningskö och återförsök testas lokalt. Push tar ett enda sändningsansvar för att undvika dubbletter; en processkrasch efter anspråket kan innebära utebliven push. E-post är reservvägen. Övriga misslyckade statusmejl kan administratören skicka igen; det finns ingen separat bakgrundskö för dessa i V4.
 
 Fysisk iPhone-start bekräftades av användaren för V3/SDK 57. V4 får inte räknas som fysiskt iPhone-testad utan nytt prov. Windows kan starta EAS iOS-build men kan inte köra iOS Simulator. Butiksbehörigheter, riktig företagstext, godkända priser/allergener och leverantörernas testflöden återstår innan lansering.
+Aktuell komplett V4.4-verifiering, praktiska köp och Windows-kommandon finns i [TEST_V44.md](TEST_V44.md). Detta dokument bevarar tidigare verifieringshistorik.
+

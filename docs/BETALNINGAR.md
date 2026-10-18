@@ -37,3 +37,9 @@ Adyen-kandidaten kräver verifierad **omedelbar automatisk capture** på rätt k
 `PAYMENTS_ENABLED=false` stoppar nya betalningar. Tom `PAYMENT_PROVIDER` i konfigurationsmallen innebär avstängt läge. En redan utfärdad betalning måste fortfarande kunna stämmas av när nya betalningar stängs; rätt providerhemligheter får därför inte raderas innan alla försök är avstämda. Produktion kräver separat uttryckligt ägarbeslut, godkänd verklig sandbox, rätt livekonto och `PAYMENTS_LIVE_APPROVED=true`, `ADYEN_ENVIRONMENT=live` samt validerat `ADYEN_LIVE_URL_PREFIX`. Dessa är avstängda/tomma här; inga liveanrop har gjorts. Test/live binds till varje försök och får inte blandas. Se V4.3-guiden för den framtida aktiveringsordningen.
 
 Lokala signerade testhändelser och kontrollerade HTTP-svar är simulerade leverantörer. Företagets riktiga sandbox, Resend-leverans och fysiska iPhone/Android återstår tills de verifierats separat. Grön CI, Expo-export eller EAS-bygge bevisar inte en betalning.
+# Kapacitet och betalning i kompletta V4.4
+
+Se [direktorder och tider](DIRECT_ORDERS_AND_TIMES.md) för reservationens livscykel. `held` är inte en kundbekräftelse. Hållbart skapande/pågående betalningsförsök skyddar kapaciteten; verifierat avslag frigör, uttryckligt återförsök återkontrollerar tiden. Verifierat betalt utan hållbar tid blir betalt + kapacitetsavvikelse, aldrig falskt obetalt eller dubbelbokning. Endast det kända kapacitetsproblemet tillåter återbetalning under denna granskningsflagga.
+
+Den privata simulatorn kan spara ett fördröjt signerat besked och leverera exakt samma händelse efter omstart. Inget betaltillstånd ändras i webbläsaren. Se [faktiska resultat](TEST_V44.md). Riktiga företagskonton är fortfarande avstängda.
+

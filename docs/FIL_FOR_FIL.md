@@ -101,3 +101,14 @@ Native navigation, tangentbord, datumväljare, enhetslagring och pushbehörighet
 | `apps/web/.env.example`, `apps/web/public/` | Konfigurationsnamn utan hemligheter och befintliga publika resurser. |
 
 Det finns inget `packages/ui`. Domänregler och designvärden delas; plattformarnas befintliga små komponenter fortsätter återanvändas där de passar.
+# Nya ansvar i kompletta V4.4
+
+- `packages/shared/scheduling/index.ts`: tydlig kundstatus och säker återbeställning av enbart matreferenser.
+- `apps/web/src/components/DirectOrderForm.tsx` och `apps/mobile/app/direkt.tsx`: tre steg på samma serverkontrakt.
+- `apps/web/src/components/admin/KitchenOperations.tsx`: sparade köksreglage, ackbevakning och manuella reservationer.
+- `apps/web/src/components/admin/AdminOrders.tsx`: orderkort, packkontroll och interna avvikelser.
+- `supabase/migrations/20261018131608_complete_restaurant_capacity_catalog_v44.sql`: additiv katalog, viktad kapacitet och köksövergångar.
+- `supabase/migrations/20261018140000_capacity_payment_lifecycle_v44.sql`: koppling mellan kapacitet och verifierade betalningar.
+- `tests/capacity-payment-db.test.mjs`: TTL, pågående betalning, avslag/återförsök, sena besked och refund.
+- `docs/DIRECT_ORDERS_AND_TIMES.md`, `KITCHEN_ADMIN_GUIDE.md`, `TEST_V44.md`, `YEHABIBI_V44_COMPLETE_PLAN.md`: aktuella regler, handhavande och resultat.
+

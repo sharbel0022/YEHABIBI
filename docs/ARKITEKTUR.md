@@ -1,4 +1,6 @@
-# Arkitektur i V4.3
+# Arkitektur i V4.4
+
+Kompletta restaurangflödet beskrivs i [direktorder/tider](DIRECT_ORDERS_AND_TIMES.md), [köksadmin](KITCHEN_ADMIN_GUIDE.md) och [verifiering](TEST_V44.md). Samma backend används för paketköp och offert. Endast `capacity_reservations` tillkommer som affärstabell. Katalogstorlekar återanvänder menyrader. Gemensamt kapacitetslås tas före order-/betalningslås; verifierad ekonomi och bokad kapacitet har separata statusfält. Historiska priser och tider skrivs inte om.
 
 Yehabibi har en logisk backend: Next.js-servern. Webb, Expo och den gemensamma adminpanelen använder samma Supabase/PostgreSQL inom respektive miljö. API-klientpaketet och reglerna i shared från V4.2 återanvänds. V4.3 tillför generiska betalningsrutter, en avstängd Adyen-adapter med separat produktionsspärr och additiva betalningstabeller. Katalog/orderkontrakt och orderhistorik bevaras.
 
