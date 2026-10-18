@@ -53,7 +53,7 @@ Dessutom: DST fram/bak, midnatt, undantag/stängning, framtida standardköp, pri
 
 - `npm ci`: genomfört. Befintlig låsfil rapporterar 30 npm-advisories (11 moderate, 19 high; inga critical), främst Expo/Metro-kedjan. Ingen beroendeversion tillförs av denna funktion. Föreslagna automatiska majorbyten skulle bryta kravet att behålla Expo SDK 57; separat kompatibilitetsgranskning krävs före produktionsdrift.
 - `npm run syntax`, `npm run typecheck`, `npm run build`, `npm run export:mobile`: godkända. Expo SDK 57 bevaras; iOS/Android/Web exporterades, nio statiska webbrutter.
-- `npm test`: 142 tester passerade i granskad körning. Omfattar katalog/arbetsenheter, kampanjkvot, gamla framtida bokningar, separata priser, sparad transporttid, manuella/catering-/leveransreservationer, DST och betalningsskydd.
+- `npm test`: 143 tester passerade i slutligt granskad körning. Omfattar katalog/arbetsenheter, kampanjkvot, gamla framtida bokningar, separata priser, sparad transporttid, manuella/catering-/leveransreservationer, DST och betalningsskydd.
 - `npm run test:web`: godkänd produktionssmoke, tio sidor, serverrenderad katalog, demo/off och ingen simulator.
 - `npm run test:integration`: godkänd, 11 order och 64 lokalt fångade e-postmeddelanden.
 - `npm run test:mode`: godkänd utökad HTTP/PostgreSQL-svit, 25 kontroller, 89 e-postmeddelanden och 28 simulerade pushhändelser. Inget externt nätverk eller riktiga pengar.
@@ -71,6 +71,10 @@ Samtliga testkontakter, priser och adresser är syntetiska.
 | B `CM-E5F046B820` | Webb: 129 kr paket + 2 × 25 kr tillbehör + 100 kr leverans = 279 kr. Konfigurerat fönster 16:15–16:30. Simulerad Apple Pay. Kvitterad, tillagad, packad, på väg och slutförd. |
 | C `CM-3467527FCA` | Egen meny till 20 personer, 40 ostrullar + 4 hummusfat + 20 kaftaspett. 2 660 kr → offertrevision 2 800 kr, kunden accepterade. Simulerat kort, betald, kvitterad, packad och slutförd. Ursprungliga produktpriser bevarades; 140 kr visades separat. |
 | Expo `CM-7A70C581FA` | Samma backend och tre steg, 129 + 25 = 154 kr. Nekat kort → uttryckligt återförsök med samma betalningsidentitet → sparat fördröjt besked. Appen visade väntande tills händelsen levererades, därefter verifierat betald och tidsbekräftad. |
+
+Expo-ordern återbetalades sedan genom uttrycklig bekräftelse i köksvyn och en verifierad testhändelse. Därefter avbokades den. Både admin och Expo visade återbetald. Avbruten återbetalningsbekräftelse lämnade betald status oförändrad. Kontant-/refundbekräftelser finns nu i sidan och kräver en andra tydlig knapp, utan webbläsarpopup.
+
+Webbkassan kontrollerades vid 390 × 844 px: dokumentets bredd 375 px, viewport 390 px, ingen horisontell överfyllnad. Fast summering visas i nederkant. Expo laddades om efter rättningen av råa textnoder; varningen fanns inte i den nya vyn.
 
 Ett praktiskt prov hittade att hela orderkvittot skickades till strikt betalningsvalidering. Webb/Expo och API-klienten rättades att skicka endast code/token/metod och fick regressionstest. Ett annat prov hittade råa mellanslagsnoder i React Native; de togs bort. Köksknappen Slutför fick samma synliga packspärr som servern redan tillämpade.
 

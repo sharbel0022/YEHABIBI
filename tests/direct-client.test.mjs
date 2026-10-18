@@ -76,6 +76,12 @@ test('V4.4 stängt kök kan svara med tom lista och begriplig orsak', async () =
   assert.deepEqual(await client.getAvailability(input), closed);
 });
 
+test('viktad tillgänglighet kräver inget missvisande antal återstående beställningar',async()=>{
+  const weighted={...availability,slots:availability.slots.map(({remaining_capacity,...slot})=>slot)};
+  const client=createApiClient({fetch:async()=>Response.json(weighted)});
+  assert.deepEqual(await client.getAvailability(input),weighted);
+});
+
 test('V4.4 klienten avvisar felaktiga tidszoner, priser och ofullständiga slot-svar', async () => {
   const invalid = [
     { ...availability, timezone: 'UTC' },

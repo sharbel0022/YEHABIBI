@@ -24,22 +24,23 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
   const [proposedPrice, setProposedPrice] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [confirmation,setConfirmation]=useState<{orderId:string;operation:'cash_paid'|'refund'}|null>(null);
   const [packing,setPacking]=useState<Record<string,Packing>>({});
   const [issues,setIssues]=useState<Record<string,string>>({});
   const [kitchenNotes,setKitchenNotes]=useState<Record<string,string>>({});
   useEffect(()=>setOrders(initialOrders),[initialOrders]);
 
-  async function action(order: CateringOrder, operation: string, extra:Record<string,unknown>={}) {
+  async function action(order: CateringOrder, operation: string, extra:Record<string,unknown>={},confirmed=false) {
     if(busy)return;
     const message = note[order.id] ?? order.admin_note ?? '';
     const amount = proposedPrice[order.id]?.trim();
     if (operation === 'request_changes' && !message.trim()) return setError('Beskriv ändringen för kunden innan du skickar förslaget.');
     const proposedOre = amount ? Math.round(Number(amount.replace(',', '.')) * 100) : undefined;
     if (operation === 'request_changes' && amount && (!Number.isSafeInteger(proposedOre) || proposedOre! <= 0)) return setError('Ange ett giltigt nytt totalpris i kronor.');
-    const confirmation = operation === 'cash_paid' ? 'Bekräfta att du har tagit emot hela kontantbeloppet.' : operation === 'refund'
-      ? order.payment_provider === 'local_test' ? 'Simulera återbetalning av hela testbeloppet? Inga riktiga pengar används.'
-        : 'Begär återbetalning av hela beloppet via betalleverantören? Status ändras först när leverantören bekräftar.' : '';
-    if (confirmation && !window.confirm(confirmation)) return;
+    if((operation==='cash_paid'||operation==='refund')&&!confirmed) {
+      setConfirmation({orderId:order.id,operation});setError('');setMessage('');return;
+    }
+    setConfirmation(null);
     setBusy(order.id); setError(''); setMessage('');
     try {
       const response = await fetch(`/api/admin/orders/${order.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -116,6 +117,12 @@ export function AdminOrders({ initialOrders, filters = {}, totalCount = initialO
           if (operation==='cancel'&&order.payment_status==='refunded')return ['new','reviewing','changes_requested','approved'].includes(order.status);
           return canTransition(order.status, operation, order.payment_status, order.payment_preference,order.capacity_status);
         }).map(([operation, label]) => <button key={operation} className={`btn ${operation === 'approve' || operation === 'cash_paid' ? 'btn-primary' : ''}`} type="button" disabled={!!busy} onClick={() => action(order, operation)}>{busy === order.id ? 'Arbetar…' : operation === 'refund' && order.payment_provider === 'local_test' ? 'Simulera återbetalning' : label}</button>)}</div>
+        {confirmation?.orderId===order.id&&<div className="preview-note" role="group" aria-label="Bekräfta betalningsåtgärd"><p>{confirmation.operation==='cash_paid'
+          ? `Bekräfta att hela kontantbeloppet ${formatSek(order.total_ore)} har tagits emot för order ${order.code}.`
+          : order.payment_provider==='local_test' ? `Simulera återbetalning av hela testbeloppet ${formatSek(order.total_ore)} för order ${order.code}. Inga riktiga pengar används.`
+            : `Begär återbetalning av hela beloppet ${formatSek(order.total_ore)} för order ${order.code} via betalleverantören. Återbetald visas först efter verifierad bekräftelse.`}</p>
+          <div className="admin-actions"><button type="button" className="btn btn-primary" disabled={!!busy} onClick={()=>action(order,confirmation.operation,{},true)}>{confirmation.operation==='refund'?'Bekräfta återbetalning':'Bekräfta kontantbetalning'}</button><button type="button" className="btn" disabled={!!busy} onClick={()=>setConfirmation(null)}>Avbryt bekräftelse</button></div>
+        </div>}
       </article>;
     })}
   </div>;

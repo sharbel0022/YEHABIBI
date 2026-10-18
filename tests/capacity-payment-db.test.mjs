@@ -67,7 +67,24 @@ test('capacity and verified payment share an atomic lifecycle without losing fin
       await apply(event(a));const fresh=await read(o.id);
       assert.equal(fresh.status,'cancelled');assert.equal(fresh.payment_status,'paid');assert.equal(fresh.capacity_status,'review');
       assert.equal(fresh.payment_review_reason,'capacity_unavailable_after_payment');
+      await apply(event(a));const repeated=await read(o.id);
+      assert.equal(repeated.status,'cancelled');assert.equal(repeated.payment_status,'paid');assert.equal(repeated.capacity_status,'review');
       assert.ok(await one('select public.reserve_catering_refund($1) saved',[o.id]));
+    });
+    await t.test('unmanaged historical cancelled orders retain the original authorisation guard',async()=>{
+      const o=await create(),a=await reserve(o);await apply(event(a,{kind:'failed',success:false}));
+      await db.query("update public.orders set capacity_status=null,status='cancelled' where id=$1",[o.id]);
+      await assert.rejects(apply(event(a)),/Order not approved/);
+      assert.equal((await read(o.id)).payment_status,'failed');
+    });
+    await t.test('duplicate paid cannot erase a later financial dispute or unlock an unsafe refund',async()=>{
+      const o=await create(),a=await reserve(o);await apply(event(a,{kind:'failed',success:false}));await apply(event(a));
+      assert.equal((await read(o.id)).capacity_status,'review');
+      await apply(event(a,{event_code:'CHARGEBACK',kind:'review',original_reference:'AUTH_'+a.id,transaction_reference:'CB_'+a.id}));
+      assert.equal((await read(o.id)).payment_review_reason,'CHARGEBACK');
+      await apply(event(a));const fresh=await read(o.id);
+      assert.equal(fresh.payment_review_reason,'CHARGEBACK');assert.equal(fresh.payment_status,'paid');assert.equal(fresh.capacity_status,'review');
+      assert.equal(await one('select public.reserve_catering_refund($1) saved',[o.id]),null);
     });
     for(const role of ['anon','authenticated']) {
       await db.exec(`set role ${role}`);

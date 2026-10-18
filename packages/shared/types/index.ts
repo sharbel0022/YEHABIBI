@@ -144,7 +144,7 @@ export type AvailabilityInput = {
   addons?:DishSelection[]; campaign_id?:string;
 };
 export type AvailableSlot = {
-  starts_at: string; label: string; event_date: string; event_time: string; remaining_capacity: number;
+  starts_at: string; label: string; event_date: string; event_time: string; remaining_capacity?: number;
   ends_at?:string; preparation_starts_at?:string;
 };
 export type AvailabilityResponse = {

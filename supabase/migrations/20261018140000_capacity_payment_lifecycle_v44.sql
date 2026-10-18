@@ -28,7 +28,7 @@ do $$declare definition text;guard text;begin
   guard:=$guard$if v_success and v.status not in ('approved','preparing','ready','dispatched','completed') then raise exception 'Order not approved'; end if;$guard$;
   if position(guard in definition)=0 then raise exception 'Unexpected financial authorisation guard';end if;
   definition:=replace(definition,guard,$replacement$if v_success and v.status not in ('approved','preparing','ready','dispatched','completed')
-    and not (v.capacity_status='released' and v.status in ('cancelled','rejected')) then raise exception 'Order not approved'; end if;$replacement$);
+    and not coalesce((v.capacity_status in ('released','review') and v.status in ('cancelled','rejected')),false) then raise exception 'Order not approved'; end if;$replacement$);
   execute definition;
 end;$$;
 create function public.apply_catering_payment_event(p_event jsonb)

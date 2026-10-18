@@ -35,6 +35,7 @@ test('complete catalogue and shared weighted kitchen/delivery capacity',async t=
     await t.test('package sizes and addons retain distinct integer prices/units and workload',async()=>{
       const quote=await availability({quantity:2,addons:[{dish_id:addon,quantity:3}]});
       assert.equal(quote.subtotal_ore,33300);assert.equal(quote.kitchen_units,7);assert.equal(quote.preparation_minutes,35);
+      assert.ok(quote.slots.every(slot=>!Object.hasOwn(slot,'remaining_capacity')),'Weighted slots must not expose an inaccurate order-count limit');
       assert.equal(quote.lines[0].quantity,2);assert.equal(quote.lines[0].unit_label,'paket');assert.equal(quote.lines[1].unit_label,'styck');
       const input=request(quote,{quantity:2,addons:[{dish_id:addon,quantity:3}]});
       await db.query('update public.dishes set price_ore=2600 where id=$1',[addon]);await assert.rejects(create(input),/Price changed/);

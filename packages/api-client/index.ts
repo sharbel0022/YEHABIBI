@@ -68,7 +68,7 @@ function isAvailability(value:unknown):value is AvailabilityResponse {
     Array.isArray(value.slots) && value.slots.every(slot=>isObject(slot) && typeof slot.starts_at==='string' &&
       instant(slot.starts_at) && typeof slot.label==='string' && typeof slot.event_date==='string' &&
       (slot.ends_at===undefined || instant(slot.ends_at)) && (slot.preparation_starts_at===undefined || instant(slot.preparation_starts_at)) &&
-      typeof slot.event_time==='string' && Number.isInteger(slot.remaining_capacity) && Number(slot.remaining_capacity)>0);
+      typeof slot.event_time==='string' && (slot.remaining_capacity===undefined || Number.isInteger(slot.remaining_capacity) && Number(slot.remaining_capacity)>0));
 }
 
 function isPaymentSession(value: unknown, origin: string, verifiedTestMode: boolean): value is PaymentSessionResponse {

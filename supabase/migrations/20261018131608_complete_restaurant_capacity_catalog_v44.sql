@@ -186,7 +186,9 @@ begin
     if public.campaign_allows(campaign,(p_input->>'menu_id')::uuid,(p_input->>'quantity')::integer,arrival)
       and public.capacity_fits('kitchen',null,prep_start,ready_at,units)
       and (p_input->>'fulfillment'<>'delivery' or public.capacity_fits('delivery',z.id,ready_at,ending,1)) then
-      slots:=slots||jsonb_build_array(slot||jsonb_build_object('ends_at',arrival+make_interval(mins=>window_mins),'preparation_starts_at',prep_start));
+      -- Weighted fit is authoritative; a raw order-count/limit is not an accurate
+      -- remaining basket count across kitchen, delivery and campaign resources.
+      slots:=slots||jsonb_build_array((slot-'remaining_capacity')||jsonb_build_object('ends_at',arrival+make_interval(mins=>window_mins),'preparation_starts_at',prep_start));
       if jsonb_array_length(slots)>=500 then exit;end if;
     end if;
   end loop;
@@ -332,7 +334,8 @@ begin
   select * into o from public.orders where id=p_order_id for update;
   if not found or o.capacity_status is null then return;end if;
   if p_outcome='paid' then
-    if o.capacity_status='confirmed' then return;end if;
+    -- Replayed success must never erase a later financial dispute/quarantine.
+    if o.capacity_status in ('confirmed','review') then return;end if;
     owned:=o.capacity_status='held' and o.preparation_starts_at>clock_timestamp()
       and exists(select 1 from public.capacity_reservations where order_id=o.id and resource='kitchen' and state='held')
       and (o.hold_expires_at>clock_timestamp() or o.capacity_payment_pinned);
