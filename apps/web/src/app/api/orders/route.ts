@@ -57,10 +57,10 @@ async function createOrder(request: Request) {
   const fee = zone?.fee_ore || 0;
   let prices;
   if(input.menu_id) {
-    const {data:menu,error} = await db.from('menus').select('id,price_ore,min_people').eq('id',input.menu_id).eq('active',true).eq('catering_enabled',true).maybeSingle();
-    if(error || !menu || menu.price_ore <= 0) return jsonError('Menyn är ännu inte bokningsbar.');
+    const {data:menu,error} = await db.from('menus').select('id,price_ore,catering_price_ore,min_people').eq('id',input.menu_id).eq('active',true).eq('catering_enabled',true).eq('availability_state','available').maybeSingle();
+    if(error || !menu || (menu.catering_price_ore??menu.price_ore) <= 0) return jsonError('Menyn är ännu inte bokningsbar.');
     if(input.guests < menu.min_people) return jsonError(`Den här menyn kräver minst ${menu.min_people} personer.`);
-    prices = calcTotal(menu.price_ore,input.guests,input.fulfillment,fee);
+    prices = calcTotal(menu.catering_price_ore??menu.price_ore,input.guests,input.fulfillment,fee);
   } else {
     if(input.guests < settings.custom_min_people) return jsonError(`Minst ${settings.custom_min_people} personer krävs för en egen meny.`);
     const {data:dishes,error} = await db.from('dishes').select('id,title,price_ore,active').in('id',input.items!.map(item=>item.dish_id)).eq('active',true);

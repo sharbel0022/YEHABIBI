@@ -8,7 +8,8 @@ create table public.test_payment_sessions (
   reference text not null, amount_ore integer not null check(amount_ore>0), currency text not null check(currency='SEK'),
   method text not null, return_url text not null, checkout_url text not null,
   status text not null default 'active' check(status in ('active','completed','expired')),
-  last_outcome text check(last_outcome in ('success','decline','cancel','expire')),
+  last_outcome text check(last_outcome in ('success','decline','cancel','expire','delay')),
+  delayed_event_id text,
   expires_at timestamptz not null, created_at timestamptz not null default now()
 );
 create table public.test_payment_deliveries (
@@ -27,14 +28,14 @@ returns jsonb language plpgsql security invoker set search_path='' as $$
 declare s public.test_payment_sessions%rowtype; saved jsonb;
 begin
   select * into s from public.test_payment_sessions where id=p_session_id for update;
-  if not found or p_action not in ('success','decline','cancel','expire','refund') then raise exception 'Invalid test session'; end if;
-  if s.status='completed' and p_action not in ('success','refund') then raise exception 'Test payment already completed'; end if;
+  if not found or p_action not in ('success','decline','cancel','expire','refund','delay') then raise exception 'Invalid test session'; end if;
+  if s.status='completed' and p_action not in ('success','refund','delay') then raise exception 'Test payment already completed'; end if;
   if p_action='refund' and s.status<>'completed' then raise exception 'Test payment not completed'; end if;
   insert into public.test_payment_deliveries(event_id,session_id,payload) values(p_event_id,s.id,p_payload) on conflict do nothing;
   select payload into strict saved from public.test_payment_deliveries where event_id=p_event_id;
   if p_action<>'refund' then
-    update public.test_payment_sessions set status=case when p_action='success' then 'completed' when p_action='expire' then 'expired' else 'active' end,
-      last_outcome=p_action where id=s.id;
+    update public.test_payment_sessions set status=case when p_action in ('success','delay') then 'completed' when p_action='expire' then 'expired' else 'active' end,
+      last_outcome=p_action,delayed_event_id=case when p_action='delay' then p_event_id else delayed_event_id end where id=s.id;
   end if;
   return saved;
 end; $$;

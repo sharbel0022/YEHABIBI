@@ -61,8 +61,13 @@ function isAvailability(value:unknown):value is AvailabilityResponse {
     money(value.total_ore) && money(value.subtotal_ore) && money(value.delivery_fee_ore) &&
     money(value.preparation_minutes) && (value.reason===undefined || typeof value.reason==='string') &&
     (value.delivery_zone_id===null || typeof value.delivery_zone_id==='string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value.delivery_zone_id)) &&
+    (value.kitchen_units===undefined || money(value.kitchen_units)) &&
+    (value.delivery_window_minutes===undefined || money(value.delivery_window_minutes)) &&
+    (value.lines===undefined || Array.isArray(value.lines) && value.lines.every(line=>isObject(line) && typeof line.title==='string' &&
+      money(line.unit_price_ore) && money(line.total_ore) && Number.isSafeInteger(line.quantity) && Number(line.quantity)>0)) &&
     Array.isArray(value.slots) && value.slots.every(slot=>isObject(slot) && typeof slot.starts_at==='string' &&
       instant(slot.starts_at) && typeof slot.label==='string' && typeof slot.event_date==='string' &&
+      (slot.ends_at===undefined || instant(slot.ends_at)) && (slot.preparation_starts_at===undefined || instant(slot.preparation_starts_at)) &&
       typeof slot.event_time==='string' && Number.isInteger(slot.remaining_capacity) && Number(slot.remaining_capacity)>0);
 }
 
@@ -176,7 +181,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     async createPayment(reference: OrderReference, method: OnlinePaymentMethod, requestOptions?: RequestOptions) {
       const result = await request('/api/payments/create', (value): value is PaymentSessionResponse =>
         isPaymentSession(value, paymentOrigin(), verifiedTestMode), {
-        method: 'POST', body: JSON.stringify({ ...reference, payment_method: method }),
+        method: 'POST', body: JSON.stringify({ code:reference.code, token:reference.token, payment_method: method }),
       }, requestOptions);
       const url = safePaymentUrl(result.checkout_url, paymentOrigin(), verifiedTestMode && result.test_mode === true);
       if (!url) throw new ApiError('Betalningslänken kunde inte verifieras.', 'response');

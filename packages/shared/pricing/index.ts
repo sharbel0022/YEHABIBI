@@ -1,4 +1,4 @@
-import type { DeliveryZone, Dish, DishSelection, Fulfillment, Occasion, OrderLine, OrderStatus, PaymentPreference, PaymentStatus } from '../types/index.ts';
+import type { CapacityStatus, DeliveryZone, Dish, DishSelection, Fulfillment, Occasion, OrderLine, OrderStatus, PaymentPreference, PaymentStatus } from '../types/index.ts';
 import { orderLimits } from '../limits.ts';
 
 export const occasions: Record<Occasion, string> = {
@@ -67,11 +67,11 @@ export function canUseCash(preference: PaymentPreference, fulfillment: Fulfillme
   return preference !== 'cash' || (fulfillment === 'pickup' && enabled);
 }
 
-export function canTransition(status: OrderStatus, action: string, payment: PaymentStatus, preference: PaymentPreference) {
+export function canTransition(status: OrderStatus, action: string, payment: PaymentStatus, preference: PaymentPreference, capacity?:CapacityStatus|null) {
   if (action === 'review') return status === 'new';
   if (action === 'approve') return status === 'new' || status === 'reviewing';
   if (action === 'reject' || action === 'request_changes') return ['new','reviewing','changes_requested'].includes(status);
-  if (action === 'cancel') return ['new','reviewing','changes_requested','approved'].includes(status) && payment === 'unpaid';
+  if (action === 'cancel') return ['new','reviewing','changes_requested','approved'].includes(status) && (payment === 'unpaid' || payment==='failed' && capacity==='released');
   if (action === 'preparing') return status === 'approved' && (payment === 'paid' || preference === 'cash');
   if (action === 'ready') return (status === 'approved' || status === 'preparing') && (payment === 'paid' || preference === 'cash');
   if (action === 'dispatched') return ['approved','preparing','ready'].includes(status) && payment === 'paid';

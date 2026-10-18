@@ -54,6 +54,16 @@ test('V4.4 direktorder skickar paketantal, serverquote, exakt tid och samma åte
   assert.deepEqual(calls, Array.from({ length: 2 }, () => ({ url: '/api/orders/direct', body: direct })));
 });
 
+test('direktkassa: kvittots extra fält följer aldrig med den strikta betalningsförfrågan', async () => {
+  let sent;
+  const client = createApiClient({ fetch: async (url, options) => {
+    sent = JSON.parse(options.body);
+    return Response.json({ checkout_url: 'https://payment.example/session', payment_status: 'pending' });
+  } });
+  await client.createPayment({ ...receipt, order_type: 'direct', capacity_status: 'held' }, 'card');
+  assert.deepEqual(sent, { code: receipt.code, token: receipt.token, payment_method: 'card' });
+});
+
 test('V4.4 ändrat pris eller full tid behåller serverns konfliktmeddelande', async () => {
   const client = createApiClient({ fetch: async () => Response.json({ error: 'Tiden har blivit fullbokad. Välj en ny tid.' }, { status: 409 }) });
   await assert.rejects(client.createDirectOrder(direct), error => error instanceof ApiError &&

@@ -7,5 +7,5 @@ export async function getAvailability(input:AvailabilityInput):Promise<Availabil
   const {data,error}=await adminDb().rpc('get_direct_availability',{p_input:input});
   if(error || !data) throw new Error('Kunde inte läsa lediga tider. Försök igen senare.');
   const quote=data as AvailabilityResponse;
-  return {...quote,server_now:new Date(quote.server_now).toISOString(),slots:quote.slots.map(slot=>({...slot,starts_at:new Date(slot.starts_at).toISOString()}))};
+  return {...quote,server_now:new Date(quote.server_now).toISOString(),slots:quote.slots.map(slot=>({...slot,starts_at:new Date(slot.starts_at).toISOString(),ends_at:slot.ends_at?new Date(slot.ends_at).toISOString():undefined,preparation_starts_at:slot.preparation_starts_at?new Date(slot.preparation_starts_at).toISOString():undefined}))};
 }

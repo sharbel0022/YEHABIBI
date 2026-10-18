@@ -108,6 +108,7 @@ test('V4.4 PostgreSQL scheduling uses Stockholm instants and atomic package rese
       await configure({weekly_hours:hours({opens_at:'00:00',closes_at:'04:00',cutoff_at:'04:00',pickup_from:'00:00',pickup_until:'04:00'}),interval_minutes:120,capacity_per_slot:1});
       for(const booked of ['2026-10-25T00:00:00Z','2026-10-25T01:00:00Z']) {
         await db.query("update public.orders set status='approved',scheduled_at=$2,slot_interval_minutes=120 where id=$1",[saved.id,booked]);
+        await db.query("update public.capacity_reservations set state='confirmed',starts_at=$2::timestamptz-interval '120 minutes',ends_at=$2::timestamptz where order_id=$1 and resource='kitchen'",[saved.id,booked]);
         const folded=await availability('2026-10-24T22:00:00Z');
         assert.ok(folded.slots.every(option=>!['2026-10-25T00:00:00.000Z','2026-10-25T01:00:00.000Z'].includes(new Date(option.starts_at).toISOString())));
       }

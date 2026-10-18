@@ -129,8 +129,16 @@ test('test adapter runs all four methods through real SQL, repeated failures, du
         }
       }
       assert.equal((await db.query("select count(*)::int as count from public.payment_provider_events where order_id=$1 and kind='failed'",[order.id])).rows[0].count,6);
-      await provider.simulate(payment.id,'success');const paidEnvelope=dispatched.at(-1);
       const restartedProvider=new TestPaymentProvider(client,validate,settings,dispatch);
+      const beforeDelay=deliveries;
+      await provider.simulate(payment.id,'delay');
+      assert.equal(deliveries,beforeDelay,'Queued events must not update financial truth before verification.');
+      assert.equal((await db.query('select payment_status from public.orders where id=$1',[order.id])).rows[0].payment_status,'pending');
+      const queued=(await db.query('select d.payload,d.delivered_at from public.test_payment_deliveries d join public.test_payment_sessions s on s.delayed_event_id=d.event_id where s.id=$1',[payment.id])).rows[0];
+      assert.equal(queued.delivered_at,null);
+      await restartedProvider.simulate(payment.id,'deliver_delayed');const paidEnvelope=dispatched.at(-1);
+      assert.deepEqual(paidEnvelope,queued.payload,'A restart delivers the exact saved signed event.');
+      await restartedProvider.simulate(payment.id,'deliver_delayed');
       await restartedProvider.simulate(payment.id,'duplicate');
       assert.deepEqual(dispatched.at(-1),paidEnvelope,'Explicit duplicate delivery preserves the paid event and signature across provider instances.');
       const paid=(await db.query('select payment_status,total_ore,payment_provider from public.orders where id=$1',[order.id])).rows[0];

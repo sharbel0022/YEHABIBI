@@ -3,9 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { HostedPayment, OnlinePaymentMethod, PaymentAttempt, PaymentEvent, PaymentProvider, RefundAttempt } from '@/lib/payments/provider';
 import type { IsolationSettings } from './guard.ts';
 
-export type SimulationAction = 'success' | 'decline' | 'cancel' | 'expire' | 'duplicate';
+export type SimulationAction = 'success' | 'decline' | 'cancel' | 'expire' | 'duplicate' | 'delay' | 'deliver_delayed';
 type Session = {id: string; attempt_id: string; reference: string; amount_ore: number; currency: string; method: OnlinePaymentMethod;
-  return_url: string; checkout_url: string; status: 'active' | 'completed' | 'expired'; last_outcome: string | null; expires_at: string};
+  return_url: string; checkout_url: string; status: 'active' | 'completed' | 'expired'; last_outcome: string | null; expires_at: string; delayed_event_id: string | null};
 type Envelope = {version: string; isolation_id: string; event: PaymentEvent; signature: string};
 const VERSION = 'local-test-payment-v1';
 function canonical(id: string, event: PaymentEvent) {
@@ -73,7 +73,13 @@ export class TestPaymentProvider implements PaymentProvider {
     return this.hosted(session);
   }
   verifyEvents(payload: unknown) { return [verifyTestEvent(payload,this.settings)]; }
-  async inspectSession(id: string) { return this.session(id); }
+  async inspectSession(id: string) {
+    const session=await this.session(id);
+    if (!session.delayed_event_id) return {...session,delayed_delivered:false};
+    const {data,error}=await this.db.from('test_payment_deliveries').select('delivered_at').eq('event_id',session.delayed_event_id).single();
+    if (error || !data) throw new Error('Den sparade testhändelsen kunde inte läsas.');
+    return {...session,delayed_delivered:Boolean(data.delivered_at)};
+  }
   private event(session: Session, action: string, refund?: RefundAttempt): PaymentEvent {
     const success=action==='success' || action==='refund';
     // Each failure click is a new outcome on the reusable checkout. Its saved envelope remains replayable.
@@ -87,16 +93,26 @@ export class TestPaymentProvider implements PaymentProvider {
       occurred_at:new Date(0).toISOString()};
   }
   private async deliver(session: Session, action: string, refund?: RefundAttempt) {
-    const payload=signTestEvent(this.event(session,action,refund),this.settings);
+    const payload=signTestEvent(this.event(session,action==='delay'?'success':action,refund),this.settings);
     const {data,error}=await this.db.rpc('test_prepare_payment_delivery',{p_session_id:session.id,p_action:action,p_event_id:payload.event.event_id,p_payload:payload});
     if (error || !data) throw new Error('Testbetalningens utfall kunde inte sparas.');
+    if (action==='delay') return; // Durable provider outcome, deliberately withheld webhook.
     await this.dispatch(data as Envelope);
     const {error:markError}=await this.db.from('test_payment_deliveries').update({delivered_at:new Date().toISOString()}).eq('event_id',payload.event.event_id);
     if (markError) throw new Error('Testhändelsen är sparad. Försök igen för att bekräfta leveransen.');
   }
   async simulate(id: string, action: SimulationAction) {
     const session=await this.session(id);
-    if (!['success','decline','cancel','expire','duplicate'].includes(action)) throw new Error('Ogiltigt testval.');
+    if (!['success','decline','cancel','expire','duplicate','delay','deliver_delayed'].includes(action)) throw new Error('Ogiltigt testval.');
+    if (action==='deliver_delayed') {
+      if (!session.delayed_event_id) throw new Error('Spara först en fördröjd testhändelse.');
+      const {data,error}=await this.db.from('test_payment_deliveries').select('*').eq('event_id',session.delayed_event_id).eq('session_id',session.id).single();
+      if (error || !data) throw new Error('Den sparade testhändelsen saknas.');
+      await this.dispatch(data.payload as Envelope);
+      const {error:markError}=await this.db.from('test_payment_deliveries').update({delivered_at:new Date().toISOString()}).eq('event_id',session.delayed_event_id);
+      if (markError) throw new Error('Testhändelsen är sparad. Leveransen kan upprepas.');
+      return this.session(id);
+    }
     if (action==='duplicate' && session.status!=='completed') throw new Error('Simulera först en lyckad betalning.');
     await this.deliver(session,action==='duplicate'?'success':action);
     return this.session(id);
