@@ -106,6 +106,7 @@ try {
   checks.push('Verified simulated expiry retries the same capability without a second attempt');
   const refunded = await create('google_pay'); await action(refunded, { action: 'approve' }); const refundPath = await checkout(refunded, 'google_pay');
   await simulate(refundPath, 'success'); await action(refunded, { action: 'refund' });
+  await isolated.waitFor(()=>row(refunded).payment_status==='refunded');
   assert.equal(row(refunded).payment_status, 'refunded'); assert.equal(row(refunded).payment_refund_status, 'confirmed'); checks.push('Refund confirmed through signed provider event');
   await action(refunded,{action:'cancel'});assert.equal(row(refunded).status,'cancelled');checks.push('Paid cancellation follows verified refund');
   const cash = await create('cash'); await action(cash, { action: 'approve' }); assert.equal(row(cash).payment_status, 'unpaid');
