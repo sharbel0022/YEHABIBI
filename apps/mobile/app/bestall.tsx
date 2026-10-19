@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, Text, View, type TextInputProps } from 'react-native';
+import { Pressable, Text, View, type TextInputProps } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   availablePaymentMethods, buildOrderPayload, eventDateBounds, findDeliveryZone, formatSek,
   itemsFromQuantities, minimumGuestsFor, newOrderSchema, occasions, orderContactError,
-  onlinePaymentMethods, orderDetailsError, orderSteps, paymentMethodLabel,
+  orderDetailsError, orderSteps, paymentMethodLabel,
   type Fulfillment, type PaymentPreference,
 } from '@yehabibi/shared';
 import { api, apiUrl, clearRequestId, newRequestId, openPolicy, persistentRequestId } from '../lib/api';
+import { mobileOnlinePaymentMethods } from '../lib/payment-methods';
 import { getQuote, useCatering } from '../lib/store';
 import { Amount, Button, Choices, colors, DateTimeField, Field, Notice, Screen, Stepper, s } from '../lib/ui';
 
@@ -39,9 +40,7 @@ export default function OrderScreen() {
   const quote = getQuote(catalog, selection, fulfillment, zone?.fee_ore || 0);
   const foodQuote = getQuote(catalog, { ...selection,
     guests: Math.max(selection.guests, minimumGuestsFor(menu, settings.custom_min_people)) });
-  const online = onlinePaymentMethods(catalog.payment_methods, {
-    applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android',
-  }, catalog.test_mode === true);
+  const online = mobileOnlinePaymentMethods(catalog);
   const methods = availablePaymentMethods(catalog, fulfillment)
     .filter(method => method === 'cash' || method === 'unpaid' || online.includes(method));
   const selectedPayment = methods.includes(payment) ? payment : methods[0];

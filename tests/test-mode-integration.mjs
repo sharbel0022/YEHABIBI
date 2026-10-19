@@ -51,7 +51,9 @@ const checkout = async (receipt, method) => {
 };
 const simulate = async (sessionPath, simulation) => {
   const result = await call(`${sessionPath}/simulate`, 'POST', { action: simulation }, false, { Origin: isolated.origin });
-  assert.ok([200, 303].includes(result.status), `Simulation ${simulation}: ${result.data?.error || result.status}`); return result;
+  assert.ok([200, 303].includes(result.status), `Simulation ${simulation}: ${result.data?.error || result.status}`);
+  await isolated.waitFor(()=>isolated.rows("select count(*)::int n from public.background_jobs where kind='payment_event' and status<>'completed'")[0].n===0);
+  return result;
 };
 try {
   const types = spawnSync(process.execPath, [path.join(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--noEmit'], { cwd: isolated.web, env: cleanProcessEnvironment(), encoding: 'utf8', windowsHide: true });
@@ -104,6 +106,7 @@ try {
   checks.push('Verified simulated expiry retries the same capability without a second attempt');
   const refunded = await create('google_pay'); await action(refunded, { action: 'approve' }); const refundPath = await checkout(refunded, 'google_pay');
   await simulate(refundPath, 'success'); await action(refunded, { action: 'refund' });
+  await isolated.waitFor(()=>row(refunded).payment_status==='refunded');
   assert.equal(row(refunded).payment_status, 'refunded'); assert.equal(row(refunded).payment_refund_status, 'confirmed'); checks.push('Refund confirmed through signed provider event');
   await action(refunded,{action:'cancel'});assert.equal(row(refunded).status,'cancelled');checks.push('Paid cancellation follows verified refund');
   const cash = await create('cash'); await action(cash, { action: 'approve' }); assert.equal(row(cash).payment_status, 'unpaid');

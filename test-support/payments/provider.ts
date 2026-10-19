@@ -9,7 +9,7 @@ type Session = {id: string; attempt_id: string; reference: string; amount_ore: n
 type Envelope = {version: string; isolation_id: string; event: PaymentEvent; signature: string};
 const VERSION = 'local-test-payment-v1';
 function canonical(id: string, event: PaymentEvent) {
-  return JSON.stringify([VERSION,id,event.provider,event.environment,event.event_id,event.event_code,event.kind,event.success,
+  return JSON.stringify([VERSION,id,event.provider,event.environment,event.merchant_account,event.event_id,event.event_code,event.kind,event.success,
     event.reference,event.transaction_reference,event.original_reference,event.amount_ore,event.currency,event.occurred_at]);
 }
 export function signTestEvent(event: PaymentEvent, settings: IsolationSettings): Envelope {
@@ -21,7 +21,7 @@ export function verifyTestEvent(payload: unknown, settings: IsolationSettings): 
   if (!item || item.version !== VERSION || item.isolation_id !== settings.id || !item.event
     || !/^[a-f\d]{64}$/.test(item.signature || '')) throw new Error('Ogiltig signerad testhändelse.');
   const event = item.event, expected = Buffer.from(signTestEvent(event,settings).signature,'hex'), actual = Buffer.from(item.signature,'hex');
-  if (actual.length !== expected.length || !timingSafeEqual(actual,expected) || event.provider !== 'local_test' || event.environment !== 'test'
+  if (actual.length !== expected.length || !timingSafeEqual(actual,expected) || event.provider !== 'local_test' || event.environment !== 'test' || event.merchant_account !== settings.id
     || !['AUTHORISATION','REFUND'].includes(event.event_code) || !Number.isSafeInteger(event.amount_ore) || event.amount_ore<=0 || event.currency !== 'SEK'
     || !/^[a-f\d]{64}$/.test(event.event_id)) throw new Error('Ogiltig signerad testhändelse.');
   return event;
@@ -29,12 +29,13 @@ export function verifyTestEvent(payload: unknown, settings: IsolationSettings): 
 /** This class is absent from every normal production build. It never imports or calls Adyen. */
 export class TestPaymentProvider implements PaymentProvider {
   readonly name = 'local_test'; readonly environment = 'test' as const;
+  readonly merchantAccount: string;
   private db: SupabaseClient;
   private validate: () => Promise<void>;
   private settings: IsolationSettings;
   private dispatch: (payload: Envelope) => Promise<void>;
   constructor(db: SupabaseClient, validate: () => Promise<void>, settings: IsolationSettings, dispatch: (payload: Envelope) => Promise<void>) {
-    this.db=db;this.validate=validate;this.settings=settings;this.dispatch=dispatch;
+    this.db=db;this.validate=validate;this.settings=settings;this.dispatch=dispatch;this.merchantAccount=settings.id;
   }
   async availableMethods(): Promise<OnlinePaymentMethod[]> { await this.validate(); return ['swish','card','apple_pay','google_pay']; }
   private async session(id: string): Promise<Session> {
@@ -50,7 +51,7 @@ export class TestPaymentProvider implements PaymentProvider {
   }
   async createPayment(attempt: PaymentAttempt, returnUrl: string) {
     await this.validate();
-    if (attempt.provider!==this.name || attempt.environment!=='test') throw new Error('Fel testbetalningsmiljö.');
+    if (attempt.provider!==this.name || attempt.environment!=='test' || attempt.merchant_account!==this.merchantAccount) throw new Error('Fel testbetalningsmiljö eller testkonto.');
     const url=new URL(returnUrl);
     if (url.origin!==this.settings.checkoutOrigin) throw new Error('Fel lokal returadress.');
     const id='lt_'+createHmac('sha256',this.settings.secret).update(`${this.settings.id}:${attempt.id}`).digest('hex');
@@ -85,7 +86,7 @@ export class TestPaymentProvider implements PaymentProvider {
     // Each failure click is a new outcome on the reusable checkout. Its saved envelope remains replayable.
     // Financial outcomes keep their original identity so success/refund retries cannot create a second event.
     const eventId=success?createHash('sha256').update(`${this.settings.id}:${session.id}:${action}:${refund?.id||''}`).digest('hex'):randomBytes(32).toString('hex');
-    return {provider:this.name,environment:'test',event_id:eventId,
+    return {provider:this.name,environment:'test',merchant_account:this.settings.id,event_id:eventId,
       event_code:refund?'REFUND':'AUTHORISATION',kind:refund?'refunded':success?'paid':'failed',success,
       reference:refund?.provider_reference||session.reference,transaction_reference:refund?'refund_'+refund.id:'pay_'+session.id,
       original_reference:refund?.transaction_reference||null,amount_ore:session.amount_ore,currency:'SEK',
@@ -119,7 +120,7 @@ export class TestPaymentProvider implements PaymentProvider {
   }
   async refund(refund: RefundAttempt) {
     await this.validate();
-    if (refund.provider!==this.name || refund.environment!=='test') throw new Error('Fel teståterbetalningsmiljö.');
+    if (refund.provider!==this.name || refund.environment!=='test' || refund.merchant_account!==this.merchantAccount) throw new Error('Fel teståterbetalningsmiljö eller testkonto.');
     const {data,error}=await this.db.from('test_payment_sessions').select('id').eq('attempt_id',refund.attempt_id).single();
     if (error || !data) throw new Error('Testbetalningen hittades inte.');
     await this.deliver(await this.session(data.id),'refund',refund);

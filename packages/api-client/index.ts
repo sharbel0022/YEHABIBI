@@ -39,6 +39,7 @@ function isCatalog(value: unknown): value is Catalog {
     Array.isArray(value.payment_methods) && isObject(value.settings) &&
     typeof value.demo === 'boolean' && typeof value.orders_enabled === 'boolean' &&
     (value.direct_orders_enabled === undefined || typeof value.direct_orders_enabled === 'boolean') &&
+    (value.direct_payment_methods === undefined || Array.isArray(value.direct_payment_methods) && value.direct_payment_methods.every(method => ['swish','card','apple_pay','google_pay','cash'].includes(method))) &&
     (value.test_mode === undefined || typeof value.test_mode === 'boolean');
 }
 

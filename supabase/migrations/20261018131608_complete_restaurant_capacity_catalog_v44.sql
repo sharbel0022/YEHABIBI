@@ -127,6 +127,7 @@ do $$declare definition text;old_count text;begin
   old_count:=$old$(select count(*) from public.orders o where o.order_type='direct' and o.status not in ('cancelled','rejected')
           and o.scheduled_at<candidate+make_interval(mins=>v_settings.interval_minutes)
           and o.scheduled_at+make_interval(mins=>o.slot_interval_minutes)>candidate)$old$;
+  old_count:=replace(old_count,chr(13),'');
   if position(old_count in definition)=0 then raise exception 'Unexpected V4.4 availability definition';end if;
   definition:=replace(definition,old_count,'0');
   definition:=replace(definition,'limit 500','limit 10000');

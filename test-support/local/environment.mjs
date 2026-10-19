@@ -33,7 +33,10 @@ export function cleanProcessEnvironment() {
   for (const key of ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP', 'TMPDIR', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'HOME', 'LANG', 'LC_ALL']) {
     if (process.env[key]) selected[key] = process.env[key];
   }
-  return { ...selected, NODE_OPTIONS: '', NEXT_TELEMETRY_DISABLED: '1', CI: '1' };
+  // PostgreSQL 18's Windows libintl aborts in _nl_find_domain when libpq loads
+  // the inherited C.UTF-8 locale inside PostgREST. C avoids translated messages;
+  // the database encoding remains UTF8 and business time stays Europe/Stockholm.
+  return { ...selected, ...(process.platform === 'win32' ? {LANG:'C',LC_ALL:'C'} : {}), NODE_OPTIONS: '', NEXT_TELEMETRY_DISABLED: '1', CI: '1' };
 }
 export async function freePort(requestedPort = 0) {
   const server = net.createServer();
@@ -175,9 +178,9 @@ export async function startTestEnvironment(options = {}) {
         weekly_hours=(select jsonb_agg(jsonb_build_object('weekday',day,'closed',false,'opens_at','00:00','closes_at','23:59','cutoff_at','23:45','pickup_from','00:00','pickup_until','23:59','delivery_from','00:00','delivery_until','23:59')) from generate_series(0,6) day) where id=1;`);
     // Registry schema comes from the real additive migration; only this isolated database gets local_test.
     sql(`insert into public.payment_provider_registry(provider,environment,checkout_base_url,active) values('local_test','test',${literal(origin + '/__test/payment/')},true);`);
-    // The Windows binary intermittently aborts during startup with exit 3 at -N2; exact upstream cause is unknown.
-    // Reproduced against a closed local port; -N1 keeps the same real database/API with one RTS capability.
-    start(postgrest, process.platform === 'win32' ? ['+RTS','-N1','-RTS'] : [], { GHCRTS: process.platform === 'win32' ? '-N1' : '-N2', PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
+    // Keep a controlled runtime budget; cleanProcessEnvironment excludes
+    // inherited GHCRTS and all provider secrets.
+    start(postgrest, ['+RTS',process.platform === 'win32' ? '-N1' : '-N2','-RTS'], { PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
     await waitReady(`http://127.0.0.1:${restPort}/`, children, directory);
     bridge = http.createServer(async (request, response) => {
       try {
@@ -258,15 +261,23 @@ export async function GET() {
     const webEnv = { NODE_ENV: 'development', NODE_OPTIONS: `--import=${pathToFileURL(path.join(root, 'test-support/local/transport.mjs')).href}`, APP_ENV: 'test', TEST_ISOLATION_ID: isolationId, TEST_PAYMENT_SECRET: secret, TEST_BACKEND_ORIGIN: backendOrigin,
       NEXT_PUBLIC_SITE_URL: origin, NEXT_PUBLIC_INDEXABLE: 'false', NEXT_PUBLIC_SUPABASE_URL: backendOrigin, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon, SUPABASE_SERVICE_ROLE_KEY: service,
       ORDERS_ENABLED: 'true', PAYMENTS_ENABLED: 'false', TEST_PAYMENTS_ENABLED: 'true', PAYMENT_PROVIDER: '', ADYEN_ENVIRONMENT: 'test', PAYMENTS_LIVE_APPROVED: 'false', ADYEN_LIVE_URL_PREFIX: '', ADYEN_API_KEY: '', ADYEN_HMAC_KEY: '', ADYEN_MERCHANT_ACCOUNT: '', ADYEN_ENABLED_METHODS: '', ADYEN_CAPTURE_MODE: '',
-      RESEND_API_KEY: 're_isolated_capture_only', EMAIL_FROM: 'Yehabibi TEST <orders@example.test>', OWNER_NOTIFICATION_EMAIL: ownerEmail, ADMIN_EMAILS: ownerEmail,
+      NOTIFICATIONS_ENABLED: 'true', BACKGROUND_JOB_SECRET:randomBytes(32).toString('hex'), RESEND_API_KEY: 're_isolated_capture_only', EMAIL_FROM: 'Yehabibi TEST <orders@example.test>', OWNER_NOTIFICATION_EMAIL: ownerEmail, ADMIN_EMAILS: ownerEmail,
       ORDER_LINK_SECRET: randomBytes(32).toString('hex'), ORDER_RATE_LIMIT_SECRET: randomBytes(32).toString('hex'), OWNER_PUSH_ENABLED: 'true', CUSTOMER_PUSH_ENABLED: 'true', EXPO_ACCESS_TOKEN: '', MOBILE_WEB_ORIGINS: `http://localhost:${metroPort},http://127.0.0.1:${metroPort},http://10.0.2.2:${webPort},${origin}` };
     start(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(webPort)], webEnv, web);
     await waitReady(`${origin}/__test/ready`, children, directory, isolationId);
+    // A real independent process invokes the same authenticated endpoint while browsers are closed.
+    if(options.worker!==false)start(process.execPath,[path.join(root,'scripts/background-worker.mjs')],{
+      BACKGROUND_JOB_URL:`${origin}/api/internal/jobs`,BACKGROUND_JOB_SECRET:webEnv.BACKGROUND_JOB_SECRET,BACKGROUND_JOB_INTERVAL_MS:'500'});
     const state = { isolationId, origin, backendOrigin, directory, metroPort, adminLogin: `${backendOrigin}/__test/login`, inbox: `${backendOrigin}/__test/inbox`, androidApi: `http://10.0.2.2:${webPort}`, marker: 'YEHABIBI_ISOLATED_LOCAL_TEST', controlSecret: secret };
     fs.writeFileSync(path.join(directory, 'private-session.json'), JSON.stringify({ ...state, adminPassword }, null, 2), { mode: 0o600 });
     if (options.persistent) fs.writeFileSync(activeSessionPath, JSON.stringify(state, null, 2), { mode: 0o600 });
     ready = true;
-    return { ...state, adminPassword, adminCookie: cookie, webEnv, stop, sql, rows, mails, pushes, userId, directory, web, children };
+    const tick=async()=>{
+      const result=await fetch(`${origin}/api/internal/jobs`,{method:'POST',headers:{Authorization:`Bearer ${webEnv.BACKGROUND_JOB_SECRET}`}});
+      assert.equal(result.status,200,'Authenticated isolated worker tick failed');return result.json();
+    };
+    const waitFor=async(check,timeout=20000)=>{const deadline=Date.now()+timeout;while(Date.now()<deadline){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Timed out waiting for isolated background effect');};
+    return { ...state, adminPassword, adminCookie: cookie, webEnv, stop, sql, rows, mails, pushes, userId, directory, web, children,tick,waitFor };
   } catch (error) { await stop(); throw error; }
 }
 

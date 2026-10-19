@@ -1,5 +1,7 @@
 # Databasen i V4.3
 
+V4.4.1 tillför `20261019112900_durable_readiness_jobs_v441.sql`: RLS-skyddad betalningsinbox, återtagbara jobb/outbox-leases, avstämningsmetadata, köksregler och valbar jobbhälsospärr. Endast service_role kan köra jobb-RPC:erna. Full migrationskedja provas lokalt; inga företagsdatabaser ändras. Äldre betalningsförsöks merchant-konto får endast fyllas i efter verifiering av ursprungligt konto. Läs [driftberedskap](READINESS_V4_4_1.md) och [bakgrundsjobb](BACKGROUND_JOBS.md) före planerad testmigration/backup.
+
 Supabase kör PostgreSQL. Webben, mobilappen och admin använder samma server-API. Mobilen gör inga direkta databasfrågor och har ingen service-role-nyckel.
 
 V4.3 återanvänder databasen och lägger till en additiv betalningsmigration. Historiska order/priser/betalningsreferenser bevaras. Det finns inga separata ordertabeller för iPhone, Android och webb. En gemensam företagsägd Supabase-databas används per konfigurerad miljö; utveckling, staging och produktion ska vara separerade. Företagets riktiga tjänster behöver fortfarande verifieras enligt [TESTER.md](TESTER.md).

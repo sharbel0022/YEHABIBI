@@ -1,0 +1,310 @@
+{
+  "reviewedAt": "2026-10-19",
+  "baselineCommit": "419fec1748db476a294da9596a116268774c5873",
+  "advisories": {
+    "GHSA-vfj7-8cjw-p6xm": {
+      "owner": "Repositoryts underhållsansvarig",
+      "reason": "Ingen publicerad braces-patch; endast skyddad Metro/CI med betrodda mönster.",
+      "reviewBy": "2026-10-26"
+    },
+    "GHSA-86w9-cpqp-85rv": {
+      "owner": "Build- och säkerhetsansvarig",
+      "reason": "Ingen publicerad node-forge-patch; signingåtkomst begränsas och extern signerad release kräver ny granskning.",
+      "reviewBy": "2026-10-26"
+    },
+    "GHSA-vcc3-ghjq-m6fr": {
+      "owner": "Mobilansvarig",
+      "reason": "Patch kräver ESM-kompatibel routerlösning; ingen godkänd SDK-migration. Publik mobilrelease blockerad.",
+      "reviewBy": "2026-10-26"
+    },
+    "GHSA-w5hq-g745-h8pq": {
+      "owner": "Build- och säkerhetsansvarig",
+      "reason": "Xcode använder endast ej berörd v4; verifierat reproducerbart override saknas i aktuell npm/workspacekedja. Ingen tvingad inkompatibel ändring.",
+      "reviewBy": "2026-10-26"
+    }
+  },
+  "packages": {
+    "@expo/cli": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm",
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/expo/node_modules/@expo/cli": "57.0.31"
+      }
+    },
+    "@expo/code-signing-certificates": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-86w9-cpqp-85rv"
+      ],
+      "nodes": {
+        "node_modules/@expo/code-signing-certificates": "0.0.6"
+      }
+    },
+    "@expo/config": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@expo/config": "57.0.10"
+      }
+    },
+    "@expo/config-plugins": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@expo/config-plugins": "57.0.10"
+      }
+    },
+    "@expo/inline-modules": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@expo/inline-modules": "0.1.8"
+      }
+    },
+    "@expo/local-build-cache-provider": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@expo/local-build-cache-provider": "57.0.9"
+      }
+    },
+    "@expo/metro": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/@expo/metro": "56.0.2"
+      }
+    },
+    "@expo/metro-config": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm",
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@expo/metro-config": "57.0.13"
+      }
+    },
+    "@expo/prebuild-config": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@expo/prebuild-config": "57.0.19"
+      }
+    },
+    "@react-native-community/datetimepicker": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm",
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/@react-native-community/datetimepicker": "9.1.0"
+      }
+    },
+    "@react-native/community-cli-plugin": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/@react-native/community-cli-plugin": "0.86.3"
+      }
+    },
+    "@react-native/metro-config": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/@react-native/metro-config": "0.86.3"
+      }
+    },
+    "@react-native/virtualized-lists": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/@react-native/virtualized-lists": "0.86.3"
+      }
+    },
+    "braces": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/braces": "3.0.3"
+      }
+    },
+    "decode-uri-component": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-vcc3-ghjq-m6fr"
+      ],
+      "nodes": {
+        "node_modules/decode-uri-component": "0.2.2"
+      }
+    },
+    "expo": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm",
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/expo": "57.0.30"
+      }
+    },
+    "expo-router": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-vcc3-ghjq-m6fr"
+      ],
+      "nodes": {
+        "node_modules/expo-router": "57.0.28"
+      }
+    },
+    "expo-splash-screen": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/expo-splash-screen": "57.0.10"
+      }
+    },
+    "metro": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/metro": "0.84.5",
+        "node_modules/metro-config/node_modules/metro": "0.84.6"
+      }
+    },
+    "metro-config": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/@expo/metro/node_modules/metro-config": "0.84.5",
+        "node_modules/metro-config": "0.84.6",
+        "node_modules/metro/node_modules/metro-config": "0.84.5"
+      }
+    },
+    "metro-file-map": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/metro-config/node_modules/metro-file-map": "0.84.6",
+        "node_modules/metro-file-map": "0.84.5"
+      }
+    },
+    "metro-transform-worker": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/metro-config/node_modules/metro-transform-worker": "0.84.6",
+        "node_modules/metro-transform-worker": "0.84.5"
+      }
+    },
+    "micromatch": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/micromatch": "4.0.8"
+      }
+    },
+    "node-forge": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-86w9-cpqp-85rv"
+      ],
+      "nodes": {
+        "node_modules/node-forge": "1.4.0"
+      }
+    },
+    "query-string": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-vcc3-ghjq-m6fr"
+      ],
+      "nodes": {
+        "node_modules/query-string": "7.1.3"
+      }
+    },
+    "react-native": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/react-native": "0.86.3"
+      }
+    },
+    "react-native-reanimated": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/react-native-reanimated": "4.5.1"
+      }
+    },
+    "react-native-worklets": {
+      "severity": "high",
+      "advisories": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "nodes": {
+        "node_modules/react-native-worklets": "0.10.1"
+      }
+    },
+    "uuid": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/uuid": "7.0.3"
+      }
+    },
+    "xcode": {
+      "severity": "moderate",
+      "advisories": [
+        "GHSA-w5hq-g745-h8pq"
+      ],
+      "nodes": {
+        "node_modules/xcode": "3.0.1"
+      }
+    }
+  }
+}

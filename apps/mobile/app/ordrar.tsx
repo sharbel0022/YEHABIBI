@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  canPayOrder, directOrderStatus, directReorderDraft, formatScheduledTime, formatSek, onlinePaymentMethods, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
+  canPayOrder, directOrderStatus, directReorderDraft, formatScheduledTime, formatSek, orderPaymentMethods, orderProgress, orderTimelineLabels, paymentMethodLabel,
   paymentStatusLabels, statusLabels, type OnlinePaymentMethod, type PublicOrder,
 } from '@yehabibi/shared';
 import { api, openWebsite, registerOrderPush } from '../lib/api';
+import { mobileOnlinePaymentMethods } from '../lib/payment-methods';
 import { useCatering } from '../lib/store';
 import { Amount, Button, Choices, colors, Notice, Screen, s } from '../lib/ui';
 
@@ -20,9 +21,8 @@ export default function Orders() {
   const [selectedMethods, setSelectedMethods] = useState<Record<string, OnlinePaymentMethod>>({});
   const inFlight = useRef(false);
   const refreshing = useRef(false);
-  const methods = onlinePaymentMethods(catalog.demo || catalogError ? [] : catalog.payment_methods, {
-    applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android',
-  }, catalog.test_mode === true);
+  const methods = catalogError ? [] : mobileOnlinePaymentMethods(catalog);
+  const directMethods = catalogError ? [] : mobileOnlinePaymentMethods(catalog, 'direct');
   const refresh = useCallback(async () => {
     if (!references.length || refreshing.current) return;
     refreshing.current = true;
@@ -66,7 +66,7 @@ export default function Orders() {
     setBusy(order.code); setError(''); setNotice('');
     try {
       if (kind === 'pay') {
-        const available = orderPaymentMethods(methods, order);
+        const available = orderPaymentMethods(order.order_type === 'direct' ? directMethods : methods, order);
         const method = available.find(item => item === selectedMethods[order.code]) ||
           available.find(item => item === order.payment_preference) || available[0];
         if (!canPayOrder(order) || !method || catalogLoading || catalogError) throw new Error('Betalningssättet är inte tillgängligt. Uppdatera och försök igen.');
@@ -108,7 +108,7 @@ export default function Orders() {
         const reorder = directReorderDraft(order);
         // Keep the verified panel mounted during background polling so focus and scroll stay stable.
         const canPay = !error && !catalogError && canPayOrder(order);
-        const available = orderPaymentMethods(methods, order);
+        const available = orderPaymentMethods(order.order_type === 'direct' ? directMethods : methods, order);
         const method = available.find(item => item === selectedMethods[order.code]) ||
           available.find(item => item === order.payment_preference) || available[0];
         return <View key={order.code} style={s.card}>

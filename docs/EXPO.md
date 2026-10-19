@@ -101,3 +101,7 @@ Detta är byggkommandon, inget påstående om att nya V4.3-artefakter har skapat
 Fjärrpush kräver en installerad development-/EAS-app, fysisk enhet och företagets APNs/FCM-konfiguration. Expo Go visar kundappen men stöder inte fjärrpush. Native notismoduler laddas först när kunden väljer registrering. Kundens tokenregistrering kräver privat orderkod/token; ägarens registrering kräver verifierad webbadmin. Serverns pushflaggor är avstängda i exempelmiljön.
 
 Checkout använder samma serverlogik som webbplatsen och öppnas i systemwebbläsaren. Återkomsten markerar inte ordern betald; servern måste verifiera betalningen. Apple Pay hör till kortbetalning på kompatibla enheter. Företagets externa betalningar och verklig pushleverans behöver egna tester enligt [BETALNINGAR.md](BETALNINGAR.md).
+# V4.4.1: aktuellt testprotokoll
+
+Läs [PHYSICAL_DEVICE_TESTS.md](PHYSICAL_DEVICE_TESTS.md) och [TEST_V4_4_1.md](TEST_V4_4_1.md) före telefonprov. Aktuell export är separat från fysisk verifiering och EAS. `npm run test:server` startar nu också en separat lokal worker; start/stopp och Windowsverktyg finns i [BACKGROUND_JOBS.md](BACKGROUND_JOBS.md). Ingen oskyddad tunnel eller publik simulator ska användas. Äldre enhetsbevis nedan gäller bara angiven version.
+

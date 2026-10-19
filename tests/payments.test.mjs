@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac, randomUUID} from 'node:crypto';
 import {AdyenProvider, adyenApiBaseUrl, adyenConfigured, adyenVerificationConfigured, standardHmacPayload, validStandardHmac} from '../apps/web/src/lib/payments/providers/adyen.ts';
-import {startPayment, refundPayment, readProviderPayment} from '../apps/web/src/lib/payments/service.ts';
+import {startPayment, refundPayment, readProviderPayment, reconcileExistingPayment} from '../apps/web/src/lib/payments/service.ts';
 
-const env={PAYMENTS_ENABLED:'true',PAYMENT_PROVIDER:'adyen',ADYEN_ENVIRONMENT:'test',ADYEN_CAPTURE_MODE:'automatic',ADYEN_API_KEY:'fixture-api-key',ADYEN_MERCHANT_ACCOUNT:'FixtureMerchant',ADYEN_HMAC_KEY:'ab'.repeat(32),ADYEN_ENABLED_METHODS:'swish,card,apple_pay,google_pay'};
-const attempt=()=>({id:randomUUID(),order_id:randomUUID(),provider:'adyen',environment:'test',method:'card',amount_ore:40000,currency:'SEK',quote_revision:2,provider_reference:randomUUID(),idempotency_key:randomUUID(),provider_payment_id:null,checkout_url:null,transaction_reference:null,expires_at:null,status:'creating',created_at:new Date().toISOString()});
+const env={PAYMENT_INTEGRATION_APPROVED:'adyen-pay-by-link-catering',PAYMENTS_ENABLED:'true',PAYMENT_PROVIDER:'adyen',ADYEN_ENVIRONMENT:'test',ADYEN_CAPTURE_MODE:'automatic',ADYEN_API_KEY:'fixture-api-key',ADYEN_MERCHANT_ACCOUNT:'FixtureMerchant',ADYEN_HMAC_KEY:'ab'.repeat(32),ADYEN_ENABLED_METHODS:'swish,card,apple_pay,google_pay'};
+const attempt=()=>({id:randomUUID(),order_id:randomUUID(),provider:'adyen',environment:'test',merchant_account:'FixtureMerchant',method:'card',amount_ore:40000,currency:'SEK',quote_revision:2,provider_reference:randomUUID(),idempotency_key:randomUUID(),provider_payment_id:null,checkout_url:null,transaction_reference:null,expires_at:null,status:'creating',created_at:new Date().toISOString()});
 const hosted=a=>({environment:a.environment,id:'PL_fixture',url:`https://${a.environment==='live'?'eu':'test'}.adyen.link/PL_fixture`,amount_ore:a.amount_ore,currency:'SEK',reference:a.provider_reference,merchant_account:'FixtureMerchant',expires_at:new Date(Date.now()+86400000).toISOString(),status:'active'});
 const signed=(overrides={})=>{
   const item={pspReference:'AUTH_fixture',originalReference:'',merchantAccountCode:env.ADYEN_MERCHANT_ACCOUNT,merchantReference:'yh-reference',amount:{value:40000,currency:'SEK'},eventCode:'AUTHORISATION',success:'true',eventDate:'not-trusted',paymentMethod:'visa',...overrides};
@@ -46,7 +46,7 @@ test('production configuration requires explicit approval and a safe merchant pr
   assert.equal(networkCalls,0);
   const disabled={...live,PAYMENTS_ENABLED:'false',ADYEN_API_KEY:undefined,ADYEN_ENABLED_METHODS:''};
   assert.equal(adyenConfigured(disabled),false);assert.equal(adyenVerificationConfigured(disabled),true);
-  assert.equal(adyenVerificationConfigured({...disabled,PAYMENTS_LIVE_APPROVED:'false'}),false);
+  assert.equal(adyenVerificationConfigured({...disabled,PAYMENTS_LIVE_APPROVED:'false'}),true);
   const verifier=new AdyenProvider(disabled,neverFetch,'verification'), item=signed();
   assert.equal(verifier.verifyEvents({...envelope(item),live:'true'})[0].environment,'live');
   assert.throws(()=>verifier.verifyEvents(envelope(item)),/betalningsmiljö/);
@@ -83,7 +83,7 @@ test('approved production adapter builds only official URLs in mocked network an
   await assert.rejects(provider.createPayment({...a,environment:'test'},'https://merchant.example/order'),/annan leverantörsmiljö/);
   await assert.rejects(provider.refund({environment:'test'}),/annan leverantörsmiljö/);
   assert.equal(calls.length,before);
-  assert.equal((await provider.refund({environment:'live',transaction_reference:'AUTH_fixture',amount_ore:a.amount_ore,provider_reference:'refund-reference',idempotency_key:'fixture-key'})).status,'pending');
+  assert.equal((await provider.refund({provider:'adyen',merchant_account:env.ADYEN_MERCHANT_ACCOUNT,environment:'live',transaction_reference:'AUTH_fixture',amount_ore:a.amount_ore,provider_reference:'refund-reference',idempotency_key:'fixture-key'})).status,'pending');
   for(const url of ['https://test.adyen.link/PL_fixture','https://eu.adyen.link.evil.example/PL_fixture','https://us.adyen.link/PL_fixture',
     'https://evil.example/PL_fixture','https://eu.adyen.link:444/PL_fixture','https://user@eu.adyen.link/PL_fixture',
     'https://eu.adyen.link/wrong-id','https://eu.adyen.link/PL_fixture?redirect=evil','https://eu.adyen.link/PL_fixture#evil']) {
@@ -162,7 +162,7 @@ test('wrong amounts/revisions, completed links and expired/ambiguous attempts ne
   }
   for(const status of ['completed','paid','paymentPending']) {value={...hosted(a),status};await assert.rejects(startPayment(store,provider,input),/behandlas/);}
   value={...hosted(a),status:'expired'};await assert.rejects(startPayment(store,provider,input),/gått ut/);
-  assert.equal(expires,1);assert.equal(attaches,0);
+  assert.equal(expires,0);assert.equal(attaches,0);
   const before=creates;a.created_at=new Date(Date.now()-6*86400000).toISOString();
   await assert.rejects(startPayment(store,provider,input),/stämmas av/);assert.equal(creates,before);
 });

@@ -32,6 +32,7 @@ try {
     const pay=await call('/api/payments/create','POST',{code:receipt.code,token:receipt.token,payment_method:method});assert.equal(pay.status,200,pay.data?.error);assert.equal(pay.data.test_mode,true);
     const url=new URL(pay.data.checkout_url,isolated.origin);assert.equal(url.origin,isolated.origin);assert.match(url.pathname,/^\/__test\/payment\//);
     assert.ok([200,303].includes((await call(`${url.pathname}/simulate`,'POST',{action:'success'},false,{Origin:isolated.origin})).status));
+    await isolated.waitFor(()=>row(receipt).payment_status==='paid');
     assert.equal((await getOrder(receipt)).payment_status,'paid');assert.equal((await getOrder(receipt)).capacity_status,'confirmed');assert.ok((await getOrder(receipt)).confirmed_at);
     if(method==='swish') {
       const id=row(receipt).id,action=value=>call(`/api/admin/orders/${id}`,'PATCH',value,true);

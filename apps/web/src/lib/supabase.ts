@@ -3,10 +3,11 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { isSupabaseReady } from '@/lib/config';
 
-export function adminDb() {
+export function adminDb(signal?:AbortSignal) {
   if (!isSupabaseReady()) throw new Error('Databasen är inte konfigurerad');
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken:false, persistSession:false }
+    auth: { autoRefreshToken:false, persistSession:false },
+    global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.any([AbortSignal.timeout(10000),...(init?.signal?[init.signal]:[]),...(signal?[signal]:[])])})}
   });
 }
 

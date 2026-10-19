@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -25,6 +27,16 @@ jobs:
           retention-days: 3
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Audit exact lock and expiring reviewed residual risks
+        run: node scripts/security-audit.mjs
+      - name: Preserve audit evidence without credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.sha }}
+          path: .tmp/security-audit/*.json
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run syntax
       - run: npm run test
       - run: npm run typecheck
@@ -47,6 +59,8 @@ jobs:
         run: npm run test:mode
       - name: Direct packages, atomic slot capacity and simulated payments
         run: npm run test:direct
+      - name: Independent scheduled worker, crash recovery and kitchen alarms without browsers
+        run: npm run test:background
       - name: Database test diagnostics on failure
         if: failure()
         shell: bash

@@ -5,7 +5,7 @@ import type { PaymentRuntime } from './provider';
 /** Production composition root. No environment variable can select another provider implementation. */
 export function paymentRuntime(): PaymentRuntime {
   return {
-    identity: {provider: 'adyen', environment: process.env.ADYEN_ENVIRONMENT === 'live' ? 'live' : 'test'},
+    identity: {provider: 'adyen', environment: process.env.ADYEN_ENVIRONMENT === 'live' ? 'live' : 'test', merchant_account: process.env.ADYEN_MERCHANT_ACCOUNT},
     configured: adyenConfigured(), webhooksConfigured: adyenVerificationConfigured(), isSimulation: false,
     validate: async () => {},
     createProvider: purpose => new AdyenProvider(process.env, fetch, purpose)
