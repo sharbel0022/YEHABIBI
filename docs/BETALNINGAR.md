@@ -43,3 +43,7 @@ Se [direktorder och tider](DIRECT_ORDERS_AND_TIMES.md) för reservationens livsc
 
 Den privata simulatorn kan spara ett fördröjt signerat besked och leverera exakt samma händelse efter omstart. Inget betaltillstånd ändras i webbläsaren. Se [faktiska resultat](TEST_V44.md). Riktiga företagskonton är fortfarande avstängda.
 
+# V4.4.1: aktuella betalningsgränser
+
+Aktuellt beslutsunderlag är [PAYMENT_PROVIDER_DECISION.md](PAYMENT_PROVIDER_DECISION.md). Befintlig Pay by Link är ett spärrat möjligt cateringkomplement; riktig direktkassa kräver separat leverantörsbeslut/integration. Länkens utgång eller sessionsresultat bevisar inte obetalt. Läs [PAYMENT_RECONCILIATION.md](PAYMENT_RECONCILIATION.md) om webhook-inbox och avstämning oberoende av nya betalningar. Externa notifieringar kräver `NOTIFICATIONS_ENABLED=true` efter godkännande. Äldre information nedan är historik.
+

@@ -22,10 +22,12 @@ let copiedFiles = 0;
 for (const file of files) {
   // The private simulator, launcher and its tests stay outside hosted source.
   if (file.startsWith('tests/test-mode')) continue;
+  if (file === 'tests/mobile-payment-methods.test.mjs') continue; // Native-only source stays in the monorepo.
   let relative = file.startsWith('apps/web/src/') || file.startsWith('apps/web/public/')
     ? file.slice('apps/web/'.length)
     : /^(packages\/|supabase\/migrations\/|docs\/|tests\/)/.test(file) ? file : null;
   if (file === 'apps/web/.env.example') relative = '.env.example';
+  if (file === 'scripts/security-audit.mjs') relative = file;
   if (!relative) continue;
   const target = path.join(destination, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });

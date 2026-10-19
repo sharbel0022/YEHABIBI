@@ -112,3 +112,7 @@ Det finns inget `packages/ui`. Domänregler och designvärden delas; plattformar
 - `tests/capacity-payment-db.test.mjs`: TTL, pågående betalning, avslag/återförsök, sena besked och refund.
 - `docs/DIRECT_ORDERS_AND_TIMES.md`, `KITCHEN_ADMIN_GUIDE.md`, `TEST_V44.md`, `YEHABIBI_V44_COMPLETE_PLAN.md`: aktuella regler, handhavande och resultat.
 
+# V4.4.1
+
+Aktuell filgenomgång finns i [FILES_V4_4_1.md](FILES_V4_4_1.md). Den kompletterar den historiska guiden nedan med inbox, jobb, avstämning, säkerhet och lokala tester.
+

@@ -59,6 +59,8 @@ jobs:
         run: npm run test:mode
       - name: Direct packages, atomic slot capacity and simulated payments
         run: npm run test:direct
+      - name: Independent scheduled worker, crash recovery and kitchen alarms without browsers
+        run: npm run test:background
       - name: Database test diagnostics on failure
         if: failure()
         shell: bash

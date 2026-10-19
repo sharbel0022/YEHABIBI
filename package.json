@@ -25,7 +25,10 @@
     "test:server": "node --experimental-strip-types scripts/test-server.mjs",
     "test:mode": "node --experimental-strip-types tests/test-mode-integration.mjs",
     "test:direct": "node --experimental-strip-types tests/direct-orders-integration.mjs",
-    "test:mobile": "node --experimental-strip-types scripts/test-server.mjs --mobile"
+    "test:mobile": "node --experimental-strip-types scripts/test-server.mjs --mobile",
+    "jobs:worker": "node scripts/background-worker.mjs",
+    "jobs:once": "node scripts/background-worker.mjs --once",
+    "test:background": "node --experimental-strip-types tests/background-integration.mjs"
   },
   "engines": {
     "node": ">=22.13.0"

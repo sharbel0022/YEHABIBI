@@ -51,7 +51,9 @@ const checkout = async (receipt, method) => {
 };
 const simulate = async (sessionPath, simulation) => {
   const result = await call(`${sessionPath}/simulate`, 'POST', { action: simulation }, false, { Origin: isolated.origin });
-  assert.ok([200, 303].includes(result.status), `Simulation ${simulation}: ${result.data?.error || result.status}`); return result;
+  assert.ok([200, 303].includes(result.status), `Simulation ${simulation}: ${result.data?.error || result.status}`);
+  await isolated.waitFor(()=>isolated.rows("select count(*)::int n from public.background_jobs where kind='payment_event' and status<>'completed'")[0].n===0);
+  return result;
 };
 try {
   const types = spawnSync(process.execPath, [path.join(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--noEmit'], { cwd: isolated.web, env: cleanProcessEnvironment(), encoding: 'utf8', windowsHide: true });

@@ -6,7 +6,8 @@ import { isSupabaseReady } from '@/lib/config';
 export function adminDb() {
   if (!isSupabaseReady()) throw new Error('Databasen är inte konfigurerad');
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken:false, persistSession:false }
+    auth: { autoRefreshToken:false, persistSession:false },
+    global:{fetch:(input,init)=>fetch(input,{...init,signal:init?.signal ? AbortSignal.any([init.signal,AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)})}
   });
 }
 
