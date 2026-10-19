@@ -164,7 +164,7 @@ async function run() {
       for(let batch=0;batch<30;batch++) {
         const result=await call('/api/internal/jobs','POST',{},false,{Authorization:`Bearer ${backgroundSecret}`});
         assert.equal(result.status,200,JSON.stringify(result));
-        const due=sql("select (exists(select 1 from public.background_jobs where status='pending' and available_at<=clock_timestamp()) or exists(select 1 from public.order_notifications where sent_at is null and superseded_at is null and dead_at is null and available_at<=clock_timestamp() and (lease_expires_at is null or lease_expires_at<=clock_timestamp())))");
+        const due=sql("select (exists(select 1 from public.background_jobs where status='pending' and available_at<=clock_timestamp()) or exists(select 1 from public.order_notifications where delivered_at is null and superseded_at is null and dead_at is null and available_at<=clock_timestamp() and (lease_expires_at is null or lease_expires_at<=clock_timestamp())))");
         if(due==='f')return;
       }
       assert.fail('Background fixture did not drain its bounded due batches');
@@ -212,7 +212,7 @@ async function run() {
     assert.equal(sql('select count(*) from public.order_notifications'),noticesBefore);
     assert.equal((await call('/api/orders','POST',{...input,notes:'changed'})).status,409);
     // Explicit operator retry makes this synthetic failed delivery due; production keeps backoff.
-    sql(`update public.order_notifications set available_at=clock_timestamp()-interval '1 second' where order_id='${orderId}' and sent_at is null`);
+    sql(`update public.order_notifications set available_at=clock_timestamp()-interval '1 second' where order_id='${orderId}' and delivered_at is null`);
     assert.equal((await call('/api/admin/orders/'+orderId,'PATCH',{action:'resend_notifications'},true)).status,200);
     await tick();
     const ownerMail=[...mails.values()].find(mail=>mail.to.includes(ownerEmail));assert.match(ownerMail.html,/Testgatan 1/);assert.match(ownerMail.html,/12 × Testostrullar/);
@@ -241,6 +241,9 @@ async function run() {
     await event('AUTHORISATION',paid);
     assert.equal((await call(orderPath)).data.order.payment_status,'paid');
     assert.equal(sql(`select count(*) from public.order_notifications where order_id='${orderId}' and kind='paid'`),'1');
+    // Advance only the deliberately deferred stale link notices into a retry window.
+    sql(`update public.order_notifications set available_at=clock_timestamp()-interval '1 second' where order_id='${orderId}' and kind='payment_available' and delivered_at is null`);
+    await tick();
     const deferred=[...mails].filter(([key])=>key.startsWith(orderId)&&/:payment_available:/.test(key));
     assert.equal(deferred.length,0);assert.ok(Number(sql(`select count(*) from public.order_notifications where order_id='${orderId}' and superseded_at is not null`))>=1);
     const packing={packages:true,extras:true,sauces_bread:true,allergen_labels:true,order_number:true};
