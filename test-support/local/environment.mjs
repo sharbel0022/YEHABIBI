@@ -261,15 +261,23 @@ export async function GET() {
     const webEnv = { NODE_ENV: 'development', NODE_OPTIONS: `--import=${pathToFileURL(path.join(root, 'test-support/local/transport.mjs')).href}`, APP_ENV: 'test', TEST_ISOLATION_ID: isolationId, TEST_PAYMENT_SECRET: secret, TEST_BACKEND_ORIGIN: backendOrigin,
       NEXT_PUBLIC_SITE_URL: origin, NEXT_PUBLIC_INDEXABLE: 'false', NEXT_PUBLIC_SUPABASE_URL: backendOrigin, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon, SUPABASE_SERVICE_ROLE_KEY: service,
       ORDERS_ENABLED: 'true', PAYMENTS_ENABLED: 'false', TEST_PAYMENTS_ENABLED: 'true', PAYMENT_PROVIDER: '', ADYEN_ENVIRONMENT: 'test', PAYMENTS_LIVE_APPROVED: 'false', ADYEN_LIVE_URL_PREFIX: '', ADYEN_API_KEY: '', ADYEN_HMAC_KEY: '', ADYEN_MERCHANT_ACCOUNT: '', ADYEN_ENABLED_METHODS: '', ADYEN_CAPTURE_MODE: '',
-      RESEND_API_KEY: 're_isolated_capture_only', EMAIL_FROM: 'Yehabibi TEST <orders@example.test>', OWNER_NOTIFICATION_EMAIL: ownerEmail, ADMIN_EMAILS: ownerEmail,
+      NOTIFICATIONS_ENABLED: 'true', BACKGROUND_JOB_SECRET:randomBytes(32).toString('hex'), RESEND_API_KEY: 're_isolated_capture_only', EMAIL_FROM: 'Yehabibi TEST <orders@example.test>', OWNER_NOTIFICATION_EMAIL: ownerEmail, ADMIN_EMAILS: ownerEmail,
       ORDER_LINK_SECRET: randomBytes(32).toString('hex'), ORDER_RATE_LIMIT_SECRET: randomBytes(32).toString('hex'), OWNER_PUSH_ENABLED: 'true', CUSTOMER_PUSH_ENABLED: 'true', EXPO_ACCESS_TOKEN: '', MOBILE_WEB_ORIGINS: `http://localhost:${metroPort},http://127.0.0.1:${metroPort},http://10.0.2.2:${webPort},${origin}` };
     start(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(webPort)], webEnv, web);
     await waitReady(`${origin}/__test/ready`, children, directory, isolationId);
+    // A real independent process invokes the same authenticated endpoint while browsers are closed.
+    if(options.worker!==false)start(process.execPath,[path.join(root,'scripts/background-worker.mjs')],{
+      BACKGROUND_JOB_URL:`${origin}/api/internal/jobs`,BACKGROUND_JOB_SECRET:webEnv.BACKGROUND_JOB_SECRET,BACKGROUND_JOB_INTERVAL_MS:'500'});
     const state = { isolationId, origin, backendOrigin, directory, metroPort, adminLogin: `${backendOrigin}/__test/login`, inbox: `${backendOrigin}/__test/inbox`, androidApi: `http://10.0.2.2:${webPort}`, marker: 'YEHABIBI_ISOLATED_LOCAL_TEST', controlSecret: secret };
     fs.writeFileSync(path.join(directory, 'private-session.json'), JSON.stringify({ ...state, adminPassword }, null, 2), { mode: 0o600 });
     if (options.persistent) fs.writeFileSync(activeSessionPath, JSON.stringify(state, null, 2), { mode: 0o600 });
     ready = true;
-    return { ...state, adminPassword, adminCookie: cookie, webEnv, stop, sql, rows, mails, pushes, userId, directory, web, children };
+    const tick=async()=>{
+      const result=await fetch(`${origin}/api/internal/jobs`,{method:'POST',headers:{Authorization:`Bearer ${webEnv.BACKGROUND_JOB_SECRET}`}});
+      assert.equal(result.status,200,'Authenticated isolated worker tick failed');return result.json();
+    };
+    const waitFor=async(check,timeout=20000)=>{const deadline=Date.now()+timeout;while(Date.now()<deadline){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Timed out waiting for isolated background effect');};
+    return { ...state, adminPassword, adminCookie: cookie, webEnv, stop, sql, rows, mails, pushes, userId, directory, web, children,tick,waitFor };
   } catch (error) { await stop(); throw error; }
 }
 
