@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { freePort, waitReady } from '../test-support/local/environment.mjs';
+import { cleanProcessEnvironment, freePort, waitReady } from '../test-support/local/environment.mjs';
 
 async function fixture(handler) {
   const server = http.createServer(handler);
@@ -12,6 +12,18 @@ async function fixture(handler) {
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   } };
 }
+
+test('isolated child environment excludes provider/runtime settings and avoids Windows libintl locale abort',()=>{
+  const previous=Object.fromEntries(['LANG','LC_ALL','GHCRTS','ADYEN_API_KEY'].map(key=>[key,process.env[key]]));
+  try {
+    Object.assign(process.env,{LANG:'C.UTF-8',LC_ALL:'C.UTF-8',GHCRTS:'-N99',ADYEN_API_KEY:'synthetic-must-not-inherit'});
+    const environment=cleanProcessEnvironment();
+    assert.equal(environment.GHCRTS,undefined);assert.equal(environment.ADYEN_API_KEY,undefined);
+    if(process.platform==='win32'){assert.equal(environment.LANG,'C');assert.equal(environment.LC_ALL,'C');}
+  } finally {
+    for(const [key,value] of Object.entries(previous))if(value===undefined)delete process.env[key];else process.env[key]=value;
+  }
+});
 
 test('fixed test ports reject an occupied loopback port without disturbing its owner', async () => {
   const occupied = await fixture((request, response) => response.end('existing healthy app'));

@@ -33,7 +33,10 @@ export function cleanProcessEnvironment() {
   for (const key of ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP', 'TMPDIR', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'HOME', 'LANG', 'LC_ALL']) {
     if (process.env[key]) selected[key] = process.env[key];
   }
-  return { ...selected, NODE_OPTIONS: '', NEXT_TELEMETRY_DISABLED: '1', CI: '1' };
+  // PostgreSQL 18's Windows libintl aborts in _nl_find_domain when libpq loads
+  // the inherited C.UTF-8 locale inside PostgREST. C avoids translated messages;
+  // the database encoding remains UTF8 and business time stays Europe/Stockholm.
+  return { ...selected, ...(process.platform === 'win32' ? {LANG:'C',LC_ALL:'C'} : {}), NODE_OPTIONS: '', NEXT_TELEMETRY_DISABLED: '1', CI: '1' };
 }
 export async function freePort(requestedPort = 0) {
   const server = net.createServer();
@@ -175,9 +178,9 @@ export async function startTestEnvironment(options = {}) {
         weekly_hours=(select jsonb_agg(jsonb_build_object('weekday',day,'closed',false,'opens_at','00:00','closes_at','23:59','cutoff_at','23:45','pickup_from','00:00','pickup_until','23:59','delivery_from','00:00','delivery_until','23:59')) from generate_series(0,6) day) where id=1;`);
     // Registry schema comes from the real additive migration; only this isolated database gets local_test.
     sql(`insert into public.payment_provider_registry(provider,environment,checkout_base_url,active) values('local_test','test',${literal(origin + '/__test/payment/')},true);`);
-    // The Windows binary intermittently aborts during startup with exit 3 at -N2; exact upstream cause is unknown.
-    // Reproduced against a closed local port; -N1 keeps the same real database/API with one RTS capability.
-    start(postgrest, process.platform === 'win32' ? ['+RTS','-N1','-RTS'] : [], { GHCRTS: process.platform === 'win32' ? '-N1' : '-N2', PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
+    // Keep a controlled runtime budget; cleanProcessEnvironment excludes
+    // inherited GHCRTS and all provider secrets.
+    start(postgrest, ['+RTS',process.platform === 'win32' ? '-N1' : '-N2','-RTS'], { PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
     await waitReady(`http://127.0.0.1:${restPort}/`, children, directory);
     bridge = http.createServer(async (request, response) => {
       try {
