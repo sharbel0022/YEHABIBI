@@ -84,7 +84,10 @@ test('durable jobs, kitchen alarms and verified inbox use the real database inva
       await db.exec('update public.direct_order_settings set watchdog_enabled=true,reminder_minutes=2,escalation_minutes=5,notification_backup_approved=true');
       const schedule=when=>one('select public.enqueue_background_maintenance($1) saved',[when]);
       assert.equal(await schedule(now.toISOString()),2);assert.equal(await schedule(now.toISOString()),0);
+      await db.exec("set time zone 'Europe/Stockholm'");assert.equal(await schedule(now.toISOString()),0,'The same minute is deduplicated across worker session timezones');
+      await db.exec("set time zone 'UTC'");
       for(const j of await claim('scheduled',20,60,now.toISOString()))await execute(j,now.toISOString());
+      await db.exec("set time zone 'Europe/Stockholm'");await one('select public.run_kitchen_watchdog($1) saved',[now.toISOString()]);await db.exec("set time zone 'UTC'");
       const kinds=await rows("select kind from public.order_notifications where order_id=$1 and kind like '%reminder'",[o.id]);assert.deepEqual(kinds.map(k=>k.kind).sort(),['kitchen_reminder','preparation_reminder']);
       const later=new Date(now.getTime()+180000).toISOString();await schedule(later);for(const j of await claim('scheduled-again',20,60,later))await execute(j,later);
       assert.equal(await one("select count(*)::int saved from public.order_notifications where order_id=$1 and kind='kitchen_escalation'",[o.id]),1);
@@ -118,19 +121,34 @@ test('durable jobs, kitchen alarms and verified inbox use the real database inva
       await clearJobs();
     });
     await t.test('I/J: configured stale or unavailable reception gates only new purchases; old evidence still applies',async()=>{
-      const o=await create(),a=await reserve(o);await clearJobs();
+      const o=await create(),a=await reserve(o),alarm=await create(),alarmAttempt=await reserve(alarm);
+      await enqueue(event(alarmAttempt));await execute((await claim('alarm-payment'))[0]);await clearJobs();
       await db.exec('update public.direct_order_settings set job_health_required=true,notification_reception_available=false');assert.equal((await quote()).enabled,false);
       await one('select public.enqueue_background_maintenance() saved');for(const j of await claim('health'))if(j.kind!=='reconciliation')await execute(j);
       await db.exec('update public.direct_order_settings set notification_reception_available=true');assert.equal((await quote()).enabled,true);
-      await db.query("insert into public.order_notifications(event_key,order_id,kind,payload,dead_at) values($1,$2,'kitchen_escalation','{}',now())",['dead-health-'+o.id,o.id]);
+      await db.query("insert into public.order_notifications(event_key,order_id,kind,payload,dead_at) values($1,$2,'kitchen_escalation','{}',now())",['dead-health-'+alarm.id,alarm.id]);
       assert.equal((await quote()).enabled,false,'A failed owner alarm gates new purchases even with a recent heartbeat');
-      await db.query('update public.order_notifications set superseded_at=now() where event_key=$1',['dead-health-'+o.id]);
-      assert.equal((await quote()).enabled,true);
+      await db.query('update public.orders set acknowledged_at=now() where id=$1',[alarm.id]);
+      assert.equal((await quote()).enabled,true,'Human acknowledgement resolves the failed alarm immediately');
+      await one('select public.run_kitchen_watchdog() saved');
+      assert.equal(await one('select superseded_at is not null saved from public.order_notifications where event_key=$1',['dead-health-'+alarm.id]),true);
+      assert.equal((await one('select public.background_job_health() saved')).dead_notifications,0);
       await db.exec("update public.background_jobs set completed_at=now()-interval '10 minutes' where kind='kitchen_watchdog'");assert.equal((await quote()).enabled,false);
       await db.exec("update public.payment_provider_registry set active=false where provider='adyen' and environment='test'");assert.equal(await reserve(await read(o.id)),null);
       await enqueue(event(a));for(const j of await claim('old-payment'))if(j.kind==='payment_event')await execute(j);assert.equal((await read(o.id)).payment_status,'paid');
       await db.exec('update public.direct_order_settings set job_health_required=false');assert.equal((await quote()).enabled,true);
       await db.exec("update public.payment_provider_registry set active=true where provider='adyen' and environment='test'");await clearJobs();
+    });
+    await t.test('partial signed adverse events stay durable and quarantined without claiming a full refund',async()=>{
+      for(const code of ['REFUND','CHARGEBACK']) {
+        const o=await create(),a=await reserve(o);await enqueue(event(a));for(const j of await claim('authorise-partial'))await execute(j);
+        const partial=event(a,{event_code:code,kind:code==='REFUND'?'refunded':'review',reference:'external-dashboard-ref',original_reference:'AUTH_'+a.id,transaction_reference:'PARTIAL_'+a.id,amount_ore:2500});
+        assert.equal(await enqueue(partial),1);assert.equal(await enqueue(partial),0);for(const j of await claim('partial-evidence'))await execute(j);
+        const fresh=await read(o.id);assert.equal(fresh.payment_status,'paid');assert.equal(fresh.payment_review_required,true);assert.equal(fresh.payment_review_reason,'unmatched_'+code);
+        assert.equal(await one('select amount_ore saved from public.payment_provider_events where event_id=$1',[partial.event_id]),2500);
+        assert.equal(await one('select (payload->>\'amount_ore\')::integer saved from public.payment_event_inbox where event_id=$1',[partial.event_id]),2500);
+      }
+      await clearJobs();
     });
     await t.test('H/K: late payment cannot steal another hold or erase a later chargeback quarantine',async()=>{
       await db.exec('update public.direct_order_settings set capacity_per_slot=2');const q=await quote();const slot=q.slots.at(-1)?.starts_at;assert.ok(slot);

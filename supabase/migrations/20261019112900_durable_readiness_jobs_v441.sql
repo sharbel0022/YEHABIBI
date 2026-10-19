@@ -86,12 +86,13 @@ begin
     end if;
     if not found then raise exception 'Payment event does not match a reserved payment';end if;
     if a.environment is distinct from e->>'environment' or a.merchant_account is null or a.merchant_account is distinct from e->>'merchant_account'
-      or a.currency is distinct from e->>'currency' or a.amount_ore is distinct from (e->>'amount_ore')::integer then raise exception 'Payment identity or amount mismatch';end if;
+      or a.currency is distinct from e->>'currency' or coalesce((e->>'amount_ore')::integer,0)<=0
+      or (e->>'event_code' in ('AUTHORISATION','CAPTURE') and a.amount_ore is distinct from (e->>'amount_ore')::integer) then raise exception 'Payment identity or amount mismatch';end if;
     -- Store only the signed, normalised financial evidence; no raw payload, PII or sessions.
     normal:=jsonb_build_object('provider',a.provider,'environment',a.environment,'merchant_account',a.merchant_account,
       'event_id',e->>'event_id','event_code',e->>'event_code','kind',expected,'success',(e->>'success')::boolean,
       'reference',e->>'reference','transaction_reference',e->>'transaction_reference','original_reference',e->>'original_reference',
-      'amount_ore',a.amount_ore,'currency',a.currency);
+      'amount_ore',(e->>'amount_ore')::integer,'currency',a.currency);
     if exists(select 1 from public.payment_event_inbox where provider=a.provider and event_id=e->>'event_id') then
       if not exists(select 1 from public.payment_event_inbox where provider=a.provider and event_id=e->>'event_id' and payload=normal) then raise exception 'Conflicting duplicate payment event';end if;
       continue;
@@ -195,10 +196,22 @@ alter table public.order_notifications drop constraint order_notifications_kind_
 alter table public.order_notifications add constraint order_notifications_kind_check check(kind in
   ('new','reviewing','approved','changes_requested','rejected','preparing','ready','dispatched','completed','cancelled','payment_available','paid','refunded','failed','payment_review','payment_request','kitchen_reminder','kitchen_escalation','preparation_reminder'));
 
+create function public.kitchen_notification_resolved(p_kind text,p_order_id uuid) returns boolean language sql stable security invoker set search_path='' as $$
+  select coalesce((select case
+    when p_kind in ('kitchen_reminder','kitchen_escalation') then o.acknowledged_at is not null or o.status not in ('approved','preparing') or o.capacity_status is distinct from 'confirmed'
+    when p_kind='preparation_reminder' then o.status<>'approved' or o.capacity_status is distinct from 'confirmed'
+    else false end from public.orders o where o.id=p_order_id),false);
+$$;
+
 create or replace function public.run_kitchen_watchdog(p_now timestamptz default clock_timestamp()) returns jsonb language plpgsql security invoker set search_path='' as $$
 declare s public.direct_order_settings%rowtype;o public.orders%rowtype;k text;alerts jsonb:='[]';n integer:=0;
 begin
   select * into strict s from public.direct_order_settings where id=1 for update;
+  -- Human acknowledgement and terminal order progress resolve stale alarms even
+  -- after delivery has entered the dead-letter queue. Preserve the evidence.
+  update public.order_notifications set superseded_at=p_now,lease_owner=null,lease_token=null,lease_expires_at=null
+    where delivered_at is null and superseded_at is null and kind in ('kitchen_reminder','kitchen_escalation','preparation_reminder')
+      and public.kitchen_notification_resolved(kind,order_id);
   if s.watchdog_enabled then
     for o in select * from public.orders where capacity_status='confirmed' and status in ('approved','preparing') and confirmed_at is not null
       and (acknowledged_at is null and confirmed_at<=p_now-make_interval(mins=>s.reminder_minutes)
@@ -208,7 +221,7 @@ begin
         ('kitchen_escalation',o.acknowledged_at is null and o.confirmed_at<=p_now-make_interval(mins=>s.escalation_minutes)),
         ('preparation_reminder',o.preparation_starts_at between p_now and p_now+make_interval(mins=>s.preparation_reminder_minutes))) v(kind,due) where due loop
         insert into public.order_notifications(event_key,order_id,kind,payload,customer_delivered_at,created_at,available_at)
-          values(o.id::text||':'||k||':'||coalesce(case when k='preparation_reminder' then o.preparation_starts_at else o.confirmed_at end::text,''),o.id,k,
+          values(o.id::text||':'||k||':'||coalesce(extract(epoch from (case when k='preparation_reminder' then o.preparation_starts_at else o.confirmed_at end))::text,''),o.id,k,
             jsonb_build_object('id',o.id,'code',o.code,'status',o.status,'scheduled_at',o.scheduled_at,'preparation_starts_at',o.preparation_starts_at,'alert_kind',k,'backup_requested',k='kitchen_escalation' and s.notification_backup_approved),p_now,p_now,p_now) on conflict do nothing;
         if found then n:=n+1;end if;
       end loop;
@@ -227,13 +240,13 @@ create function public.enqueue_background_maintenance(p_now timestamptz default 
 declare n integer:=0;added integer;a public.payment_attempts%rowtype;
 begin
   insert into public.background_jobs(kind,dedupe_key,available_at) values
-    ('kitchen_watchdog','watchdog:'||date_trunc('minute',p_now)::text,p_now),('release_capacity','release:'||date_trunc('minute',p_now)::text,p_now) on conflict do nothing;
+    ('kitchen_watchdog','watchdog:'||floor(extract(epoch from p_now)/60)::bigint::text,p_now),('release_capacity','release:'||floor(extract(epoch from p_now)/60)::bigint::text,p_now) on conflict do nothing;
   get diagnostics added=row_count;n:=n+added;
   for a in select * from public.payment_attempts where reconciliation_next_check_at<=p_now
     and (status in ('creating','pending','expired') or reconciliation_manual_review or exists(select 1 from public.payment_refunds r where r.attempt_id=payment_attempts.id and r.status in ('creating','pending','needs_review')))
     order by reconciliation_next_check_at,id limit 20 loop
     insert into public.background_jobs(kind,payload,dedupe_key,available_at) values('reconciliation',jsonb_build_object('attempt_id',a.id),
-      'reconcile:'||a.id::text||':'||a.reconciliation_next_check_at::text,p_now) on conflict do nothing;
+      'reconcile:'||a.id::text||':'||extract(epoch from a.reconciliation_next_check_at)::text,p_now) on conflict do nothing;
     if found then n:=n+1;end if;
   end loop;
   return n;
@@ -285,10 +298,11 @@ create function public.background_job_health(p_now timestamptz default clock_tim
     'dead_jobs',(select count(*) from public.background_jobs where status='dead'),
     'pending_notifications',(select count(*) from public.order_notifications where delivered_at is null and superseded_at is null and dead_at is null),
     'oldest_notification_at',(select min(created_at) from public.order_notifications where delivered_at is null and superseded_at is null and dead_at is null),
-    'dead_notifications',(select count(*) from public.order_notifications where dead_at is not null),
+    'dead_notifications',(select count(*) from public.order_notifications where dead_at is not null and delivered_at is null and superseded_at is null
+      and not public.kitchen_notification_resolved(kind,order_id)),
     'health_required',s.job_health_required,'reception_available',s.notification_reception_available,
     'healthy',s.notification_reception_available and exists(select 1 from public.background_jobs where kind='kitchen_watchdog' and status='completed' and completed_at>=p_now-make_interval(secs=>s.job_health_max_age_seconds))
-      and not exists(select 1 from public.order_notifications where delivered_at is null and superseded_at is null and owner_delivered_at is null
+      and not exists(select 1 from public.order_notifications where delivered_at is null and superseded_at is null and owner_delivered_at is null and not public.kitchen_notification_resolved(kind,order_id)
         and (dead_at is not null or created_at<p_now-make_interval(secs=>s.job_health_max_age_seconds))),
     'paused',s.paused,'pause_reason',s.pause_reason) from public.direct_order_settings s where id=1;
 $$;
@@ -313,7 +327,7 @@ revoke all on function public.reserve_catering_payment(uuid,text,text,integer,in
   public.fail_catering_notification(text,uuid,text,integer,timestamptz),public.enqueue_background_maintenance(timestamptz),
   public.record_payment_reconciliation(uuid,text,boolean,timestamptz),public.execute_database_job(uuid,uuid,timestamptz),
   public.background_job_health(timestamptz),public.get_direct_availability(jsonb,timestamptz),
-  public.finish_payment_reconciliation_job(uuid,uuid,text,boolean,timestamptz,timestamptz) from public,anon,authenticated;
+  public.finish_payment_reconciliation_job(uuid,uuid,text,boolean,timestamptz,timestamptz),public.kitchen_notification_resolved(text,uuid) from public,anon,authenticated;
 grant execute on function public.reserve_catering_payment(uuid,text,text,integer,integer,text,text),public.reserve_catering_refund(uuid,text,text),
   public.enqueue_catering_payment_events(jsonb),public.claim_background_jobs(text,integer,integer,timestamptz),
   public.complete_background_job(uuid,uuid,timestamptz),public.fail_background_job(uuid,uuid,text,integer,timestamptz),
@@ -321,7 +335,7 @@ grant execute on function public.reserve_catering_payment(uuid,text,text,integer
   public.fail_catering_notification(text,uuid,text,integer,timestamptz),public.enqueue_background_maintenance(timestamptz),
   public.record_payment_reconciliation(uuid,text,boolean,timestamptz),public.execute_database_job(uuid,uuid,timestamptz),
   public.background_job_health(timestamptz),public.get_direct_availability(jsonb,timestamptz),
-  public.finish_payment_reconciliation_job(uuid,uuid,text,boolean,timestamptz,timestamptz) to service_role;
+  public.finish_payment_reconciliation_job(uuid,uuid,text,boolean,timestamptz,timestamptz),public.kitchen_notification_resolved(text,uuid) to service_role;
 
 -- Disabling NEW sessions in the registry must not disable evidence for attempts
 -- already made. All original amount/revision/provider/quarantine checks remain.
