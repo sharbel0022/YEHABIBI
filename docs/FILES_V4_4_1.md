@@ -74,6 +74,8 @@ Jämförelse mot verifierad main `419fec1748db476a294da9596a116268774c5873`. Bef
 | [tests/test-mode-integration.mjs](../tests/test-mode-integration.mjs) | Regression och acceptansprov för befintliga API-/direkt-/simulatorflöden med asynkrona jobb. |
 | [tests/test-mode-payments.test.mjs](../tests/test-mode-payments.test.mjs) | Regression och acceptansprov för betalningsidentitet, avstämning och säkra testflöden. |
 
+| Kompletterande dokument | Ändring |
+| --- | --- |
 | [docs/EXPO.md](EXPO.md) | Länkar aktuell fysisk testmatris och lokal worker-/Windowsguide; äldre bevis skiljs från nya. |
 | [docs/PUBLICERING.md](PUBLICERING.md) | Skiljer Git/CI, Sites, migration, scheduler och EAS samt bevarar avstängda produktionsspärrar. |
 | [docs/FILES_V4_4_1.md](FILES_V4_4_1.md) | Filgenomgången i denna sammanställning. |
