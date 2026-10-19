@@ -51,7 +51,7 @@ export class TestPaymentProvider implements PaymentProvider {
   }
   async createPayment(attempt: PaymentAttempt, returnUrl: string) {
     await this.validate();
-    if (attempt.provider!==this.name || attempt.environment!=='test') throw new Error('Fel testbetalningsmiljö.');
+    if (attempt.provider!==this.name || attempt.environment!=='test' || attempt.merchant_account!==this.merchantAccount) throw new Error('Fel testbetalningsmiljö eller testkonto.');
     const url=new URL(returnUrl);
     if (url.origin!==this.settings.checkoutOrigin) throw new Error('Fel lokal returadress.');
     const id='lt_'+createHmac('sha256',this.settings.secret).update(`${this.settings.id}:${attempt.id}`).digest('hex');
@@ -120,7 +120,7 @@ export class TestPaymentProvider implements PaymentProvider {
   }
   async refund(refund: RefundAttempt) {
     await this.validate();
-    if (refund.provider!==this.name || refund.environment!=='test') throw new Error('Fel teståterbetalningsmiljö.');
+    if (refund.provider!==this.name || refund.environment!=='test' || refund.merchant_account!==this.merchantAccount) throw new Error('Fel teståterbetalningsmiljö eller testkonto.');
     const {data,error}=await this.db.from('test_payment_sessions').select('id').eq('attempt_id',refund.attempt_id).single();
     if (error || !data) throw new Error('Testbetalningen hittades inte.');
     await this.deliver(await this.session(data.id),'refund',refund);

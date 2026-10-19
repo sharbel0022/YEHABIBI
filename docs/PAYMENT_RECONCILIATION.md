@@ -6,6 +6,8 @@ Granskad 2026-10-19. Ingen riktig betaltjänst eller rapportåtkomst har verifie
 
 `POST /api/payments/webhook` läser högst 64 KiB, kontrollerar hela batchens Standard HMAC, merchant och test/live-miljö och skickar normaliserade bevis till `enqueue_catering_payment_events`. Transaktionen kontrollerar sparat försök, belopp, valuta, referens, miljö och merchant innan hela batchen lagras i inbox. Unikt `(provider,event_id)` gör återleverans säker. Först därefter returneras HTTP 200. Ogiltigt bevis får 400; databasfel får 500 och måste återlevereras.
 
+För authorisation och capture krävs exakt godkänt belopp före kvittens. Ett autentiskt avvikande refund-/chargebackevent som säkert kan knytas till rätt ursprungliga transaktion kan däremot lagras som ekonomiskt avvikelsebevis: workern sätter granskning i stället för att behandla delbelopp som en hel återbetalning eller frigöra kapacitet. En lyckad mottagningskvittens betyder då att avvikelsen bevarats, inte att beloppet godkänts som normal orderbetalning.
+
 Webhooken väntar inte på orderbehandling, e-post eller push. En worker med lease behandlar inboxen senare och använder befintlig notifierings-outbox. Kvittensen betyder beständig mottagning, inte mänsklig kökskvittering eller garanterad notifieringsleverans. [Adyens webhookhantering](https://docs.adyen.com/development-resources/webhooks/handle-webhook-events)
 
 Stödd eventlista är `AUTHORISATION`, `CAPTURE`, `CAPTURE_FAILED`, `REFUND`, `REFUND_FAILED`, `REFUNDED_REVERSED`, `CHARGEBACK`, `SETTLED_REVERSED`. Andra event avvisas och kräver explicit kontrakt/hanterare innan prenumeration utökas. Prenumerationen och leverantörens eventaktivering ska granskas i sandbox före drift. Ett okänt event tappas inte tyst med en lyckad kvittens.
