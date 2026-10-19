@@ -1,6 +1,6 @@
 # V4.4.1 – verifieringsprotokoll 2026-10-19
 
-Bas: `419fec1748db476a294da9596a116268774c5873`. Slutlig funktionell källa: **c0d145260f904c584cde67940cd08264192d3b10**. Efterföljande rapportcommit ändrar bara dokumentation. PR: [#10](https://github.com/sharbel0022/YEHABIBI/pull/10), [CI för funktionell källa](https://github.com/sharbel0022/YEHABIBI/actions/runs/39247041632), [aktuella main-körningar](https://github.com/sharbel0022/YEHABIBI/actions?query=branch%3Amain). Länkarnas faktiska status avgör merge/CI; denna rapport påstår inte att push installerat databas, scheduler eller appbuild. Sites verifieras separat vid publicering och redovisas i leveranssvaret.
+Bas: `419fec1748db476a294da9596a116268774c5873`. Slutlig funktionell källa: **1bde8432f74c0e5246c83d6687bb238583e1f535**. Efterföljande rapportcommit ändrar bara dokumentation. PR: [#10](https://github.com/sharbel0022/YEHABIBI/pull/10), [aktuella PR-körningar](https://github.com/sharbel0022/YEHABIBI/actions?query=branch%3Aproduction-readiness-v4-4-1), [aktuella main-körningar](https://github.com/sharbel0022/YEHABIBI/actions?query=branch%3Amain). Länkarnas faktiska status avgör merge/CI; denna rapport påstår inte att push installerat databas, scheduler eller appbuild. Sites verifieras separat vid publicering och redovisas i leveranssvaret.
 
 ## Faktiska lokala resultat
 
@@ -8,7 +8,7 @@ Bas: `419fec1748db476a294da9596a116268774c5873`. Slutlig funktionell källa: **c
 | --- | --- |
 | `npm ci --no-audit --no-fund` | PASS, ren installation, 660 paket; exakt lås bevarat |
 | `npm run syntax` | PASS |
-| `npm test` | PASS **173/173**, inga hoppade eller kvarstående fel |
+| `npm test` | PASS **175/175**, inga hoppade eller kvarstående fel |
 | `npm run typecheck` | PASS webb, mobil och api-client |
 | `npm run build` | PASS Next.js-produktionsbygge |
 | `npm run test:web` | PASS 10 sidor, 11 serverrenderade rätter, avstängda köp och inga testvägar/simulatorhemligheter i produktionsartefakten |
@@ -41,11 +41,13 @@ Lokala loggar: `.tmp/v441-unit-final.log`, `v441-types-final.log`, `v441-build-f
 
 ## Fel som upptäcktes och rättades
 
-Första DB-körningen blottlade ett CRLF-känsligt migrationsutbyte; normaliseringen rättades och hela kedjan passerar. En provad uuid-override var inte reproducerbart kompatibel och återtogs; ingen felaktig patch påstås. En tidig enhetstestkörning överlappade installation och tappade PGlite-datafilen; ren omkörning efter avslutad installation ger 173/173. TypeScript hittade fel ordning på `abortSignal`/`single`; rättat före slutbygge.
+Första DB-körningen blottlade ett CRLF-känsligt migrationsutbyte; normaliseringen rättades och hela kedjan passerar. En provad uuid-override var inte reproducerbart kompatibel och återtogs; ingen felaktig patch påstås. En tidig enhetstestkörning överlappade installation och tappade PGlite-datafilen; ren slutkörning efter avslutad installation ger 175/175. TypeScript hittade fel ordning på `abortSignal`/`single`; rättat före slutbygge.
 
 PostgREST avslutades ibland med Windows exit3 före readiness. GDB spårade aborten till PostgreSQL18/libintl/gettext under ärvd `C.UTF-8`; isolerade Windowsbarn får nu `LANG=C`, `LC_ALL=C` och regressionstest. Databasen är fortfarande UTF-8 och affärstid Europe/Stockholm. Riktig start/stopp och integrationsprov passerade efter rättningen.
 
 Gamla integrationsantaganden om omedelbar refund och omedelbara notifieringsåterförsök ändrades till att vänta på den beständiga kön. Runtime-backoff togs inte bort. Granskningen rättade reservkanal vid primärfel, partiella finansiella avvikelser, lösta kökslarm, tidszonsoberoende dedupnycklar och pushens totala tidsbudget. Inga kvarstående misslyckade lokala sviter redovisas som godkända.
+
+Slutlig återhämtningskontroll rättade förberedelsepåminnelser efter passerat fönster under avbrott. Redan kvitterad men ännu inte påbörjad order får ett enda förberedelselarm även när förberedelsestarten är förbi; larmet ersätts när tillagning börjar. Ett separat prov med 101 order bevisar att en begränsad körning hanterar högst 100 och nästa körning når återstående order utan dubbletter. Aktuella okvitterade order fortsätter bidra till pausregeln även när deras larm redan är köade. Full enhetssvit och verklig workerintegration omkörda efter SQL-rättningen; övrig applikationskälla är oförändrad från föregående godkända bygg-/export-/HTTP-prov.
 
 ## Blockerat och inte genomfört
 

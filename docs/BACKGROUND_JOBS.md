@@ -10,6 +10,8 @@ Verifierade webhookar sparas i inbox innan HTTP 200. Betalningens affärsregler,
 
 Hela pusharbetet delar en avbrottssignal på högst 25 sekunder inklusive behörighetsuppslag och kvittouppdateringar. Varje serverdatabasanrop begränsas dessutom till tio sekunder. Detta begränsar arbetstiden; det garanterar inte extern pushleverans.
 
+Watchdog behandlar högst 100 order med ännu inte köade förfallna larm per transaktion; nästa körning når senare order. Förberedelsepåminnelser fångas även efter ett missat påminnelsefönster och gäller tills ordern börjar tillagas. Redan köade larm ersätter inte kvittering eller pausregeln.
+
 ## Kökets regler
 
 `watchdog_enabled` aktiverar sparade kökslarm. Föreslagna **testvärden**, inte uppmätta driftlöften: tick varje minut, påminnelse efter två minuter, eskalering efter fem minuter, förberedelsepåminnelse 30 minuter före planerad förberedelsestart. Värden kan ändras i `/api/admin/jobs`. Varje larmtyp får en stabil nyckel per order/tid; upprepade kontroller skapar inga nya identiska larm. Behörig personals orderkvittering med användar-id är den mänskliga bekräftelsen. Leveranskvittens för mejl/push räcker inte.
