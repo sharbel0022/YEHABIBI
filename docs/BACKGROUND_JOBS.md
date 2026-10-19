@@ -8,6 +8,8 @@ Varje tick köar watchdog och säkert reservationsunderhåll högst en gång per
 
 Verifierade webhookar sparas i inbox innan HTTP 200. Betalningens affärsregler, kapacitet, outbox och inboxkvittens behandlas atomärt av jobbet. Mejl och push ligger utanför webhooksvaret. Outbox har separata mottagarkvittenser, stabila Resend-idempotensnycklar och samma lease även vid manuellt omskick. En timeout kan fortfarande ha levererats externt; ingen exactly-once-garanti lämnas. Resends idempotensfönster är 24 timmar; efter 23 timmar sedan första sändningsförsök stoppas automatisk sändning för manuell kontroll. Push är ett frivilligt komplement, och krasch efter push-claim kan ge utebliven push. E-postens kö finns kvar oberoende av detta. [Resend idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys).
 
+Hela pusharbetet delar en avbrottssignal på högst 25 sekunder inklusive behörighetsuppslag och kvittouppdateringar. Varje serverdatabasanrop begränsas dessutom till tio sekunder. Detta begränsar arbetstiden; det garanterar inte extern pushleverans.
+
 ## Kökets regler
 
 `watchdog_enabled` aktiverar sparade kökslarm. Föreslagna **testvärden**, inte uppmätta driftlöften: tick varje minut, påminnelse efter två minuter, eskalering efter fem minuter, förberedelsepåminnelse 30 minuter före planerad förberedelsestart. Värden kan ändras i `/api/admin/jobs`. Varje larmtyp får en stabil nyckel per order/tid; upprepade kontroller skapar inga nya identiska larm. Behörig personals orderkvittering med användar-id är den mänskliga bekräftelsen. Leveranskvittens för mejl/push räcker inte.

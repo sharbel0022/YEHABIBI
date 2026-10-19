@@ -107,3 +107,7 @@ Behåll `NEXT_PUBLIC_INDEXABLE=false` tills företagsuppgifter, domän, metadata
 Kontrollera att företagets Google Business Profile och Maps-länk är riktiga. Lägg bara in den officiella recensionslänken. Skanna `/api/qr/bestall` och `/api/qr/google` från en annan enhet. Koderna ska nå den publicerade webben respektive företagets riktiga recensionssida. SEO kan förbättra synlighet men kan inte garantera ranking, betyg eller recensioner.
 
 Ägaren behöver också godkänna moms, avbokning, integritet, allergener och kontant-/kassahantering. Äldre [LANSERING.md](LANSERING.md) finns kvar som kompletterande ägarlista. Kör sista kontrollen i [TESTER.md](TESTER.md) före lansering.
+# V4.4.1: separata driftoperationer
+
+GitHub-merge/CI, Sites-version, installation av databasmigration, scheduler/Vault och EAS-build är separata operationer. Aktuell [driftberedskap](READINESS_V4_4_1.md) och [testprotokoll](TEST_V4_4_1.md) anger bevisnivåer. Behåll `ORDERS_ENABLED=false`, `PAYMENTS_ENABLED=false` och notifieringar avstängda i den publika demonstrationen. Publicera aldrig lokal testoverlay eller privat testdatabas. En ny leverantörskassa kräver företagets val och rätt sandbox innan anslutning.
+
