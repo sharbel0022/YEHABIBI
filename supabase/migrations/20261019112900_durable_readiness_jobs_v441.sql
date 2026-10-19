@@ -213,22 +213,29 @@ begin
     where delivered_at is null and superseded_at is null and kind in ('kitchen_reminder','kitchen_escalation','preparation_reminder')
       and public.kitchen_notification_resolved(kind,order_id);
   if s.watchdog_enabled then
-    for o in select * from public.orders where capacity_status='confirmed' and status in ('approved','preparing') and confirmed_at is not null
-      and (acknowledged_at is null and confirmed_at<=p_now-make_interval(mins=>s.reminder_minutes)
-        or preparation_starts_at between p_now and p_now+make_interval(mins=>s.preparation_reminder_minutes)) order by confirmed_at,id limit 100 loop
+    -- Already queued alarms do not consume a later batch. After an outage,
+    -- overdue preparation remains actionable until the kitchen starts the order.
+    for o in select candidate.* from public.orders candidate where capacity_status='confirmed' and status in ('approved','preparing') and confirmed_at is not null
+      and exists(select 1 from (values
+        ('kitchen_reminder',candidate.acknowledged_at is null and candidate.confirmed_at<=p_now-make_interval(mins=>s.reminder_minutes),candidate.confirmed_at),
+        ('kitchen_escalation',candidate.acknowledged_at is null and candidate.confirmed_at<=p_now-make_interval(mins=>s.escalation_minutes),candidate.confirmed_at),
+        ('preparation_reminder',candidate.status='approved' and candidate.preparation_starts_at<=p_now+make_interval(mins=>s.preparation_reminder_minutes),candidate.preparation_starts_at)
+      ) due(kind,is_due,anchor) where is_due and not exists(select 1 from public.order_notifications existing
+        where existing.event_key=candidate.id::text||':'||due.kind||':'||extract(epoch from due.anchor)::text))
+      order by confirmed_at,id limit 100 loop
       for k in select kind from (values
         ('kitchen_reminder',o.acknowledged_at is null and o.confirmed_at<=p_now-make_interval(mins=>s.reminder_minutes)),
         ('kitchen_escalation',o.acknowledged_at is null and o.confirmed_at<=p_now-make_interval(mins=>s.escalation_minutes)),
-        ('preparation_reminder',o.preparation_starts_at between p_now and p_now+make_interval(mins=>s.preparation_reminder_minutes))) v(kind,due) where due loop
+        ('preparation_reminder',o.status='approved' and o.preparation_starts_at<=p_now+make_interval(mins=>s.preparation_reminder_minutes))) v(kind,due) where due loop
         insert into public.order_notifications(event_key,order_id,kind,payload,customer_delivered_at,created_at,available_at)
           values(o.id::text||':'||k||':'||coalesce(extract(epoch from (case when k='preparation_reminder' then o.preparation_starts_at else o.confirmed_at end))::text,''),o.id,k,
             jsonb_build_object('id',o.id,'code',o.code,'status',o.status,'scheduled_at',o.scheduled_at,'preparation_starts_at',o.preparation_starts_at,'alert_kind',k,'backup_requested',k='kitchen_escalation' and s.notification_backup_approved),p_now,p_now,p_now) on conflict do nothing;
         if found then n:=n+1;end if;
       end loop;
-      if o.acknowledged_at is null and o.confirmed_at<=p_now-make_interval(mins=>s.acknowledgement_minutes) then
-        alerts:=alerts||jsonb_build_array(jsonb_build_object('id',o.id,'code',o.code,'confirmed_at',o.confirmed_at));
-      end if;
     end loop;
+    select coalesce(jsonb_agg(jsonb_build_object('id',a.id,'code',a.code,'confirmed_at',a.confirmed_at)),'[]') into alerts
+      from (select id,code,confirmed_at from public.orders where capacity_status='confirmed' and status in ('approved','preparing') and confirmed_at is not null
+        and acknowledged_at is null and confirmed_at<=p_now-make_interval(mins=>s.acknowledgement_minutes) order by confirmed_at,id limit 100) a;
     if s.auto_pause_unacknowledged and jsonb_array_length(alerts)>0 then
       update public.direct_order_settings set paused=true,pause_reason='unacknowledged_kitchen_order' where id=1;s.paused:=true;
     end if;

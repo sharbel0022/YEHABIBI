@@ -94,6 +94,41 @@ test('durable jobs, kitchen alarms and verified inbox use the real database inva
       assert.equal(await one("select (payload->>'backup_requested')::boolean saved from public.order_notifications where order_id=$1 and kind='kitchen_escalation'",[o.id]),true);
       await one('select public.run_kitchen_watchdog($1) saved',[later]);
       assert.equal(await one("select count(*)::int saved from public.order_notifications where order_id=$1 and kind='kitchen_escalation'",[o.id]),1);
+      await db.exec('update public.direct_order_settings set auto_pause_unacknowledged=true');
+      const repeated=await one('select public.run_kitchen_watchdog($1) saved',[later]);assert.equal(repeated.paused,true);assert.ok(repeated.alerts.some(alert=>alert.id===o.id),'Already queued alarms still contribute to the kitchen pause rule');
+      await db.exec('update public.direct_order_settings set watchdog_enabled=false,auto_pause_unacknowledged=false,paused=false');await clearJobs();
+    });
+    await t.test('overdue acknowledged preparation catches up after an outage and resolves once cooking starts',async()=>{
+      const o=await create(),a=await reserve(o);await enqueue(event(a));await execute((await claim('prep-payment'))[0]);await clearJobs();
+      const now=new Date().toISOString();
+      await db.query("update public.orders set acknowledged_at=$2,preparation_starts_at=$2::timestamptz-interval '10 minutes' where id=$1",[o.id,now]);
+      await db.exec('update public.direct_order_settings set watchdog_enabled=true');
+      await one('select public.run_kitchen_watchdog($1) saved',[now]);
+      assert.equal(await one("select count(*)::int saved from public.order_notifications where order_id=$1 and kind='preparation_reminder'",[o.id]),1);
+      assert.equal(await one("select count(*)::int saved from public.order_notifications where order_id=$1 and kind in ('kitchen_reminder','kitchen_escalation')",[o.id]),0);
+      await one('select public.run_kitchen_watchdog($1) saved',[now]);
+      assert.equal(await one("select count(*)::int saved from public.order_notifications where order_id=$1 and kind='preparation_reminder'",[o.id]),1);
+      await db.query("update public.orders set status='preparing' where id=$1",[o.id]);await one('select public.run_kitchen_watchdog($1) saved',[now]);
+      assert.equal(await one("select superseded_at is not null saved from public.order_notifications where order_id=$1 and kind='preparation_reminder'",[o.id]),true);
+      await db.exec('update public.direct_order_settings set watchdog_enabled=false');await clearJobs();
+    });
+    await t.test('bounded watchdog batches skip existing alarms so the 101st due order is not starved',async()=>{
+      const source=await create(),now=new Date().toISOString();
+      // Synthetic alarm fixtures use the real order schema and notification trigger;
+      // this test does not create customer inventory or alter confirmed times.
+      const clones=await rows(`insert into public.orders select (jsonb_populate_record(null::public.orders,to_jsonb(o)||jsonb_build_object(
+        'id',gen_random_uuid(),'request_id',gen_random_uuid(),'code','ALARM-'||n::text,'capacity_status','confirmed',
+        'confirmed_at',$2::timestamptz-interval '2 hours','preparation_starts_at',$2::timestamptz-interval '1 hour','acknowledged_at',$2::timestamptz))).*
+        from public.orders o cross join generate_series(1,101) n where o.id=$1 returning id`,[source.id,now]);
+      const ids=clones.map(o=>o.id);await clearJobs();await db.exec('update public.direct_order_settings set watchdog_enabled=true');
+      await one('select public.run_kitchen_watchdog($1) saved',[now]);
+      const count=()=>one("select count(*)::int saved from public.order_notifications where order_id=any($1::uuid[]) and kind='preparation_reminder'",[ids]);
+      assert.equal(await count(),100,'A single watchdog transaction handles at most 100 candidate orders');
+      await one('select public.run_kitchen_watchdog($1) saved',[now]);assert.equal(await count(),101,'The next bounded run reaches the remaining order');
+      await one('select public.run_kitchen_watchdog($1) saved',[now]);assert.equal(await count(),101,'Already queued alarms remain deduplicated');
+      await db.query("update public.orders set status='completed' where id=any($1::uuid[])",[ids]);
+      await one('select public.run_kitchen_watchdog($1) saved',[now]);
+      assert.equal(await one("select count(*)::int saved from public.order_notifications where order_id=any($1::uuid[]) and kind='preparation_reminder' and superseded_at is not null",[ids]),101);
       await db.exec('update public.direct_order_settings set watchdog_enabled=false');await clearJobs();
     });
     await t.test('outbox keeps partial delivery, reclaims crashes, respects Retry-After and exposes dead letters',async()=>{
