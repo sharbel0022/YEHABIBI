@@ -1,0 +1,1547 @@
+{
+  "command": "npm explain braces node-forge decode-uri-component uuid --json",
+  "roots": [
+    {
+      "name": "braces",
+      "version": "3.0.3",
+      "location": "node_modules/braces"
+    },
+    {
+      "name": "node-forge",
+      "version": "1.4.0",
+      "location": "node_modules/node-forge"
+    },
+    {
+      "name": "decode-uri-component",
+      "version": "0.2.2",
+      "location": "node_modules/decode-uri-component"
+    },
+    {
+      "name": "uuid",
+      "version": "7.0.3",
+      "location": "node_modules/uuid"
+    }
+  ],
+  "edges": [
+    {
+      "from": "micromatch",
+      "fromVersion": "4.0.8",
+      "to": "braces",
+      "toVersion": "3.0.3",
+      "spec": "^3.0.3",
+      "type": "prod"
+    },
+    {
+      "from": "metro-file-map",
+      "fromVersion": "0.84.5",
+      "to": "micromatch",
+      "toVersion": "4.0.8",
+      "spec": "^4.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "metro",
+      "fromVersion": "0.84.5",
+      "to": "metro-file-map",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "metro-transform-worker",
+      "fromVersion": "0.84.5",
+      "to": "metro",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "metro",
+      "fromVersion": "0.84.5",
+      "to": "metro-transform-worker",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro",
+      "fromVersion": "56.0.2",
+      "to": "metro-transform-worker",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/metro",
+      "toVersion": "56.0.2",
+      "spec": "~56.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "babel-preset-expo",
+      "fromVersion": "57.0.16",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "babel-preset-expo",
+      "toVersion": "57.0.16",
+      "spec": "~57.0.16",
+      "type": "prod"
+    },
+    {
+      "from": "expo-application",
+      "fromVersion": "57.0.3",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-notifications",
+      "fromVersion": "57.0.23",
+      "to": "expo-application",
+      "toVersion": "57.0.3",
+      "spec": "~57.0.3",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-notifications",
+      "toVersion": "57.0.23",
+      "spec": "57.0.23",
+      "type": "prod"
+    },
+    {
+      "from": "expo-asset",
+      "fromVersion": "57.0.20",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "expo-asset",
+      "toVersion": "57.0.20",
+      "spec": "~57.0.20",
+      "type": "prod"
+    },
+    {
+      "from": "expo-constants",
+      "fromVersion": "57.0.22",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-asset",
+      "fromVersion": "57.0.20",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "~57.0.22",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "~57.0.22",
+      "type": "prod"
+    },
+    {
+      "from": "expo-notifications",
+      "fromVersion": "57.0.23",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "~57.0.22",
+      "type": "prod"
+    },
+    {
+      "from": "expo-linking",
+      "fromVersion": "57.0.13",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "~57.0.22",
+      "type": "prod"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "expo-linking",
+      "toVersion": "57.0.13",
+      "spec": "^57.0.13",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-router",
+      "toVersion": "57.0.28",
+      "spec": "57.0.28",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "expo-router",
+      "toVersion": "57.0.28",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/cli",
+      "toVersion": "57.0.31",
+      "spec": "^57.0.31",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/router-server",
+      "fromVersion": "57.0.13",
+      "to": "expo-router",
+      "toVersion": "57.0.28",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/router-server",
+      "toVersion": "57.0.13",
+      "spec": "^57.0.13",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-linking",
+      "toVersion": "57.0.13",
+      "spec": "57.0.13",
+      "type": "prod"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "^57.0.22",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "57.0.22",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/router-server",
+      "fromVersion": "57.0.13",
+      "to": "expo-constants",
+      "toVersion": "57.0.22",
+      "spec": "^57.0.22",
+      "type": "peer"
+    },
+    {
+      "from": "expo-crypto",
+      "fromVersion": "57.0.4",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-crypto",
+      "toVersion": "57.0.4",
+      "spec": "57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-client",
+      "fromVersion": "57.0.20",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-dev-client",
+      "toVersion": "57.0.20",
+      "spec": "57.0.20",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-launcher",
+      "fromVersion": "57.0.21",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-client",
+      "fromVersion": "57.0.20",
+      "to": "expo-dev-launcher",
+      "toVersion": "57.0.21",
+      "spec": "~57.0.21",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-menu-interface",
+      "fromVersion": "57.0.0",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-client",
+      "fromVersion": "57.0.20",
+      "to": "expo-dev-menu-interface",
+      "toVersion": "57.0.0",
+      "spec": "~57.0.0",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-menu",
+      "fromVersion": "57.0.20",
+      "to": "expo-dev-menu-interface",
+      "toVersion": "57.0.0",
+      "spec": "~57.0.0",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-client",
+      "fromVersion": "57.0.20",
+      "to": "expo-dev-menu",
+      "toVersion": "57.0.20",
+      "spec": "~57.0.20",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-launcher",
+      "fromVersion": "57.0.21",
+      "to": "expo-dev-menu",
+      "toVersion": "57.0.20",
+      "spec": "~57.0.20",
+      "type": "prod"
+    },
+    {
+      "from": "expo-font",
+      "fromVersion": "57.0.4",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "expo-font",
+      "toVersion": "57.0.4",
+      "spec": "~57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "expo-symbols",
+      "fromVersion": "57.0.3",
+      "to": "expo-font",
+      "toVersion": "57.0.4",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "expo-symbols",
+      "toVersion": "57.0.3",
+      "spec": "^57.0.3",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/router-server",
+      "fromVersion": "57.0.13",
+      "to": "expo-font",
+      "toVersion": "57.0.4",
+      "spec": "^57.0.4",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-menu",
+      "fromVersion": "57.0.20",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-glass-effect",
+      "fromVersion": "57.0.4",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "expo-glass-effect",
+      "toVersion": "57.0.4",
+      "spec": "^57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "expo-file-system",
+      "fromVersion": "57.0.7",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "expo-file-system",
+      "toVersion": "57.0.7",
+      "spec": "~57.0.7",
+      "type": "prod"
+    },
+    {
+      "from": "expo-device",
+      "fromVersion": "57.0.2",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-device",
+      "toVersion": "57.0.2",
+      "spec": "57.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-keep-awake",
+      "fromVersion": "57.0.2",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "expo-keep-awake",
+      "toVersion": "57.0.2",
+      "spec": "~57.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-manifests",
+      "fromVersion": "57.0.2",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-client",
+      "fromVersion": "57.0.20",
+      "to": "expo-manifests",
+      "toVersion": "57.0.2",
+      "spec": "~57.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-dev-launcher",
+      "fromVersion": "57.0.21",
+      "to": "expo-manifests",
+      "toVersion": "57.0.2",
+      "spec": "~57.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-notifications",
+      "fromVersion": "57.0.23",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-secure-store",
+      "fromVersion": "57.0.4",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-secure-store",
+      "toVersion": "57.0.4",
+      "spec": "57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "expo-status-bar",
+      "fromVersion": "57.0.1",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-status-bar",
+      "toVersion": "57.0.1",
+      "spec": "57.0.1",
+      "type": "prod"
+    },
+    {
+      "from": "expo-splash-screen",
+      "fromVersion": "57.0.10",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-splash-screen",
+      "toVersion": "57.0.10",
+      "spec": "57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-symbols",
+      "fromVersion": "57.0.3",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-updates-interface",
+      "fromVersion": "57.0.2",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-client",
+      "fromVersion": "57.0.20",
+      "to": "expo-updates-interface",
+      "toVersion": "57.0.2",
+      "spec": "~57.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-web-browser",
+      "fromVersion": "57.0.3",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-web-browser",
+      "toVersion": "57.0.3",
+      "spec": "57.0.3",
+      "type": "prod"
+    },
+    {
+      "from": "expo-video",
+      "fromVersion": "57.0.5",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo-video",
+      "toVersion": "57.0.5",
+      "spec": "57.0.5",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/dom-webview",
+      "fromVersion": "57.0.1",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/dom-webview",
+      "toVersion": "57.0.1",
+      "spec": "~57.0.1",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/log-box",
+      "fromVersion": "57.0.4",
+      "to": "@expo/dom-webview",
+      "toVersion": "57.0.1",
+      "spec": "^57.0.1",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/log-box",
+      "toVersion": "57.0.4",
+      "spec": "^57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "@expo/log-box",
+      "toVersion": "57.0.4",
+      "spec": "^57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro-runtime",
+      "fromVersion": "57.0.17",
+      "to": "@expo/log-box",
+      "toVersion": "57.0.4",
+      "spec": "^57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/metro-runtime",
+      "toVersion": "57.0.17",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "@expo/metro-runtime",
+      "toVersion": "57.0.17",
+      "spec": "^57.0.17",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "@expo/metro-runtime",
+      "toVersion": "57.0.17",
+      "spec": "57.0.17",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/router-server",
+      "fromVersion": "57.0.13",
+      "to": "@expo/metro-runtime",
+      "toVersion": "57.0.17",
+      "spec": "^57.0.17",
+      "type": "peerOptional"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/log-box",
+      "toVersion": "57.0.4",
+      "spec": "^57.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/log-box",
+      "fromVersion": "57.0.4",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/metro-config",
+      "fromVersion": "57.0.13",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/metro-config",
+      "toVersion": "57.0.13",
+      "spec": "~57.0.13",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/metro-config",
+      "toVersion": "57.0.13",
+      "spec": "~57.0.13",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro-runtime",
+      "fromVersion": "57.0.17",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/ui",
+      "fromVersion": "57.0.25",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "@expo/ui",
+      "toVersion": "57.0.25",
+      "spec": "^57.0.25",
+      "type": "prod"
+    },
+    {
+      "from": "@react-native-community/datetimepicker",
+      "fromVersion": "9.1.0",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": ">=52.0.0",
+      "type": "peerOptional"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "@react-native-community/datetimepicker",
+      "toVersion": "9.1.0",
+      "spec": "9.1.0",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "57.0.30",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/router-server",
+      "fromVersion": "57.0.13",
+      "to": "expo",
+      "toVersion": "57.0.30",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/metro-config",
+      "fromVersion": "57.0.13",
+      "to": "@expo/metro",
+      "toVersion": "56.0.2",
+      "spec": "~56.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/metro",
+      "toVersion": "56.0.2",
+      "spec": "~56.0.2",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro",
+      "fromVersion": "56.0.2",
+      "to": "metro",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "@react-native/community-cli-plugin",
+      "fromVersion": "0.86.3",
+      "to": "metro",
+      "toVersion": "0.84.5",
+      "spec": "^0.84.3",
+      "type": "prod"
+    },
+    {
+      "from": "react-native",
+      "fromVersion": "0.86.3",
+      "to": "@react-native/community-cli-plugin",
+      "toVersion": "0.86.3",
+      "spec": "0.86.3",
+      "type": "prod"
+    },
+    {
+      "from": "expo-asset",
+      "fromVersion": "57.0.20",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-constants",
+      "fromVersion": "57.0.22",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-launcher",
+      "fromVersion": "57.0.21",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-font",
+      "fromVersion": "57.0.4",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-dev-menu",
+      "fromVersion": "57.0.20",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-glass-effect",
+      "fromVersion": "57.0.4",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-file-system",
+      "fromVersion": "57.0.7",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-modules-core",
+      "fromVersion": "57.0.23",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "expo-modules-core",
+      "toVersion": "57.0.23",
+      "spec": "~57.0.23",
+      "type": "prod"
+    },
+    {
+      "from": "expo-notifications",
+      "fromVersion": "57.0.23",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-linking",
+      "fromVersion": "57.0.13",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-status-bar",
+      "fromVersion": "57.0.1",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-modules-jsi",
+      "fromVersion": "57.1.2",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-modules-core",
+      "fromVersion": "57.0.23",
+      "to": "expo-modules-jsi",
+      "toVersion": "57.1.2",
+      "spec": "~57.1.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-symbols",
+      "fromVersion": "57.0.3",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-web-browser",
+      "fromVersion": "57.0.3",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-video",
+      "fromVersion": "57.0.5",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "react-native-gesture-handler",
+      "fromVersion": "2.32.0",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "react-native-gesture-handler",
+      "toVersion": "2.32.0",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "react-native-drawer-layout",
+      "fromVersion": "4.2.12",
+      "to": "react-native-gesture-handler",
+      "toVersion": "2.32.0",
+      "spec": ">= 2.0.0",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "react-native-drawer-layout",
+      "toVersion": "4.2.12",
+      "spec": "^4.2.2",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "react-native-gesture-handler",
+      "toVersion": "2.32.0",
+      "spec": "2.32.0",
+      "type": "prod"
+    },
+    {
+      "from": "react-native-drawer-layout",
+      "fromVersion": "4.2.12",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "react-native-screens",
+      "fromVersion": "4.26.2",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "react-native-screens",
+      "toVersion": "4.26.2",
+      "spec": "^4.26.0",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "react-native-screens",
+      "toVersion": "4.26.2",
+      "spec": "4.26.2",
+      "type": "prod"
+    },
+    {
+      "from": "react-native-worklets",
+      "fromVersion": "0.10.1",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "0.83 - 0.86",
+      "type": "peer"
+    },
+    {
+      "from": "expo-modules-core",
+      "fromVersion": "57.0.23",
+      "to": "react-native-worklets",
+      "toVersion": "0.10.1",
+      "spec": "^0.7.4 || ^0.8.0 || ^0.9.0 || ^0.10.0",
+      "type": "peerOptional"
+    },
+    {
+      "from": "react-native-reanimated",
+      "fromVersion": "4.5.1",
+      "to": "react-native-worklets",
+      "toVersion": "0.10.1",
+      "spec": "0.10.x",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "react-native-reanimated",
+      "toVersion": "4.5.1",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "react-native-drawer-layout",
+      "fromVersion": "4.2.12",
+      "to": "react-native-reanimated",
+      "toVersion": "4.5.1",
+      "spec": ">= 2.0.0",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "react-native-reanimated",
+      "toVersion": "4.5.1",
+      "spec": "4.5.1",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/ui",
+      "fromVersion": "57.0.25",
+      "to": "react-native-worklets",
+      "toVersion": "0.10.1",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "react-native-worklets",
+      "toVersion": "0.10.1",
+      "spec": "0.10.1",
+      "type": "prod"
+    },
+    {
+      "from": "react-native-is-edge-to-edge",
+      "fromVersion": "1.3.1",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "react-native-reanimated",
+      "fromVersion": "4.5.1",
+      "to": "react-native-is-edge-to-edge",
+      "toVersion": "1.3.1",
+      "spec": "^1.3.1",
+      "type": "prod"
+    },
+    {
+      "from": "react-native-safe-area-context",
+      "fromVersion": "5.7.0",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "react-native-safe-area-context",
+      "toVersion": "5.7.0",
+      "spec": ">= 5.4.0",
+      "type": "peer"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "react-native-safe-area-context",
+      "toVersion": "5.7.0",
+      "spec": "5.7.0",
+      "type": "prod"
+    },
+    {
+      "from": "react-native-reanimated",
+      "fromVersion": "4.5.1",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "0.83 - 0.86",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/devtools",
+      "fromVersion": "57.0.1",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/devtools",
+      "toVersion": "57.0.1",
+      "spec": "~57.0.1",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/dom-webview",
+      "fromVersion": "57.0.1",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/log-box",
+      "fromVersion": "57.0.4",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/metro-runtime",
+      "fromVersion": "57.0.17",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@expo/ui",
+      "fromVersion": "57.0.25",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@react-native/virtualized-lists",
+      "fromVersion": "0.86.3",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "0.86.3",
+      "type": "peer"
+    },
+    {
+      "from": "react-native",
+      "fromVersion": "0.86.3",
+      "to": "@react-native/virtualized-lists",
+      "toVersion": "0.86.3",
+      "spec": "0.86.3",
+      "type": "prod"
+    },
+    {
+      "from": "@react-native-community/datetimepicker",
+      "fromVersion": "9.1.0",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@react-native-masked-view/masked-view",
+      "fromVersion": "0.3.2",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": ">=0.57",
+      "type": "peer"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "@react-native-masked-view/masked-view",
+      "toVersion": "0.3.2",
+      "spec": "^0.3.2",
+      "type": "prod"
+    },
+    {
+      "from": "@yehabibi/mobile",
+      "fromVersion": "4.4.0",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "0.86.3",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "react-native",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peerOptional"
+    },
+    {
+      "from": "metro-config",
+      "fromVersion": "0.84.5",
+      "to": "metro",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "metro",
+      "fromVersion": "0.84.5",
+      "to": "metro-config",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro",
+      "fromVersion": "56.0.2",
+      "to": "metro-config",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro",
+      "fromVersion": "56.0.2",
+      "to": "metro-file-map",
+      "toVersion": "0.84.5",
+      "spec": "0.84.5",
+      "type": "prod"
+    },
+    {
+      "from": "metro-file-map",
+      "fromVersion": "0.84.6",
+      "to": "micromatch",
+      "toVersion": "4.0.8",
+      "spec": "^4.0.4",
+      "type": "prod"
+    },
+    {
+      "from": "metro",
+      "fromVersion": "0.84.6",
+      "to": "metro-file-map",
+      "toVersion": "0.84.6",
+      "spec": "0.84.6",
+      "type": "prod"
+    },
+    {
+      "from": "metro-config",
+      "fromVersion": "0.84.6",
+      "to": "metro",
+      "toVersion": "0.84.6",
+      "spec": "0.84.6",
+      "type": "prod"
+    },
+    {
+      "from": "@react-native/community-cli-plugin",
+      "fromVersion": "0.86.3",
+      "to": "metro-config",
+      "toVersion": "0.84.6",
+      "spec": "^0.84.3",
+      "type": "prod"
+    },
+    {
+      "from": "@react-native/metro-config",
+      "fromVersion": "0.86.3",
+      "to": "metro-config",
+      "toVersion": "0.84.6",
+      "spec": "^0.84.3",
+      "type": "prod"
+    },
+    {
+      "from": "react-native-worklets",
+      "fromVersion": "0.10.1",
+      "to": "@react-native/metro-config",
+      "toVersion": "0.86.3",
+      "spec": "*",
+      "type": "peer"
+    },
+    {
+      "from": "@react-native/community-cli-plugin",
+      "fromVersion": "0.86.3",
+      "to": "@react-native/metro-config",
+      "toVersion": "0.86.3",
+      "spec": "0.86.3",
+      "type": "peerOptional"
+    },
+    {
+      "from": "metro",
+      "fromVersion": "0.84.6",
+      "to": "metro-config",
+      "toVersion": "0.84.6",
+      "spec": "0.84.6",
+      "type": "prod"
+    },
+    {
+      "from": "metro-transform-worker",
+      "fromVersion": "0.84.6",
+      "to": "metro",
+      "toVersion": "0.84.6",
+      "spec": "0.84.6",
+      "type": "prod"
+    },
+    {
+      "from": "metro",
+      "fromVersion": "0.84.6",
+      "to": "metro-transform-worker",
+      "toVersion": "0.84.6",
+      "spec": "0.84.6",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/code-signing-certificates",
+      "fromVersion": "0.0.6",
+      "to": "node-forge",
+      "toVersion": "1.4.0",
+      "spec": "^1.3.3",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/code-signing-certificates",
+      "toVersion": "0.0.6",
+      "spec": "^0.0.6",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "node-forge",
+      "toVersion": "1.4.0",
+      "spec": "^1.3.3",
+      "type": "prod"
+    },
+    {
+      "from": "query-string",
+      "fromVersion": "7.1.3",
+      "to": "decode-uri-component",
+      "toVersion": "0.2.2",
+      "spec": "^0.2.2",
+      "type": "prod"
+    },
+    {
+      "from": "expo-router",
+      "fromVersion": "57.0.28",
+      "to": "query-string",
+      "toVersion": "7.1.3",
+      "spec": "^7.1.3",
+      "type": "prod"
+    },
+    {
+      "from": "xcode",
+      "fromVersion": "3.0.1",
+      "to": "uuid",
+      "toVersion": "7.0.3",
+      "spec": "^7.0.3",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/config-plugins",
+      "fromVersion": "57.0.10",
+      "to": "xcode",
+      "toVersion": "3.0.1",
+      "spec": "^3.0.1",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/config-plugins",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "expo-splash-screen",
+      "fromVersion": "57.0.10",
+      "to": "@expo/config-plugins",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/config",
+      "fromVersion": "57.0.10",
+      "to": "@expo/config-plugins",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/config",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/local-build-cache-provider",
+      "fromVersion": "57.0.9",
+      "to": "@expo/config",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "expo",
+      "fromVersion": "57.0.30",
+      "to": "@expo/local-build-cache-provider",
+      "toVersion": "57.0.9",
+      "spec": "^57.0.9",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/metro-config",
+      "fromVersion": "57.0.13",
+      "to": "@expo/config",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/prebuild-config",
+      "fromVersion": "57.0.19",
+      "to": "@expo/config",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/prebuild-config",
+      "toVersion": "57.0.19",
+      "spec": "^57.0.19",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/config",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/inline-modules",
+      "fromVersion": "0.1.8",
+      "to": "@expo/config-plugins",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/inline-modules",
+      "toVersion": "0.1.8",
+      "spec": "^0.1.8",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/prebuild-config",
+      "fromVersion": "57.0.19",
+      "to": "@expo/config-plugins",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    },
+    {
+      "from": "@expo/cli",
+      "fromVersion": "57.0.31",
+      "to": "@expo/config-plugins",
+      "toVersion": "57.0.10",
+      "spec": "~57.0.10",
+      "type": "prod"
+    }
+  ]
+}

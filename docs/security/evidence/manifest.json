@@ -1,0 +1,16 @@
+{
+  "reviewedAt": "2026-10-19",
+  "baselineCommit": "419fec1748db476a294da9596a116268774c5873",
+  "node": "22.16.0",
+  "npm": "11.4.2",
+  "lockSha256Before": "9f97bcba27d07d55cc6f6e320f5b4227f4a3835b579727700807df7558cbb7e9",
+  "lockSha256After": "9f97bcba27d07d55cc6f6e320f5b4227f4a3835b579727700807df7558cbb7e9",
+  "dependencyChange": "Ingen: testad uuid-override återtagen efter npm ls ELSPROBLEMS. Låset är oförändrat.",
+  "commands": [
+    "npm audit --json",
+    "npm audit --omit=dev --json",
+    "npm explain braces node-forge decode-uri-component uuid --json",
+    "npm ci --no-audit --no-fund",
+    "node scripts/security-audit.mjs"
+  ]
+}
