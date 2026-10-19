@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, Pressable, Text, View, type TextInputProps } from 'react-native';
+import { AppState, Pressable, Text, View, type TextInputProps } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { availablePaymentMethods, canPayOrder, formatScheduledTime, formatSek, itemsFromQuantities, onlinePaymentMethods, orderContactError, paymentMethodLabel,
+import { availablePaymentMethods, canPayOrder, formatScheduledTime, formatSek, itemsFromQuantities, orderContactError, paymentMethodLabel,
   type AvailabilityResponse, type DirectOrderInput, type Fulfillment, type OnlinePaymentMethod, type PaymentPreference } from '@yehabibi/shared';
 import { api, apiUrl, clearRequestId, newRequestId, openPolicy, openWebsite, persistentRequestId } from '../lib/api';
+import { mobileOnlinePaymentMethods } from '../lib/payment-methods';
 import { useCatering } from '../lib/store';
 import { Amount, Button, Choices, Field, Notice, Photo, Screen, Stepper, s } from '../lib/ui';
 
@@ -62,8 +63,9 @@ export default function DirectOrderScreen() {
   const current = availability?.key === requestKey ? availability.data : null;
   const slot = current?.slots.find(item => item.starts_at === selectedStartsAt);
   const slotLabel = slot ? `${slot.label}${fulfillment === 'delivery' && slot.ends_at ? ` – ${formatScheduledTime(slot.ends_at)}` : ''}` : 'Välj en ledig tid';
-  const online = onlinePaymentMethods(catalog.payment_methods, { applePay: Platform.OS === 'ios', googlePay: Platform.OS === 'android' }, catalog.test_mode === true);
-  const methods = availablePaymentMethods(catalog, fulfillment).filter(method => method === 'cash' || method !== 'unpaid' && online.includes(method));
+  const online = mobileOnlinePaymentMethods(catalog, 'direct');
+  const methods = availablePaymentMethods({ ...catalog, payment_methods: catalog.direct_payment_methods || [] }, fulfillment)
+    .filter(method => method === 'cash' || method !== 'unpaid' && online.includes(method));
   const selectedPayment = methods.includes(payment) ? payment : methods[0];
   const canContinue = enabled && !!orderable && !!current?.enabled && !!slot && !slotsLoading && !availabilityError;
   const quoteKey = `${requestKey}:${current?.total_ore}:${JSON.stringify(current?.lines)}:${slot?.starts_at}:${slot?.ends_at}`;
