@@ -9,23 +9,24 @@ const METHODS = Object.keys(METHOD_TYPES) as OnlinePaymentMethod[];
 export { InvalidPaymentEventError };
 
 /** Fixed official European endpoint structure. No configurable origin, port, path or protocol. */
-export function adyenApiBaseUrl(env: Environment): string | null {
+export function adyenApiBaseUrl(env: Environment, purpose: 'payments' | 'verification' = 'payments'): string | null {
   if (env.ADYEN_ENVIRONMENT === 'test') return 'https://checkout-test.adyen.com/v71';
   const prefix = env.ADYEN_LIVE_URL_PREFIX || '';
   // The prefix plus '-checkout-live' must form a DNS label of at most 63 characters.
-  if (env.ADYEN_ENVIRONMENT !== 'live' || env.PAYMENTS_LIVE_APPROVED !== 'true'
+  if (env.ADYEN_ENVIRONMENT !== 'live' || purpose === 'payments' && env.PAYMENTS_LIVE_APPROVED !== 'true'
     || prefix.length > 49 || !/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(prefix)) return null;
   return `https://${prefix}-checkout-live.adyenpayments.com/checkout/v71`;
 }
 
 export function adyenVerificationConfigured(env: Environment = process.env) {
-  return env.PAYMENT_PROVIDER === 'adyen' && adyenApiBaseUrl(env) !== null && env.ADYEN_CAPTURE_MODE === 'automatic'
+  return env.PAYMENT_PROVIDER === 'adyen' && adyenApiBaseUrl(env, 'verification') !== null && env.ADYEN_CAPTURE_MODE === 'automatic'
     && !!env.ADYEN_MERCHANT_ACCOUNT && /^[a-f\d]{64}$/i.test(env.ADYEN_HMAC_KEY || '');
 }
 
 /** Production requires a separate explicit approval gate; defaults never activate payments. */
 export function adyenConfigured(env: Environment = process.env) {
   return env.PAYMENTS_ENABLED === 'true' && env.PAYMENT_PROVIDER === 'adyen'
+    && env.PAYMENT_INTEGRATION_APPROVED === 'adyen-pay-by-link-catering'
     && adyenApiBaseUrl(env) !== null && env.ADYEN_CAPTURE_MODE === 'automatic'
     && !!env.ADYEN_API_KEY && !!env.ADYEN_MERCHANT_ACCOUNT
     && /^[a-f\d]{64}$/i.test(env.ADYEN_HMAC_KEY || '')
@@ -64,22 +65,35 @@ export function validStandardHmac(item: Record<string, unknown>, key: string) {
 export class AdyenProvider implements PaymentProvider {
   readonly name = 'adyen' as const;
   readonly environment: PaymentEnvironment;
+  readonly merchantAccount: string;
   private env: Environment;
   private fetcher: Fetcher;
   constructor(env: Environment = process.env, fetcher: Fetcher = fetch, purpose: 'payments' | 'verification' = 'payments') {
     if (!(purpose === 'verification' ? adyenVerificationConfigured(env) : adyenConfigured(env))) throw new Error('Onlinebetalningar är avstängda. Företagets verifierade konto och rätt miljö krävs.');
     this.env = {...env}; this.fetcher = fetcher;
     this.environment = env.ADYEN_ENVIRONMENT as PaymentEnvironment;
+    this.merchantAccount = env.ADYEN_MERCHANT_ACCOUNT!;
   }
   private async request(path: string, method: 'GET' | 'POST', body?: unknown, idempotencyKey?: string): Promise<Record<string, unknown>> {
-    if (!adyenConfigured(this.env)) throw new Error('Onlinebetalningar är avstängda.');
-    const response = await this.fetcher(adyenApiBaseUrl(this.env)! + path, {
+    // Keep authenticated reads for old attempts when new issuance/live approval is disabled.
+    // A read never creates, captures or refunds a payment.
+    const read = method === 'GET';
+    if (read ? !adyenVerificationConfigured(this.env) || !this.env.ADYEN_API_KEY : !adyenConfigured(this.env)) throw new Error('Onlinebetalningar är avstängda.');
+    const response = await this.fetcher(adyenApiBaseUrl(this.env, read ? 'verification' : 'payments')! + path, {
       method, headers: {'x-api-key': this.env.ADYEN_API_KEY!, 'content-type': 'application/json',
         ...(idempotencyKey ? {'idempotency-key': idempotencyKey} : {})},
       ...(body ? {body: JSON.stringify(body)} : {}), cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000)
     });
     // No raw response/error bodies: provider responses can contain customer or credential details.
-    if (!response.ok) throw new Error(`Betaltjänsten kunde inte svara (${response.status}). Försök igen med samma betalning.`);
+    if (!response.ok) {
+      const error = new Error(`Betaltjänsten kunde inte svara (${response.status}). Försök igen med samma betalning.`);
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('retry-after');
+        const seconds = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : retryAfter ? (Date.parse(retryAfter) - Date.now()) / 1000 : 300;
+        Object.assign(error, {retryAfterMs: Math.max(300000, Math.min(86400000, seconds * 1000 || 300000))});
+      }
+      throw error;
+    }
     return record(await response.json());
   }
   async availableMethods(amountOre = 1000): Promise<OnlinePaymentMethod[]> {
@@ -110,7 +124,7 @@ export class AdyenProvider implements PaymentProvider {
       expires_at: string(response.expiresAt), status: response.status as HostedPayment['status']};
   }
   async createPayment(attempt: PaymentAttempt, returnUrl: string) {
-    if (attempt.environment !== this.environment) throw new Error('Betalningen tillhör en annan leverantörsmiljö.');
+    if (attempt.environment !== this.environment || attempt.provider !== this.name || attempt.merchant_account !== this.merchantAccount) throw new Error('Betalningen tillhör en annan leverantörsmiljö eller ett annat konto.');
     const method = METHOD_TYPES[attempt.method];
     if (!method || !configuredMethods(this.env).includes(attempt.method)) throw new Error('Betalningsmetoden är inte aktiverad.');
     const url = new URL(returnUrl);
@@ -146,11 +160,11 @@ export class AdyenProvider implements PaymentProvider {
     return items.flatMap(item => {
       const code = string(item.eventCode), amount = record(item.amount), success = item.success === 'true';
       const known = ['AUTHORISATION', 'CAPTURE', 'CAPTURE_FAILED', 'REFUND', 'REFUND_FAILED', 'REFUNDED_REVERSED', 'CHARGEBACK', 'SETTLED_REVERSED'];
-      if (!known.includes(code)) return [];
+      if (!known.includes(code)) throw new Error('Betalningseventets typ kräver separat granskning.');
       if (!integer(amount.value) || amount.currency !== 'SEK' || !string(item.pspReference) || !string(item.merchantReference)) throw new Error('Ogiltigt betalningsevent.');
       // merchantReference, amount, currency and PSP are HMAC-signed. additionalData/paymentMethod/eventDate are not trusted as evidence.
       const canonical = standardHmacPayload(item);
-      return [{environment: this.environment, provider: 'adyen' as const, event_id: createHash('sha256').update(canonical).digest('hex'), event_code: code,
+      return [{environment: this.environment, merchant_account: this.merchantAccount, provider: 'adyen' as const, event_id: createHash('sha256').update(canonical).digest('hex'), event_code: code,
         kind: code === 'REFUND' ? success ? 'refunded' as const : 'review' as const
           : ['CAPTURE_FAILED', 'REFUND_FAILED', 'REFUNDED_REVERSED', 'CHARGEBACK', 'SETTLED_REVERSED'].includes(code) || code === 'CAPTURE' && !success ? 'review' as const
           : success ? 'paid' as const : 'failed' as const,
@@ -160,7 +174,7 @@ export class AdyenProvider implements PaymentProvider {
     });
   }
   async refund(attempt: RefundAttempt) {
-    if (attempt.environment !== this.environment) throw new Error('Återbetalningen tillhör en annan leverantörsmiljö.');
+    if (attempt.environment !== this.environment || attempt.provider !== this.name || attempt.merchant_account !== this.merchantAccount) throw new Error('Återbetalningen tillhör en annan leverantörsmiljö eller ett annat konto.');
     const result = await this.request(`/payments/${encodeURIComponent(attempt.transaction_reference)}/refunds`, 'POST', {
       merchantAccount: this.env.ADYEN_MERCHANT_ACCOUNT, amount: {value: attempt.amount_ore, currency: 'SEK'}, reference: attempt.provider_reference
     }, attempt.idempotency_key);

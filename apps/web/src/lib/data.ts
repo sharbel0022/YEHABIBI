@@ -3,7 +3,7 @@ import { adminDb } from '@/lib/supabase';
 import { isSupabaseReady, previewItems, previewMenus, previewSettings } from '@/lib/config';
 import type { Campaign, Catalog, CateringOrder, DeliveryZone, Dish, Menu, MenuItem, OrderLine, PaymentPreference, PublicOrder, Settings, SchedulingSettings } from '@/types/domain';
 import { safeExternalUrl, previewDishes } from '@/lib/domain';
-import { paymentCapabilities, paymentsConfigured, paymentRuntimeInfo } from '@/lib/payments';
+import { directPaymentCapabilities, paymentCapabilities, paymentsConfigured, paymentRuntimeInfo } from '@/lib/payments';
 
 export async function getMenus(): Promise<Menu[]> {
   if (!isSupabaseReady()) return previewMenus;
@@ -72,14 +72,16 @@ export async function getCatalog(): Promise<Catalog> {
     campaigns = (campaignResult.data || []) as Campaign[];
   }
   // Kontokonfiguration och leverantörens faktiska metodlista måste båda godkänna metoden.
-  const [runtime, capabilities] = await Promise.all([paymentRuntimeInfo(), isSupabaseReady() ? paymentCapabilities() : Promise.resolve([])]);
+  const [runtime, capabilities, directCapabilities] = await Promise.all([paymentRuntimeInfo(), isSupabaseReady() ? paymentCapabilities() : Promise.resolve([]), isSupabaseReady() ? directPaymentCapabilities() : Promise.resolve([])]);
   const payment_methods: PaymentPreference[] = capabilities;
+  const direct_payment_methods: PaymentPreference[] = directCapabilities;
   if(settings.cash_enabled && settings.pickup_enabled) payment_methods.push('cash');
+  if(settings.cash_enabled && settings.pickup_enabled) direct_payment_methods.push('cash');
   if(settings.allow_unpaid_requests) payment_methods.push('unpaid');
   // Ta bort eventuella framtida privata databasfält genom en explicit kopia.
   const publicSettings: Settings = Object.fromEntries(Object.keys(previewSettings).map(key => [key,settings[key as keyof Settings]])) as Settings;
   const scheduling=isSupabaseReady() ? await getSchedulingSettings() : null;
-  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled,catering_enabled,package_portions,preparation_minutes,extra_preparation_minutes,extra_preparation_every,package_group,size_label,catering_price_ore,availability_state,kitchen_units,allowed_addon_ids}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled:direct_order_enabled??false,catering_enabled:catering_enabled??true,package_portions:package_portions??1,preparation_minutes:preparation_minutes??30,extra_preparation_minutes:extra_preparation_minutes??0,extra_preparation_every:extra_preparation_every??5,package_group:package_group||'',size_label:size_label||'',catering_price_ore:catering_price_ore??price_ore,availability_state:availability_state||'available',kitchen_units:kitchen_units??1,allowed_addon_ids:allowed_addon_ids||[]})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,direct_orders_enabled:ordersReady() && payment_methods.length>0 && Boolean(scheduling?.enabled && !scheduling.paused),opening_hours:scheduling?{weekly_hours:scheduling.weekly_hours,special_hours:scheduling.special_hours}:undefined,demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
+  return {menus:menus.map(({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled,catering_enabled,package_portions,preparation_minutes,extra_preparation_minutes,extra_preparation_every,package_group,size_label,catering_price_ore,availability_state,kitchen_units,allowed_addon_ids}) => ({id,slug,title,description,included,allergens,price_ore,min_people,image_url,active,sort_order,direct_order_enabled:direct_order_enabled??false,catering_enabled:catering_enabled??true,package_portions:package_portions??1,preparation_minutes:preparation_minutes??30,extra_preparation_minutes:extra_preparation_minutes??0,extra_preparation_every:extra_preparation_every??5,package_group:package_group||'',size_label:size_label||'',catering_price_ore:catering_price_ore??price_ore,availability_state:availability_state||'available',kitchen_units:kitchen_units??1,allowed_addon_ids:allowed_addon_ids||[]})),dishes,campaigns,settings:publicSettings,delivery_zones,payment_methods,direct_payment_methods,orders_enabled:ordersReady() && payment_methods.length > 0,direct_orders_enabled:ordersReady() && direct_payment_methods.length>0 && Boolean(scheduling?.enabled && !scheduling.paused),opening_hours:scheduling?{weekly_hours:scheduling.weekly_hours,special_hours:scheduling.special_hours}:undefined,demo:!isSupabaseReady(),test_mode:runtime.isSimulation};
 }
 
 export async function getSchedulingSettings():Promise<SchedulingSettings> {

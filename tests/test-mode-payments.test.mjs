@@ -31,7 +31,7 @@ test('test payment isolation requires all static guards plus matching private DB
 });
 
 test('local callbacks require server HMAC, exact isolation identity and provider/environment',()=>{
-  const settings=testEnvironmentSettings(env),event={provider:'local_test',environment:'test',event_id:'a'.repeat(64),event_code:'AUTHORISATION',kind:'paid',success:true,
+  const settings=testEnvironmentSettings(env),event={merchant_account:env.TEST_ISOLATION_ID,provider:'local_test',environment:'test',event_id:'a'.repeat(64),event_code:'AUTHORISATION',kind:'paid',success:true,
     reference:'reserved-order-reference',transaction_reference:'payment-reference',original_reference:null,amount_ore:48000,currency:'SEK',occurred_at:new Date(0).toISOString()};
   const signed=signTestEvent(event,settings);
   assert.deepEqual(verifyTestEvent(JSON.parse(JSON.stringify(signed)),settings),event);
@@ -100,7 +100,7 @@ test('test adapter runs all four methods through real SQL, repeated failures, du
     assert.deepEqual(await provider.availableMethods(),['swish','card','apple_pay','google_pay']);
     const dish=randomUUID();await db.query("insert into public.dishes(id,title,price_ore,active) values($1,'TEST Ostrulle',4000,true)",[dish]);
     const create=method=>rpc('create_catering_order',{p_order:{id:randomUUID(),code:'CM-'+randomUUID().slice(0,10),tracking_hash:'a'.repeat(64),request_id:randomUUID(),request_hash:'b'.repeat(64),guests:5,occasion:'hemma',event_date:new Date(Date.now()+10*86400000).toISOString().slice(0,10),event_time:'12:00',fulfillment:'pickup',full_name:'Syntetisk Testkund',email:'customer@example.test',phone:'0700000000',payment_preference:method,subtotal_ore:48000,delivery_fee_ore:0},p_items:[{dish_id:dish,quantity:12}]});
-    const store={reserve:(id,method,revision,amount)=>rpc('reserve_catering_payment',{p_order_id:id,p_provider:'local_test',p_method:method,p_revision:revision,p_amount_ore:amount,p_environment:'test'}),
+    const store={reserve:(id,method,revision,amount)=>rpc('reserve_catering_payment',{p_order_id:id,p_provider:'local_test',p_method:method,p_revision:revision,p_amount_ore:amount,p_environment:'test',p_merchant_account:settings.id}),
       attach:async(attempt,payment)=>{await rpc('attach_catering_payment',{p_attempt_id:attempt.id,p_provider_payment_id:payment.id,p_checkout_url:payment.url,p_expires_at:payment.expires_at});},
       expire:async()=>assert.fail('Explicit local expiry has no ambiguous network operation.'),
       reserveRefund:id=>rpc('reserve_catering_refund',{p_order_id:id,p_environment:'test',p_provider:'local_test'}),

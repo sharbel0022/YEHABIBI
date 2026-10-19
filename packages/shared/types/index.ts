@@ -118,6 +118,8 @@ export type Catalog = {
   menus: Menu[]; dishes: Dish[]; campaigns: Campaign[]; settings: Settings;
   delivery_zones: DeliveryZone[]; orders_enabled: boolean; payment_methods: PaymentPreference[]; demo: boolean;
   payment_unavailable_reason?: string; direct_orders_enabled?: boolean;
+  /** Separate approval scope: supplementary catering links never enable a direct checkout. */
+  direct_payment_methods?: PaymentPreference[];
   /** Endast den isolerade servern får intyga ett fungerande testläge. */
   test_mode?: boolean;
   opening_hours?:Pick<SchedulingSettings,'weekly_hours'|'special_hours'>;

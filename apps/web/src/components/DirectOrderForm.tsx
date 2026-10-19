@@ -50,8 +50,9 @@ export function DirectOrderForm({ initialCatalog, initialMenu, initialQuantity, 
   const sequence = useRef(0);
   const inFlight = useRef(false);
   const orderRequest = useRef<{ fingerprint: string; id: string } | null>(null);
-  const deviceMethods = usePaymentMethods(catalog.payment_methods, catalog.test_mode === true);
-  const methods = availablePaymentMethods(catalog, fulfillment).filter(value => value === 'cash' || value !== 'unpaid' && deviceMethods.includes(value));
+  const directCatalog = {...catalog, payment_methods: catalog.direct_payment_methods || []};
+  const deviceMethods = usePaymentMethods(directCatalog.payment_methods, catalog.test_mode === true);
+  const methods = availablePaymentMethods(directCatalog, fulfillment).filter(value => value === 'cash' || value !== 'unpaid' && deviceMethods.includes(value));
   const payment = methods.includes(preference) ? preference : methods[0];
   const postal = contact.postal_code.replace(/\s/g, '');
   const requestInput = { menu_id: menu?.id || '', quantity, fulfillment, addons, ...(fulfillment === 'delivery' ? { postal_code: postal } : {}), ...(campaignId ? { campaign_id: campaignId } : {}) };

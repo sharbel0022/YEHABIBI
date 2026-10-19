@@ -13,6 +13,6 @@ export function paymentRuntime(): PaymentRuntime {
     if (error) throw new Error('Testdatabasen kunde inte verifieras.');
     return data;
   }); };
-  return {identity: {provider: 'local_test', environment: 'test'}, configured: enabled, webhooksConfigured: enabled,
+  return {identity: {provider: 'local_test', environment: 'test', merchant_account: enabled ? testEnvironmentSettings().id : undefined}, configured: enabled, webhooksConfigured: enabled,
     isSimulation: true, validate, createProvider: () => new TestPaymentProvider(adminDb(), validate, testEnvironmentSettings(), dispatchTestPaymentEvent)};
 }

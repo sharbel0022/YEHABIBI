@@ -69,6 +69,7 @@ async function run() {
   const origin=`http://127.0.0.1:${webPort}`,bridgeUrl=`http://127.0.0.1:${bridgePort}`;
   const jwtSecret='isolated-local-fixture-jwt-secret-minimum-32-characters';
   const webhookSecret='ab'.repeat(32);
+  const backgroundSecret='isolated-background-job-secret-minimum-32-characters';
   const merchantAccount='YehabibiFixture';
   const ownerEmail='owner@example.test';
   const userId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -149,7 +150,8 @@ async function run() {
       NODE_OPTIONS:`--import=${import.meta.url}`,YEHABIBI_TEST_BRIDGE:bridgeUrl,NEXT_TELEMETRY_DISABLED:'1',
       NEXT_PUBLIC_SITE_URL:'https://yehabibi.example.test',NEXT_PUBLIC_SUPABASE_URL:bridgeUrl,NEXT_PUBLIC_SUPABASE_ANON_KEY:anon,SUPABASE_SERVICE_ROLE_KEY:service,
       MOBILE_WEB_ORIGINS:origin,
-      ORDERS_ENABLED:'true',PAYMENTS_ENABLED:payments,PAYMENT_PROVIDER:'adyen',ADYEN_ENVIRONMENT:'test',ADYEN_CAPTURE_MODE:'automatic',
+      ORDERS_ENABLED:'true',PAYMENTS_ENABLED:payments,PAYMENT_PROVIDER:'adyen',PAYMENT_INTEGRATION_APPROVED:'adyen-pay-by-link-catering',ADYEN_ENVIRONMENT:'test',ADYEN_CAPTURE_MODE:'automatic',
+      NOTIFICATIONS_ENABLED:'true',BACKGROUND_JOB_SECRET:backgroundSecret,
       ADYEN_API_KEY:'isolated_fixture_not_a_real_key',ADYEN_MERCHANT_ACCOUNT:merchantAccount,ADYEN_HMAC_KEY:webhookSecret,ADYEN_ENABLED_METHODS:'swish,card,apple_pay,google_pay',
       RESEND_API_KEY:'re_isolated_fixture',EMAIL_FROM:'Yehabibi Test <orders@example.test>',OWNER_NOTIFICATION_EMAIL:ownerEmail,ADMIN_EMAILS:ownerEmail,
       ORDER_LINK_SECRET:'isolated-order-link-secret-minimum-32-characters',ORDER_RATE_LIMIT_SECRET:'isolated-order-rate-secret-minimum-32-characters',OWNER_PUSH_ENABLED:'false',CUSTOMER_PUSH_ENABLED:'false'
@@ -157,6 +159,16 @@ async function run() {
     let webProcess=startWeb();
     await wait(`${origin}/api/health`);
     const call=async(url,method='GET',value,auth=false,headers={})=>{const response=await fetch(`${origin}${url}`,{method,headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{} ),...headers},...(value?{body:JSON.stringify(value)}:{})});return {status:response.status,data:await response.json()};};
+    const tick=async()=>{
+      // The same authenticated worker endpoint used by the scheduler; no business logic in webhook ACK.
+      for(let batch=0;batch<30;batch++) {
+        const result=await call('/api/internal/jobs','POST',{},false,{Authorization:`Bearer ${backgroundSecret}`});
+        assert.equal(result.status,200,JSON.stringify(result));
+        const due=sql("select (exists(select 1 from public.background_jobs where status='pending' and available_at<=clock_timestamp()) or exists(select 1 from public.order_notifications where sent_at is null and superseded_at is null and dead_at is null and available_at<=clock_timestamp() and (lease_expires_at is null or lease_expires_at<=clock_timestamp())))");
+        if(due==='f')return;
+      }
+      assert.fail('Background fixture did not drain its bounded due batches');
+    };
     const event=async(type,session,id,expectedStatus=200,overrides={})=>{
       const item={pspReference:type==='REFUND'?`REFUND_PSP_${session.id}`:`PSP_${session.id}`,originalReference:type==='REFUND'?`PSP_${session.id}`:'',
         merchantAccountCode:merchantAccount,merchantReference:session.reference,amount:session.amount,eventCode:type,success:'true',
@@ -166,12 +178,15 @@ async function run() {
       item.additionalData={hmacSignature:createHmac('sha256',Buffer.from(webhookSecret,'hex')).update(canonical).digest('base64')};
       const payload=JSON.stringify({live:'false',notificationItems:[{NotificationRequestItem:item}]});
       const response=await fetch(`${origin}/api/payments/webhook`,{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
-      assert.equal(response.status,expectedStatus,await response.text());return id||item.pspReference;
+      assert.equal(response.status,expectedStatus,await response.text());
+      if(expectedStatus===200)await tick();
+      return id||item.pspReference;
     };
     const connection={origin,adminLogin:`${bridgeUrl}/__test/admin-login`,stop:`${bridgeUrl}/__test/stop`,database:sql('select version()'),directory};
     fs.writeFileSync(path.join(directory,'connection.json'),JSON.stringify(connection,null,2));
     process.stdout.write(`LOCAL TEST READY ${JSON.stringify(connection)}\n`);
     const catalog=await call('/api/catalog');assert.equal(catalog.status,200);assert.equal(catalog.data.demo,false);assert.equal(catalog.data.orders_enabled,true);
+    assert.deepEqual(catalog.data.direct_payment_methods,['cash'],'Supplementary real Pay by Link never advertises a direct online checkout.');
     const zonesBeforeSettings=sql('select count(*) from public.delivery_zones');
     const savedSettings=await call('/api/admin/settings','PATCH',{...catalog.data.settings,contact_phone:'0700000000'},true);
     assert.equal(savedSettings.status,200,JSON.stringify(savedSettings));assert.equal(sql(`select active from public.delivery_zones where id='${zone}'`),'t');
@@ -196,7 +211,10 @@ async function run() {
     sql(`begin;update public.orders set status='reviewing' where id='${orderId}';rollback;`);
     assert.equal(sql('select count(*) from public.order_notifications'),noticesBefore);
     assert.equal((await call('/api/orders','POST',{...input,notes:'changed'})).status,409);
+    // Explicit operator retry makes this synthetic failed delivery due; production keeps backoff.
+    sql(`update public.order_notifications set available_at=clock_timestamp()-interval '1 second' where order_id='${orderId}' and sent_at is null`);
     assert.equal((await call('/api/admin/orders/'+orderId,'PATCH',{action:'resend_notifications'},true)).status,200);
+    await tick();
     const ownerMail=[...mails.values()].find(mail=>mail.to.includes(ownerEmail));assert.match(ownerMail.html,/Testgatan 1/);assert.match(ownerMail.html,/12 × Testostrullar/);
     const proposal=await call('/api/admin/orders/'+orderId,'PATCH',{action:'request_changes',admin_note:'Syntetiskt prisförslag',proposed_total_ore:60000},true);assert.equal(proposal.status,200,JSON.stringify(proposal));
     assert.equal((await call(orderPath,'PATCH',{action:'accept_changes',revision:99})).status,409);
@@ -313,6 +331,8 @@ async function run() {
     assert.equal((await call('/api/payments/create','POST',expiringReference)).status,503);
     assert.equal(sql(`select provider_payment_id from public.orders where id='${expiringId}'`),expiredId);
     assert.equal(sql(`select payment_status from public.orders where id='${expiringId}'`),'pending');
+    sql(`update public.payment_attempts set reconciliation_next_check_at=clock_timestamp()-interval '1 second' where order_id='${expiringId}'`);
+    await tick();
     assert.equal(sql(`select payment_review_required from public.orders where id='${expiringId}'`),'t');
     const denied=await fetch(`${bridgeUrl}/rest/v1/orders`,{headers:{Authorization:`Bearer ${anon}`,apikey:anon}});assert.ok([401,403].includes(denied.status));
     const deniedAuthenticated=await fetch(`${bridgeUrl}/rest/v1/orders`,{headers:{Authorization:`Bearer ${admin}`,apikey:anon}});assert.equal(deniedAuthenticated.status,403);
