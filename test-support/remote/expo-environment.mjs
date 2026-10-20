@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { cleanProcessEnvironment } from '../local/environment.mjs';
 
+/** Expo's base64url project randomness can contain an internal underscore. */
+export function isExpoTunnelHost(host) {
+  return typeof host === 'string' && host.length <= 253 && /^[a-z0-9][a-z0-9_-]*\.exp\.direct$/.test(host);
+}
+
 /** Metro needs watch mode; database and worker processes keep their existing CI policy. */
 export function remoteExpoEnvironment(apiOrigin) {
   const url = new URL(apiOrigin);

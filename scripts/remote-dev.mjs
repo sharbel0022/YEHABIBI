@@ -7,7 +7,7 @@ import {createRequire} from 'node:module';
 import {repositoryRoot as root, freePort, startTestEnvironment} from '../test-support/local/environment.mjs';
 import {tailscale, tailscaleJson, selectPrivateDevice, assertUnusedServePort, ownsServePort, releaseServe} from '../test-support/remote/tailscale.mjs';
 import {classifyPhoneConnection} from '../test-support/remote/diagnostics.mjs';
-import {remoteExpoEnvironment} from '../test-support/remote/expo-environment.mjs';
+import {isExpoTunnelHost, remoteExpoEnvironment} from '../test-support/remote/expo-environment.mjs';
 
 const directory = path.join(root,'.tmp');
 const stateFile = path.join(directory,'remote-active.json');
@@ -66,7 +66,7 @@ async function discoverExpo(port,child,expectedApiOrigin,shouldStop=()=>false,de
     try{
       const manifest=await request(`http://127.0.0.1:${port}/`,{headers}).then(response=>response.json());
       const host=manifest.extra?.expoClient?.hostUri;
-      if(typeof host==='string' && /^[a-z0-9-]+\.exp\.direct$/.test(host)){
+      if(isExpoTunnelHost(host)){
         const remote=await request(`https://${host}/`,{headers});
         const remoteManifest=await remote.json();
         if(remote.ok && remoteManifest.extra?.expoClient?.hostUri===host && remoteManifest.extra?.expoClient?.sdkVersion===manifest.extra.expoClient.sdkVersion

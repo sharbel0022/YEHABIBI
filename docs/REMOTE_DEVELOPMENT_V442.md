@@ -213,6 +213,10 @@ npm run start --workspace @yehabibi/mobile -- --tunnel
 
 Den sista raden startar bara Expo och förutsätter att backend redan har valts korrekt. För hela den privata testmiljön använder du `npm run dev:remote`. [Expos dokumentation om tunnlar](https://docs.expo.dev/more/expo-cli/#tunneling) beskriver ngrok och att tunneltjänsten kan få tillfälliga anslutningsfel. När paketupplösningen lyckas men tunneln ändå misslyckas ska det rapporteras som ett separat tunnel- eller nätverksfel.
 
+En ytterligare startkontroll rättades efter ett verkligt prov: Expos base64url-slumpdel kan innehålla understreck inne i `exp.direct`-värdnamnet. Ett sådant genererat namn gav ett giltigt manifest med HTTP 200 över den publika HTTPS-tunneln, men startprogrammets tidigare för snäva namnkontroll avvisade det ändå. Kontrollen accepterar nu interna understreck och kräver fortfarande ett avgränsat värdnamn med exakt suffix `.exp.direct`, utan sökväg, port eller inloggningsuppgifter.
+
+Metro ska köras utan miljövariabeln `CI`; även värdet `0` lämnas bort helt. Den separata Expo-miljön behåller den rensade hemlighetsfria testkonfigurationen men aktiverar vanlig filbevakning. Ett faktiskt ombyggnadsprov ändrar en unik syntetisk fil i det delade paketet och kontrollerar att samma bundle-adress ger den nya versionen. Provet godkändes utan `CI` och upptäckte det ursprungliga felet när `CI=1` återinfördes i en separat kontroll.
+
 ## Genomförd verifiering och gränser
 
 Följande ngrok-kontroller genomfördes på Windows den 20 oktober 2026:

@@ -1,8 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { remoteExpoEnvironment } from '../test-support/remote/expo-environment.mjs';
+import { isExpoTunnelHost, remoteExpoEnvironment } from '../test-support/remote/expo-environment.mjs';
 
 const origin = 'https://development.synthetic-tailnet.ts.net:8443';
+
+test('Expo tunnel: verkligt base64url-understreck i värdnamnet får inte blockera en fungerande tunnel', () => {
+  assert.equal(isExpoTunnelHost('wgwgv_g-sharbel1423-49696.exp.direct'), true);
+  assert.equal(isExpoTunnelHost('synthetic-user-8081.exp.direct'), true);
+  assert.equal(isExpoTunnelHost('a'.repeat(242) + '.exp.direct'), true);
+  for (const host of [
+    undefined, null, 123, '', '_prefix.exp.direct', '-prefix.exp.direct',
+    'wgwgv_g-sharbel1423-49696.exp.direct.attacker.example', 'foreign.example',
+    'https://synthetic-user-8081.exp.direct', 'synthetic-user-8081.exp.direct/path',
+    'synthetic-user-8081.exp.direct:443', 'key@synthetic-user-8081.exp.direct',
+    'synthetic-user-8081.exp.direct?token=synthetic', 'synthetic-user-8081.exp.direct#fragment',
+    'synthetic.user-8081.exp.direct', 'SYNTHETIC-user-8081.exp.direct',
+    'synthetic%5fuser-8081.exp.direct', 'a'.repeat(243) + '.exp.direct',
+  ]) assert.equal(isExpoTunnelHost(host), false, 'Only the exact bounded Expo tunnel hostname may become a request target.');
+});
 
 test('Expo fjärrmiljö: CI saknas helt så Metro kan bevaka och bygga om filer', () => {
   const environment = remoteExpoEnvironment(origin);
