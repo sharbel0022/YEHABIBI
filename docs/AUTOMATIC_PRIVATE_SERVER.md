@@ -53,4 +53,6 @@ Automatiska prov täcker första anslutning utan godkännande, SecureStore-adapt
 
 Lokalt den 20 oktober 2026: **240 tester**, syntax/TypeScript, mobilens produktionsexport, nio verkliga databas-/fjärrkontroller och Tailscale Serve-provet passerade. HKCU-autostart installerades och lästes tillbaka, den dolda bakgrundsprocessen startade hela miljön, explicit stopp avslutade bakgrundens återstart, och nästa start bevarade samma isolerings-ID, databaskatalog och Expo-tunneladress. Windows native boot-ID gav samma värde i oberoende processer. Kund-API-försök från datorn med förfalskat telefon-ID nekades; detta är inte ett telefonprov.
 
+Ett separat felprov avslutade endast den egna Expo-barnprocessen. Bakgrundsservern återställde därefter hela miljön automatiskt med ny serverprocess men samma Expo-adress och isolerings-ID. Detta verifierar datorns återstart efter Expo-avbrott; telefonens återhämtning ska fortfarande provas fysiskt.
+
 Verklig Windows-omstart/inloggning, normal inaktivitet som passerar datorns vilotid, telefonens native SecureStore och användning utanför hemmet över 4G/5G ska redovisas som overifierade tills de faktiskt provats. Ingen Windows-omstart eller avstängning utförs automatiskt av installationen.

@@ -127,6 +127,9 @@ async function start() {
   fs.mkdirSync(directory,{recursive:true});
   const bootId=await currentBootId();
   if(!argv.includes('--server') && fs.existsSync(path.join(directory,'remote-server-paused.json')))fs.unlinkSync(path.join(directory,'remote-server-paused.json'));
+  const servicePaused=()=>argv.includes('--server')&&fs.existsSync(path.join(directory,'remote-server-paused.json'))
+    && JSON.parse(fs.readFileSync(path.join(directory,'remote-server-paused.json'),'utf8')).bootId===bootId;
+  if(servicePaused())return;
   await recoverReboot(bootId);
   const active=readState();
   if(active){await controller(active,'/status');console.log(`En egen session kör redan. Privat webb: ${active.publicOrigin}\nExpo Go: ${active.expoUrl}\nAnvänd dev:remote:stop före omstart.`);return;}
@@ -143,10 +146,11 @@ async function start() {
     try{await tailscale(['ping','--c=1','--timeout=5s',device.deviceName]);console.log('Registrerad telefon svarar via privat tailnet. 4G/5G och Expo måste verifieras på telefonen.');}
     catch{console.log('Telefonen är registrerad men svarar inte på Tailscale-ping just nu. Servern startas med samma privata autentisering; mobilprovet kräver att telefonen återansluts.');}
   }
+  if(servicePaused())return;
   let lock;
   try{lock=fs.openSync(lockFile,'wx',0o600);fs.writeFileSync(lock,JSON.stringify({marker,pid:process.pid,bootId}));}catch{throw new Error('En start pågår eller avbröts. Kör dev:remote:doctor; inget befintligt startlås skrivs över.');}
   let session,gateway,expo,serveLease,control,log,stopping=false,booting=true,shutdownRequested=false;
-  const checkContinue=()=>{if(shutdownRequested)throw new Error('Starten avbröts. Den egna sessionen stängs säkert.');};
+  const checkContinue=()=>{if(shutdownRequested||servicePaused())throw new Error('Starten avbröts. Den egna sessionen stängs säkert.');};
   let finish;const finished=new Promise(resolve=>{finish=resolve;});
   const cleanup=async()=>{
     if(stopping)return;stopping=true;
