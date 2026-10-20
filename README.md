@@ -12,6 +12,19 @@ Läs [V4.3-guiden](docs/PAYMENTS_WITHOUT_STRIPE_V4_3.md) för betalningsflöde, 
 
 För kompletta orderflöden utan riktiga pengar finns en separat lokal testmiljö med PostgreSQL/PostgREST, syntetisk meny, egen testadmin, testinkorg och simulerade betalningar. Start, återställning och mobilanslutning beskrivs i [TEST_ORDER_PAYMENT_GUIDE.md](docs/TEST_ORDER_PAYMENT_GUIDE.md). Testadaptern och dess sidor kopieras endast till en isolerad arbetskopia; de ingår inte i produktionsappen eller den publika Site-versionen.
 
+## Privat fjärrtest med Expo Go
+
+V4.4.2 använder Expo Tunnel för utvecklingsappen och privat Tailscale HTTPS för samma isolerade testbackend. Anslut datorn och telefonen till samma Tailscale-konto och kör från repots rot:
+
+```powershell
+npm run dev:remote
+npm run dev:remote:doctor
+# Stoppa från en andra PowerShell; testdatabasen behålls.
+npm run dev:remote:stop
+```
+
+Starten visar aktuell Expo Go-länk och den riktiga privata API-adressen. Sessionsnycklar läses lokalt ur `.tmp/remote-credentials.txt`; de ingår inte i apppaketet. SDK 57 på fysisk iPhone kräver kompatibel Expo Go via `eas go`/TestFlight eller en development build. Vanlig App Store-version kan inte förutsättas fungera. Läs [REMOTE_DEVELOPMENT_V442.md](docs/REMOTE_DEVELOPMENT_V442.md) för installation, ngrok-fixen, behörigheter, Android/iPhone och testprotokollet över 4G/5G.
+
 ## Starta i Windows
 
 Använd Node.js 22.13 eller senare. Kör i repots rot:
@@ -81,6 +94,7 @@ docs/               Svenska guider och verifieringsresultat
 | [PAYMENTS_WITHOUT_STRIPE_V4_3.md](docs/PAYMENTS_WITHOUT_STRIPE_V4_3.md) | Adyen-kandidat, bank-Swish/Nexi, kostnader och installation |
 | [BETALNINGAR.md](docs/BETALNINGAR.md) | Godkännande, prisförslag, hostad betalning och webhook |
 | [EXPO.md](docs/EXPO.md) | Windows, Expo Go, Android och EAS |
+| [REMOTE_DEVELOPMENT_V442.md](docs/REMOTE_DEVELOPMENT_V442.md) | Privat fjärrtest, Tailscale, Expo Tunnel, start/stopp och fysiskt testprotokoll |
 | [TESTER.md](docs/TESTER.md) | Körda tester och kvarvarande externa kontroller |
 | [PUBLICERING.md](docs/PUBLICERING.md) | GitHub, miljöer och faktisk Sites-status |
 

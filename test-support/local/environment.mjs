@@ -50,7 +50,10 @@ export async function freePort(requestedPort = 0) {
 }
 export async function waitReady(url, children, directory, expectedIsolationId) {
   const assertRunning = () => {
-    for (const child of children) if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Testprocess avslutades (${child.exitCode ?? child.signalCode}). Redigerade loggar: ${directory}`);
+    for (const child of children) {
+      if (child.testStartupError) throw new Error(`Testprocess kunde inte startas (${child.testStartupError.code || 'spawn'}). Redigerade loggar: ${directory}`);
+      if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Testprocess avslutades (${child.exitCode ?? child.signalCode}). Redigerade loggar: ${directory}`);
+    }
   };
   for (let attempt = 0; attempt < 180; attempt++) {
     assertRunning();
@@ -68,8 +71,12 @@ export async function waitReady(url, children, directory, expectedIsolationId) {
 
 export async function startTestEnvironment(options = {}) {
   const root = repositoryRoot;
-  const isolationId = randomUUID(), secret = randomBytes(32).toString('hex');
-  const directory = path.join(root, '.tmp', `test-mode-${isolationId}`);
+  const restore = options.restoreDirectory ? path.resolve(options.restoreDirectory) : null;
+  if (restore && (path.dirname(restore) !== path.join(root, '.tmp') || !/^test-mode-[a-f\d-]{36}$/.test(path.basename(restore)))) throw new Error('Okänd testdatabas återanvänds inte.');
+  const savedConfig = restore ? JSON.parse(fs.readFileSync(path.join(restore, 'reusable-session.json'), 'utf8')) : null;
+  if (savedConfig && (savedConfig.marker !== 'YEHABIBI_REUSABLE_TEST_V1' || !/^[a-f\d-]{36}$/.test(savedConfig.isolationId) || !/^[a-f\d]{64}$/.test(savedConfig.secret))) throw new Error('Ogiltigt återställningskontrakt.');
+  const isolationId = savedConfig?.isolationId || randomUUID(), secret = savedConfig?.secret || randomBytes(32).toString('hex');
+  const directory = restore || path.join(root, '.tmp', `test-mode-${isolationId}`);
   fs.mkdirSync(directory, { recursive: true });
   const pgBin = options.pgBin || process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/lib/postgresql/18/bin');
   const executable = name => path.join(pgBin, name + (process.platform === 'win32' ? '.exe' : ''));
@@ -86,7 +93,7 @@ export async function startTestEnvironment(options = {}) {
     return (result.stdout || '').trim();
   };
   const choosePort = async name => {
-    const selected = options.ports?.[name];
+    const selected = options.ports?.[name] ?? savedConfig?.ports?.[name];
     if (selected === undefined) return freePort();
     assert.ok(Number.isInteger(selected) && selected >= 1024 && selected <= 65535, `Ogiltig lokal testport: ${name}`);
     // Reject an occupied fixed port before initializing the database or launching any process.
@@ -110,6 +117,10 @@ export async function startTestEnvironment(options = {}) {
       stream.on('end', () => { if (pending) log.write(redacted(pending)); });
     }
     child.once('close', () => log.end());
+    child.once('error', error => {
+      child.testStartupError = error;
+      if (ready && !stopped) void stop().then(() => options.onFailure?.(new Error(`Isolerad testprocess kunde inte startas (${error.code || 'spawn'}).`))).catch(stopError => options.onFailure?.(new Error(`Testprocessens stopp misslyckades: ${redacted(stopError.message)}`)));
+    });
     child.once('exit', (code, signal) => {
       if (!ready || stopped) return;
       const failure = new Error(`Isolerad testprocess avslutades oväntat (${path.basename(file)}, kod ${code ?? signal}). Starta en ny testsession. Redigerade loggar: ${directory}`);
@@ -121,6 +132,7 @@ export async function startTestEnvironment(options = {}) {
   const stop = async () => {
     if (stopped) return; stopped = true;
     for (const child of [...children].reverse()) {
+      if (!child.pid) continue;
       if (child.exitCode !== null || child.signalCode !== null) continue;
       const exit = new Promise(resolve => child.once('exit', resolve));
       if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' });
@@ -135,7 +147,7 @@ export async function startTestEnvironment(options = {}) {
     }
     options.onStop?.();
   };
-  const jwtSecret = randomBytes(48).toString('base64url');
+  const jwtSecret = savedConfig?.jwtSecret || randomBytes(48).toString('base64url');
   const userId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', ownerEmail = 'owner@example.test';
   const jwt = claims => {
     const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -146,13 +158,22 @@ export async function startTestEnvironment(options = {}) {
   const user = { id: userId, aud: 'authenticated', role: 'authenticated', email: ownerEmail, email_confirmed_at: new Date().toISOString(), app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() };
   const session = { access_token: admin, refresh_token: randomBytes(32).toString('hex'), token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user };
   const cookie = `sb-127-auth-token=base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
-  const adminPassword = randomBytes(12).toString('base64url');
+  const adminPassword = savedConfig?.adminPassword || randomBytes(12).toString('base64url');
+  const orderLinkSecret = savedConfig?.orderLinkSecret || randomBytes(32).toString('hex');
+  const orderRateLimitSecret = savedConfig?.orderRateLimitSecret || randomBytes(32).toString('hex');
+  const schemaHash = createHash('sha256').update(fs.readdirSync(path.join(root, 'supabase/migrations')).filter(name => name.endsWith('.sql')).sort().map(name => fs.readFileSync(path.join(root, 'supabase/migrations', name), 'utf8')).join('\n') + fs.readFileSync(path.join(root, 'test-support/payments/schema.sql'), 'utf8')).digest('hex');
+  if (savedConfig && savedConfig.schemaHash !== schemaHash) throw new Error('Testschema har ändrats. Starta med dev:remote -- --reset för en ny databas; tidigare data behålls.');
   const mails = new Map(), pushes = new Map();
   const json = (response, status, data) => { response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' }); response.end(JSON.stringify(data)); };
   const isAdmin = request => (request.headers.cookie || '').split(';').map(item => item.trim()).includes(cookie);
   try {
-    command(executable('initdb'), ['-D', pgData, '-U', 'postgres', '--auth=trust', '--no-locale', '-E', 'UTF8']);
+    if (!savedConfig) command(executable('initdb'), ['-D', pgData, '-U', 'postgres', '--auth=trust', '--no-locale', '-E', 'UTF8']);
     command(executable('pg_ctl'), ['-D', pgData, '-l', path.join(directory, 'postgres.log'), '-o', `-p ${pgPort} -h 127.0.0.1 -c shared_buffers=16MB -c max_connections=40${process.platform === 'win32' ? '' : ' -c unix_socket_directories='}`, '-w', 'start']); pgStarted = true;
+    if (savedConfig) {
+      const marker = rows('select isolation_id,secret_hash from public.test_environment_guard where id=true')[0];
+      assert.equal(marker?.isolation_id, isolationId, 'Återanvänd testdatabas har fel identitet.');
+      assert.equal(marker?.secret_hash, createHash('sha256').update(secret).digest('hex'), 'Testdatabasens attestering misslyckades.');
+    } else {
     sql(`create role anon;create role authenticated;create role service_role bypassrls;
       create schema auth;create table auth.users(id uuid primary key);
       create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -178,6 +199,7 @@ export async function startTestEnvironment(options = {}) {
         weekly_hours=(select jsonb_agg(jsonb_build_object('weekday',day,'closed',false,'opens_at','00:00','closes_at','23:59','cutoff_at','23:45','pickup_from','00:00','pickup_until','23:59','delivery_from','00:00','delivery_until','23:59')) from generate_series(0,6) day) where id=1;`);
     // Registry schema comes from the real additive migration; only this isolated database gets local_test.
     sql(`insert into public.payment_provider_registry(provider,environment,checkout_base_url,active) values('local_test','test',${literal(origin + '/__test/payment/')},true);`);
+    }
     // Keep a controlled runtime budget; cleanProcessEnvironment excludes
     // inherited GHCRTS and all provider secrets.
     start(postgrest, ['+RTS',process.platform === 'win32' ? '-N1' : '-N2','-RTS'], { PGRST_DB_URI: `postgresql://postgres@127.0.0.1:${pgPort}/postgres`, PGRST_DB_ANON_ROLE: 'anon', PGRST_DB_SCHEMAS: 'public', PGRST_SERVER_HOST: '127.0.0.1', PGRST_SERVER_PORT: String(restPort), PGRST_JWT_SECRET: jwtSecret });
@@ -233,7 +255,8 @@ export async function startTestEnvironment(options = {}) {
       } catch { json(response, 500, { error: 'Lokalt testanrop misslyckades.' }); }
     });
     await new Promise((resolve, reject) => { bridge.once('error', reject); bridge.listen(bridgePort, '127.0.0.1', resolve); });
-    const workspace = path.join(directory, 'workspace'), web = path.join(workspace, 'apps/web');
+    // Reusable databases get a fresh source overlay on each run; never overwrite existing junctions.
+    const workspace = path.join(directory, savedConfig ? `workspace-${randomUUID()}` : 'workspace'), web = path.join(workspace, 'apps/web');
     fs.mkdirSync(web, { recursive: true });
     for (const entry of ['src', 'public', 'package.json', 'tsconfig.json', 'next.config.ts', 'next-env.d.ts']) {
       const source = path.join(root, 'apps/web', entry); if (fs.existsSync(source)) fs.cpSync(source, path.join(web, entry), { recursive: true });
@@ -262,7 +285,7 @@ export async function GET() {
       NEXT_PUBLIC_SITE_URL: origin, NEXT_PUBLIC_INDEXABLE: 'false', NEXT_PUBLIC_SUPABASE_URL: backendOrigin, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon, SUPABASE_SERVICE_ROLE_KEY: service,
       ORDERS_ENABLED: 'true', PAYMENTS_ENABLED: 'false', TEST_PAYMENTS_ENABLED: 'true', PAYMENT_PROVIDER: '', ADYEN_ENVIRONMENT: 'test', PAYMENTS_LIVE_APPROVED: 'false', ADYEN_LIVE_URL_PREFIX: '', ADYEN_API_KEY: '', ADYEN_HMAC_KEY: '', ADYEN_MERCHANT_ACCOUNT: '', ADYEN_ENABLED_METHODS: '', ADYEN_CAPTURE_MODE: '',
       NOTIFICATIONS_ENABLED: 'true', BACKGROUND_JOB_SECRET:randomBytes(32).toString('hex'), RESEND_API_KEY: 're_isolated_capture_only', EMAIL_FROM: 'Yehabibi TEST <orders@example.test>', OWNER_NOTIFICATION_EMAIL: ownerEmail, ADMIN_EMAILS: ownerEmail,
-      ORDER_LINK_SECRET: randomBytes(32).toString('hex'), ORDER_RATE_LIMIT_SECRET: randomBytes(32).toString('hex'), OWNER_PUSH_ENABLED: 'true', CUSTOMER_PUSH_ENABLED: 'true', EXPO_ACCESS_TOKEN: '', MOBILE_WEB_ORIGINS: `http://localhost:${metroPort},http://127.0.0.1:${metroPort},http://10.0.2.2:${webPort},${origin}` };
+      ORDER_LINK_SECRET: orderLinkSecret, ORDER_RATE_LIMIT_SECRET: orderRateLimitSecret, OWNER_PUSH_ENABLED: 'true', CUSTOMER_PUSH_ENABLED: 'true', EXPO_ACCESS_TOKEN: '', MOBILE_WEB_ORIGINS: `http://localhost:${metroPort},http://127.0.0.1:${metroPort},http://10.0.2.2:${webPort},${origin}` };
     start(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(webPort)], webEnv, web);
     await waitReady(`${origin}/__test/ready`, children, directory, isolationId);
     // A real independent process invokes the same authenticated endpoint while browsers are closed.
@@ -270,6 +293,7 @@ export async function GET() {
       BACKGROUND_JOB_URL:`${origin}/api/internal/jobs`,BACKGROUND_JOB_SECRET:webEnv.BACKGROUND_JOB_SECRET,BACKGROUND_JOB_INTERVAL_MS:'500'});
     const state = { isolationId, origin, backendOrigin, directory, metroPort, adminLogin: `${backendOrigin}/__test/login`, inbox: `${backendOrigin}/__test/inbox`, androidApi: `http://10.0.2.2:${webPort}`, marker: 'YEHABIBI_ISOLATED_LOCAL_TEST', controlSecret: secret };
     fs.writeFileSync(path.join(directory, 'private-session.json'), JSON.stringify({ ...state, adminPassword }, null, 2), { mode: 0o600 });
+    if (options.reusable || savedConfig) fs.writeFileSync(path.join(directory, 'reusable-session.json'), JSON.stringify({marker:'YEHABIBI_REUSABLE_TEST_V1', isolationId, secret, jwtSecret, adminPassword, orderLinkSecret, orderRateLimitSecret, schemaHash, ports:{web:webPort,bridge:bridgePort,metro:metroPort}}, null, 2), {mode:0o600});
     if (options.persistent) fs.writeFileSync(activeSessionPath, JSON.stringify(state, null, 2), { mode: 0o600 });
     ready = true;
     const tick=async()=>{

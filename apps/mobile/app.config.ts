@@ -30,6 +30,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ['expo-splash-screen', { image: './assets/icon.png', imageWidth: 160, backgroundColor: '#FFFFFF' }],
     ],
     experiments: { typedRoutes: true },
-    extra: { ...(projectId ? { eas: { projectId } } : {}) },
+    extra: {
+      appEnvironment: environment,
+      ...(environment === 'test' && process.env.EXPO_PUBLIC_REMOTE_TEST === 'true'
+        ? { remoteTestApiOrigin: process.env.EXPO_PUBLIC_API_URL } : {}),
+      ...(projectId ? { eas: { projectId } } : {}),
+    },
   };
 };
