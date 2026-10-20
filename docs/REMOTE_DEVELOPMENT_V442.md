@@ -27,6 +27,8 @@ npm run dev:remote
 
 `npm ci` behövs vid första installationen eller när låsfilen ändrats. Kör det när andra Yehabibi-servrar är stoppade. Den vanliga starten kontrollerar beroendena och installerar inga globala paket automatiskt.
 
+På Windows används `npm.cmd` i exemplen som skickar extra flaggor efter `--`. PowerShells `npm.ps1` tappade separatorn i den verifierade miljön med npm 11.4.2 och behandlade exempelvis `--reset` som npm-konfiguration. `npm.cmd run dev:remote -- --reset` verifierades skicka flaggan till startprogrammet och skapa en ny databas. Grundkommandona utan tillval fungerar med `npm` som ovan.
+
 Starten ska visa **TESTLÄGE – INGA RIKTIGA PENGAR**, den verkliga privata HTTPS-adressen och en ny `exp://`-länk. Använd adresserna från den aktuella körningen; tunneladressen kan ändras mellan starter. Backendadressen läses från Tailscale och skrivs inte som en platshållare i miljöfiler.
 
 En enda registrerad telefon väljs automatiskt. Om flera telefoner finns kan du välja den registrerade telefonens node-ID, DNS-namn eller värdnamn:
@@ -34,7 +36,7 @@ En enda registrerad telefon väljs automatiskt. Om flera telefoner finns kan du 
 ```powershell
 tailscale status
 $remotePhoneId = Read-Host 'Telefonens node-ID, DNS-namn eller värdnamn från Tailscale'
-npm run dev:remote -- --device $remotePhoneId
+npm.cmd run dev:remote -- --device $remotePhoneId
 ```
 
 Telefonen måste tillhöra samma inloggade Tailscale-användare som datorn. Lägg inte till en delad eller okänd enhet för att passera kontrollen. Tailscale-status och kontaktbarhet är förkontroller; de ersätter inte det fysiska 4G/5G-testet nedan.
@@ -42,7 +44,7 @@ Telefonen måste tillhöra samma inloggade Tailscale-användare som datorn. Läg
 Fjärrläget använder normalt privat HTTPS-port **8443** och kontrollerar att den är ledig i Serve-konfigurationen. En befintlig tjänst på 443 ska lämnas orörd. Vid en portkonflikt väljer du uttryckligen en annan privat HTTPS-port:
 
 ```powershell
-npm run dev:remote -- --https-port 9443
+npm.cmd run dev:remote -- --https-port 9443
 ```
 
 Lokala backend-, databas- och Metroportar väljs av startprogrammet. Skriv inte in datorns hem-IP eller ett tillfälligt internt portnummer i mobilappen.
@@ -122,10 +124,12 @@ För en uttryckligen ny testdatabas:
 
 ```powershell
 npm run dev:remote:stop
-npm run dev:remote -- --reset
+npm.cmd run dev:remote -- --reset
 ```
 
 `--reset` väljer en ny isolerad databas och nya uppgifter; den gamla katalogen behålls. Byt till de nya uppgifterna i mobilappen. Kör inte breda borttagningskommandon i `.tmp` för att felsöka en start.
+
+Den befintliga ordergränsen på fem nya beställningar per timme gäller även i fjärrtest. Vid HTTP 429 väntar du till nästa timme, eller väljer uttryckligen en ny isolerad databas med reset-kommandot ovan. Spärren avaktiveras inte för att fortsätta tester.
 
 ## Stoppa och diagnostisera
 
@@ -217,7 +221,7 @@ Ett separat Windows-prov avbröt `dev:remote` medan databasen startade via den a
 
 Säkerhetsgrinden är inte en uppgift om noll kända sårbarheter: den accepterar den tidigare granskade baslinjen med 19 high och 11 moderate-fynd, daterade undantag och fortsatt blockerad publik mobilrelease enligt `docs/SECURITY_REVIEW.md`. Ngroks nya uuid-väg tillför inget undantag. Fysiska testresultat och CI-status för PR/main ska redovisas separat från dessa lokala körningar.
 
-Main hade vid kontrollen den 20 oktober 2026 godkänd CI på utgångscommiten `8147be69`: [GitHub Actions-körning 39248781877](https://github.com/sharbel0022/YEHABIBI/actions/runs/39248781877). Det verifierar utgångsläget. V4.4.2:s PR behöver egna godkända kontroller och genomförd kodgranskning före merge.
+V4.4.2 mergades som `db13f22` efter godkända PR-kontroller och genomförd agentkodgranskning: [PR 11](https://github.com/sharbel0022/YEHABIBI/pull/11). Även efterföljande [CI på main](https://github.com/sharbel0022/YEHABIBI/actions/runs/39411537794) passerade. Ett extra prov från Windows-datorn genom den faktiska privata Tailscale-HTTPS-adressen bekräftade betalda testorder för Swish, Apple Pay, Google Pay och kort samt samma order i köksadmin. Telefonens mobilnät ingick inte i detta prov. En ny tom testdatabas startades därefter för användarens mobilprov; tidigare provdatabaser behölls på disk.
 
 ## Fysiskt testprotokoll för iPhone och Android
 
