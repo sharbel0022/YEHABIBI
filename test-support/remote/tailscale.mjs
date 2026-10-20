@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {isIP} from 'node:net';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute = promisify(execFile);
@@ -13,6 +14,34 @@ export async function tailscale(args) {
   catch (error) { throw new Error(`Tailscale ${args[0]} misslyckades. Kontrollera installation, inloggning och behörighet i Tailscale. ${error.code || ''}`); }
 }
 export const tailscaleJson = async args => JSON.parse(await tailscale(args));
+
+/** Only call behind our private Serve target. Serve overwrites X-Forwarded-For
+ * and removes caller identity headers. The local netmap, not a client node-ID
+ * header, supplies the stable device identity. Tagged/shared nodes fail closed. */
+export function resolveServeIdentity(status, {sourceIp, login}, allowedNodeIds) {
+  if (status?.BackendState !== 'Running' || !status.Self?.Online || typeof sourceIp !== 'string'
+    || !isIP(sourceIp) || typeof login !== 'string') return null;
+  const matches = Object.values(status.Peer || {}).filter(peer => peer.TailscaleIPs?.includes(sourceIp));
+  if (matches.length !== 1) return null;
+  const peer = matches[0], user = status.User?.[String(peer.UserID)];
+  if (!peer.InNetworkMap || peer.Tags?.length || peer.ShareeNode || peer.AltSharerUserID || peer.UserID !== status.Self.UserID
+    || !allowedNodeIds.includes(peer.ID) || !user?.LoginName
+    || user.LoginName.toLowerCase() !== login.toLowerCase()) return null;
+  return {nodeId:peer.ID, login:user.LoginName.toLowerCase()};
+}
+
+export function createServeIdentityResolver({allowedNodeIds, readStatus = () => tailscaleJson(['status','--json']), now = Date.now}) {
+  let cached, expires = 0, pending;
+  return async input => {
+    if (!cached || expires <= now()) {
+      if (!pending) pending = Promise.resolve().then(readStatus).then(status => {
+        cached = status; expires = now() + 3000; return status;
+      }).catch(() => { cached = null; expires = 0; return null; }).finally(() => { pending = null; });
+      await pending;
+    }
+    return resolveServeIdentity(cached, input, allowedNodeIds);
+  };
+}
 export function selectPrivateDevice(status, selector) {
   if (status.BackendState !== 'Running' || !status.Self?.Online) throw new Error('Tailscale är inte anslutet. Öppna Tailscale och logga själv in.');
   const dns = String(status.Self.DNSName || '').replace(/\.$/, '').toLowerCase();

@@ -5,22 +5,63 @@ import {spawn, spawnSync} from 'node:child_process';
 import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {repositoryRoot as root, freePort, startTestEnvironment} from '../test-support/local/environment.mjs';
-import {tailscale, tailscaleJson, selectPrivateDevice, assertUnusedServePort, ownsServePort, releaseServe} from '../test-support/remote/tailscale.mjs';
+import {tailscale, tailscaleJson, selectPrivateDevice, assertUnusedServePort, ownsServePort, releaseServe, createServeIdentityResolver} from '../test-support/remote/tailscale.mjs';
 import {classifyPhoneConnection} from '../test-support/remote/diagnostics.mjs';
 import {isExpoTunnelHost, remoteExpoEnvironment} from '../test-support/remote/expo-environment.mjs';
+import {createDeviceRegistry} from '../test-support/remote/devices.mjs';
+import {currentBootId, canRecoverAfterReboot} from '../test-support/remote/reboot.mjs';
 
 const directory = path.join(root,'.tmp');
 const stateFile = path.join(directory,'remote-active.json');
 const lockFile = path.join(directory,'remote-starting.json');
 const databaseFile = path.join(directory,'remote-database.json');
 const credentialsFile = path.join(directory,'remote-credentials.txt');
+const devicesFile = path.join(directory,'remote-devices.json');
 const marker = 'YEHABIBI_PRIVATE_REMOTE_V442';
 const argv = process.argv.slice(2);
 const readOption = name => {const i=argv.indexOf(name); if(i<0)return undefined; if(!argv[i+1] || argv[i+1].startsWith('--'))throw new Error(`Värde saknas för ${name}.`); return argv[i+1];};
 const writePrivate = (file,value) => fs.writeFileSync(file,JSON.stringify(value,null,2),{mode:0o600});
 const readState = () => {if(!fs.existsSync(stateFile))return null; const state=JSON.parse(fs.readFileSync(stateFile,'utf8')); const control=new URL(state.controlOrigin); if(state.marker!==marker || control.protocol!=='http:' || control.hostname!=='127.0.0.1' || control.pathname!=='/' || control.search || control.hash || control.username || control.password)throw new Error('Okänd fjärrsession lämnas orörd.'); return state;};
 const request = (url,options={},timeout=10000) => fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(timeout)});
-async function controller(state,route,method='GET') {const response=await request(`${state.controlOrigin}${route}`,{method,headers:{'x-yehabibi-control':state.controlToken}},30000); if(!response.ok)throw new Error('Den egna sessionskontrollen svarade inte korrekt.');return response.json();}
+async function controller(state,route,method='GET',body) {const response=await request(`${state.controlOrigin}${route}`,{method,headers:{'x-yehabibi-control':state.controlToken,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})},30000);const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error || 'Den egna sessionskontrollen svarade inte korrekt.');return result;}
+
+async function recoverReboot(bootId) {
+  const state=readState(), lock=fs.existsSync(lockFile)?JSON.parse(fs.readFileSync(lockFile,'utf8')):null;
+  if(!canRecoverAfterReboot({state,lock,bootId,marker}))return;
+  // A verified different OS boot proves all old processes are gone. Never kill
+  // saved PIDs. Remove only the exact Serve lease we wrote before its creation.
+  if(state?.serveLease){
+    const lease=state.serveLease, target=new URL(lease.target);
+    if(target.protocol!=='http:' || target.hostname!=='127.0.0.1' || !target.port || target.username || target.password
+      || !/^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/.test(lease.dns))throw new Error('Okänd Serve-lease lämnas orörd.');
+    const config=await tailscaleJson(['serve','status','--json']);
+    if(ownsServePort(config,lease))await releaseServe(lease);
+    else assertUnusedServePort(config,lease.port);
+  }
+  for(const file of [stateFile,lockFile,credentialsFile])if(fs.existsSync(file))fs.unlinkSync(file);
+  console.log('Verifierad Windows/OS-omstart: tidigare egen sessionsmetadata städad. Godkända enheter och testdatabas behålls.');
+}
+
+async function manageDevices() {
+  const index=argv.indexOf('--devices'), action=argv[index+1] || 'list', id=argv[index+2], code=argv[index+3];
+  if(!['list','approve','revoke','revoke-all'].includes(action) || (['approve','revoke'].includes(action) && !id)
+    || action==='approve' && !code)throw new Error('Använd dev:remote:devices -- list | approve <id> <jämförelsekod> | revoke <id> | revoke-all.');
+  fs.mkdirSync(directory,{recursive:true});
+  const bootId=await currentBootId();
+  await recoverReboot(bootId);
+  const state=readState();
+  let result;
+  if(state)result=await controller(state,'/devices',action==='list'?'GET':'POST',action==='list'?undefined:{action,id,code});
+  else {
+    if(fs.existsSync(lockFile))throw new Error('Fjärrstart pågår. Vänta tills sessionen kan ta emot enhetskommandot.');
+    if(action==='approve')throw new Error('Starta dev:remote och jämför koden på telefonen före godkännande.');
+    const registry=createDeviceRegistry({file:devicesFile,bootId});
+    if(action==='revoke')registry.revoke(id);
+    if(action==='revoke-all')registry.revokeAll();
+    result={devices:registry.list()};
+  }
+  console.log(JSON.stringify(result,null,2));
+}
 async function stopActive() {
   const state=readState();
   if(!state){console.log('Ingen aktiv privat fjärrtestsession.');return;}
@@ -82,6 +123,8 @@ async function start() {
   const [major,minor]=process.versions.node.split('.').map(Number);
   if(major<22 || major===22 && minor<13)throw new Error('Node.js 22.13 eller senare krävs.');
   fs.mkdirSync(directory,{recursive:true});
+  const bootId=await currentBootId();
+  await recoverReboot(bootId);
   const active=readState();
   if(active){await controller(active,'/status');console.log(`En egen session kör redan. Privat webb: ${active.publicOrigin}\nExpo Go: ${active.expoUrl}\nAnvänd dev:remote:stop före omstart.`);return;}
   const require=createRequire(path.join(root,'apps/mobile/package.json'));
@@ -98,7 +141,7 @@ async function start() {
     catch{console.log('Telefonen är registrerad men svarar inte på Tailscale-ping just nu. Servern startas med samma privata autentisering; mobilprovet kräver att telefonen återansluts.');}
   }
   let lock;
-  try{lock=fs.openSync(lockFile,'wx',0o600);fs.writeFileSync(lock,JSON.stringify({marker,pid:process.pid}));}catch{throw new Error('En start pågår eller avbröts. Kör dev:remote:doctor; inget befintligt startlås skrivs över.');}
+  try{lock=fs.openSync(lockFile,'wx',0o600);fs.writeFileSync(lock,JSON.stringify({marker,pid:process.pid,bootId}));}catch{throw new Error('En start pågår eller avbröts. Kör dev:remote:doctor; inget befintligt startlås skrivs över.');}
   let session,gateway,expo,serveLease,control,log,stopping=false,booting=true,shutdownRequested=false;
   const checkContinue=()=>{if(shutdownRequested)throw new Error('Starten avbröts. Den egna sessionen stängs säkert.');};
   let finish;const finished=new Promise(resolve=>{finish=resolve;});
@@ -120,6 +163,7 @@ async function start() {
   const shutdown=()=>{shutdownRequested=true;if(!booting)void cleanup();};process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
   try{
     const publicOrigin=`https://${device.dns}:${httpsPort}`;
+    const registry=createDeviceRegistry({file:devicesFile,bootId});
     const accessToken=randomBytes(32).toString('base64url'),adminToken=randomBytes(32).toString('base64url'),controlToken=randomBytes(32).toString('base64url');
     let health=async()=>({backend:false,metro:false,tunnel:false,worker:false,privateHttps:false,api:false});
     control=http.createServer(async(req,res)=>{
@@ -127,11 +171,25 @@ async function start() {
       if(typeof supplied!=='string' || Buffer.byteLength(supplied)!==Buffer.byteLength(controlToken) || !timingSafeEqual(Buffer.from(supplied),Buffer.from(controlToken))){res.writeHead(401);res.end();return;}
       if(req.url==='/stop' && req.method==='POST'){res.writeHead(200,{'Content-Type':'application/json'});res.end('{"stopping":true}');setImmediate(shutdown);}
       else if(req.url==='/status' && req.method==='GET'){try{const data=await health();res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));}catch{res.writeHead(503);res.end();}}
+      else if(req.url==='/devices' && ['GET','POST'].includes(req.method)){
+        try{
+          if(req.method==='POST'){
+            const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>4096)throw new Error('För stort enhetskommando.');chunks.push(chunk);}
+            const input=JSON.parse(Buffer.concat(chunks).toString());
+            if(input.action==='approve')registry.approve(input.id,input.code);
+            else if(input.action==='revoke')registry.revoke(input.id);
+            else if(input.action==='revoke-all')registry.revokeAll();
+            else throw new Error('Okänt enhetskommando.');
+          }
+          res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({devices:registry.list()}));
+        }catch(error){res.writeHead(400,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({error:error.message}));}
+      }
       else {res.writeHead(404);res.end();}
     });
     await new Promise((resolve,reject)=>{control.once('error',reject);control.listen(0,'127.0.0.1',resolve);});
     const controlOrigin=`http://127.0.0.1:${control.address().port}`;
-    writePrivate(stateFile,{marker,pid:process.pid,controlOrigin,controlToken,publicOrigin,expoUrl:null,deviceId:device.deviceId,stage:'starting'});
+    const startingState={marker,pid:process.pid,bootId,controlOrigin,controlToken,publicOrigin,expoUrl:null,deviceId:device.deviceId,stage:'starting'};
+    writePrivate(stateFile,startingState);
     checkContinue();
     let restoreDirectory;
     if(fs.existsSync(databaseFile) && !argv.includes('--reset')){const saved=JSON.parse(fs.readFileSync(databaseFile,'utf8'));if(saved.marker!==marker)throw new Error('Okänd sparad databas.');restoreDirectory=saved.directory;}
@@ -142,11 +200,14 @@ async function start() {
     const {startRemoteGateway}=await import('../test-support/remote/gateway.mjs');
     const selectedPeer=Object.values(status.Peer||{}).find(peer=>peer.ID===device.deviceId);
     gateway=await startRemoteGateway({session,publicOrigin,allowedLogins:device.allowedLogins,accessToken,adminToken,
+      proxySecret:randomBytes(32).toString('base64url'),deviceRegistry:registry,
+      resolveIdentity:createServeIdentityResolver({allowedNodeIds:[device.deviceId]}),
       phoneIps:selectedPeer?.TailscaleIPs || [],selfIps:status.Self.TailscaleIPs || []});
     checkContinue();
     // Recheck immediately before mutation. Only an entirely unused port is eligible.
     assertUnusedServePort(await tailscaleJson(['serve','status','--json']),httpsPort);
     const candidate={dns:device.dns,port:httpsPort,target:gateway.origin};
+    writePrivate(stateFile,{...startingState,serveLease:candidate});
     try{await tailscale(['serve','--bg',`--https=${httpsPort}`,'--yes',gateway.origin]);}
     catch(error){if(ownsServePort(await tailscaleJson(['serve','status','--json']),candidate))serveLease=candidate;throw error;}
     serveLease=candidate;
@@ -195,13 +256,13 @@ async function start() {
       const phone=classifyPhoneConnection({...transport,ingress,pcHttpsSelfCheck:privateHttps});
       return {backend,metro,tunnel,worker:!!worker && worker.exitCode===null && worker.signalCode===null,privateHttps,api,phone,ingress};
     };
-    writePrivate(stateFile,{marker,pid:process.pid,controlOrigin:`http://127.0.0.1:${control.address().port}`,controlToken,publicOrigin,expoUrl,deviceId:device.deviceId,isolationId:session.isolationId,serveLease});
-    fs.writeFileSync(credentialsFile,`TESTLÄGE – INGA RIKTIGA PENGAR\nMobil sessionsnyckel: ${accessToken}\nFörhöjd webbläsarnyckel (simulator/admin): ${adminToken}\nTestadmin-lösenord: ${session.adminPassword}\nPrivat inloggning: ${publicOrigin}/__remote/login\n`,{mode:0o600});
+    writePrivate(stateFile,{marker,pid:process.pid,bootId,controlOrigin:`http://127.0.0.1:${control.address().port}`,controlToken,publicOrigin,expoUrl,deviceId:device.deviceId,isolationId:session.isolationId,serveLease});
+    fs.writeFileSync(credentialsFile,`TESTLÄGE – INGA RIKTIGA PENGAR\nFörhöjd webbläsarnyckel (simulator/admin): ${adminToken}\nTestadmin-lösenord: ${session.adminPassword}\nPrivat inloggning: ${publicOrigin}/__remote/login\nTelefon: registrera en gång i appen och godkänn jämförelsekoden med dev:remote:devices. Ingen mobil sessionsnyckel behövs.\n`,{mode:0o600});
     expo.once('exit',()=>{if(!stopping){console.error('Expo avslutades. Den egna fjärrsessionen stängs.');process.exitCode=1;void cleanup();}});
     booting=false;
-    console.log(`TESTLÄGE – INGA RIKTIGA PENGAR\nExpo Go: ${expoUrl}\nPrivat webb/API: ${publicOrigin}\nPrivat webbinloggning: ${publicOrigin}/__remote/login\nLokala nycklar: ${credentialsFile}\nLäs nycklarna lokalt; dela dem inte i chatt/GitHub.\nExpo SDK 57: iPhone kräver SDK-kompatibel Expo Go via eas go/TestFlight eller development build. Vanlig App Store-version räcker inte.\nCtrl+C eller npm run dev:remote:stop stoppar endast denna session. Data behålls.`);
+    console.log(`TESTLÄGE – INGA RIKTIGA PENGAR\nExpo Go: ${expoUrl}\nPrivat webb/API: ${publicOrigin}\nPrivat webbinloggning: ${publicOrigin}/__remote/login\nFörsta gången: välj Registrera telefon i appen. Kör npm run dev:remote:devices -- list och godkänn samma id/kod med approve <id> <kod>.\nGodkänd telefon återansluter automatiskt.\nSeparata adminnycklar: ${credentialsFile}\nExpo SDK 57 kräver kompatibel Expo Go eller development build.\nCtrl+C eller npm run dev:remote:stop stoppar endast denna session. Databas och godkända enheter behålls.`);
     await finished;
   }catch(error){await cleanup();throw error;}
 }
-try{if(argv.includes('--stop'))await stopActive();else if(argv.includes('--doctor'))await doctor();else await start();}
+try{if(argv.includes('--devices'))await manageDevices();else if(argv.includes('--stop'))await stopActive();else if(argv.includes('--doctor'))await doctor();else await start();}
 catch(error){console.error(`BLOCKERAR: ${error.message}`);process.exitCode=1;}

@@ -1,60 +1,80 @@
-import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  api, clearRemoteTestCredential, onRemoteTestLock, readRemoteTestCredential, remoteTest, saveRemoteTestCredential,
-} from './api';
+import { api, remoteDeviceAuth, remoteTest } from './api';
 
 /** Monterar inga beställningsskärmar innan en autentiserad testkatalog verifierats. */
 export function RemoteTestBoundary({ children }: PropsWithChildren) {
+  const device = useSyncExternalStore(remoteDeviceAuth.subscribe, remoteDeviceAuth.getState, remoteDeviceAuth.getState);
   const [ready, setReady] = useState(false);
-  const [busy, setBusy] = useState(remoteTest.enabled);
-  const [saved, setSaved] = useState(false);
-  const [credential, setCredential] = useState('');
+  const [busy, setBusy] = useState(remoteTest.enabled && Platform.OS !== 'web');
   const [error, setError] = useState('');
-  const revision = useRef(0);
-  useEffect(() => {
-    if (!remoteTest.enabled) return;
-    let active = true;
-    const unsubscribe = onRemoteTestLock(() => {
-      revision.current++;
-      if (active) { setReady(false); setSaved(false); setCredential(''); }
-    });
-    void (async () => {
-      const attempt = revision.current;
-      try {
-        const exists = await readRemoteTestCredential();
-        if (!active || attempt !== revision.current) return;
-        setSaved(exists);
-        if (exists) {
-          await api.getCatalog();
-          if (active && attempt === revision.current) setReady(true);
-        }
-      } catch (reason) {
-        if (active) setError(reason instanceof Error ? reason.message : 'Testservern kunde inte verifieras.');
-      } finally { if (active) setBusy(false); }
-    })();
-    return () => { active = false; unsubscribe(); };
-  }, []);
+  const active = useRef(true);
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  const inFlight = useRef(false);
+  const retry = useRef<() => Promise<void>>(async () => {});
+  const supported = remoteTest.enabled && Platform.OS !== 'web';
+  const blocked = device.status === 'revoked' || device.status === 'invalid' || device.status === 'locked';
 
-  async function connect() {
-    if (busy) return;
-    const attempt = revision.current;
+  async function connect(register = false) {
+    if (!supported || inFlight.current) return;
+    const attempt = remoteDeviceAuth.generation();
+    inFlight.current = true;
     setBusy(true); setError('');
+    const current = () => active.current && attempt === remoteDeviceAuth.generation();
     try {
-      if (credential.trim()) { await saveRemoteTestCredential(credential.trim()); setSaved(true); }
-      await api.getCatalog();
-      if (attempt === revision.current) { setCredential(''); setReady(true); }
+      if (register || remoteDeviceAuth.getState().status === 'pending') {
+        const enrollment = await remoteDeviceAuth.enroll();
+        if (!current() || enrollment.status === 'pending') return;
+      } else if (!await remoteDeviceAuth.load()) return;
+      if (!current()) return;
+      try {
+        await api.getCatalog();
+      } catch (reason) {
+        // En tidigare pending-registrering överlever även Expo/telefon-omstart.
+        if (current() && remoteDeviceAuth.getState().status === 'pending') {
+          await remoteDeviceAuth.enroll();
+          return;
+        }
+        throw reason;
+      }
+      if (current() && remoteDeviceAuth.getState().status === 'approved') setReady(true);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Testservern kunde inte verifieras.');
-    } finally { setBusy(false); }
+      if (current()) { setReady(false); setError(reason instanceof Error ? reason.message : 'Testservern kunde inte verifieras.'); }
+    } finally {
+      inFlight.current = false;
+      if (active.current) setBusy(false);
+    }
   }
+  retry.current = async () => {
+    const status = remoteDeviceAuth.getState().status;
+    if (!['unregistered', 'revoked', 'invalid', 'locked'].includes(status)) await connect();
+  };
 
-  async function lock() {
-    try { await clearRemoteTestCredential(); }
-    catch { setError('Appen är låst. Det sparade testminnet kunde inte rensas; försök låsa igen.'); }
+  useEffect(() => {
+    active.current = true;
+    if (!supported) return;
+    const unsubscribe = remoteDeviceAuth.subscribe(() => {
+      if (active.current && remoteDeviceAuth.getState().status !== 'approved') setReady(false);
+    });
+    void connect();
+    const appState = AppState.addEventListener('change', next => { if (next === 'active') void retry.current(); });
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active' && !readyRef.current) void retry.current();
+    }, 5000);
+    return () => { active.current = false; unsubscribe(); appState.remove(); clearInterval(interval); };
+  }, [supported]);
+
+  function lock() {
+    remoteDeviceAuth.lock();
+    setReady(false); setError('');
   }
-
+  async function forget() {
+    setReady(false); setError('');
+    try { await remoteDeviceAuth.forget(); }
+    catch { setError('Appen är låst. Registreringen kunde inte tas bort ur SecureStore; försök glömma telefonen igen.'); }
+  }
   async function openAdmin() {
     try { await Linking.openURL(`${remoteTest.origin}/__test/login`); }
     catch { setError('Webbläsaren kunde inte öppnas. Öppna den privata webbadressen från PowerShell.'); }
@@ -64,10 +84,10 @@ export function RemoteTestBoundary({ children }: PropsWithChildren) {
   if (ready) return <View style={{ flex: 1 }}>
     <SafeAreaView edges={['top']} style={styles.banner}>
       <Text accessibilityRole="alert" style={styles.bannerTitle}>TESTLÄGE – INGA RIKTIGA PENGAR</Text>
-      <Text style={styles.hint}>Privat test via Tailscale. Endast syntetiska uppgifter. Testadmin och betalningssimulator kräver Förhöjd webbläsarnyckel från datorns lokala fil .tmp/remote-credentials.txt.</Text>
+      <Text style={styles.hint}>Privat test via Tailscale. Använd endast syntetiska uppgifter. Telefonens registrering ger kundåtkomst. Testadmin och betalningssimulator kräver separat förhöjd behörighet från datorn.</Text>
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={() => void openAdmin()}><Text style={styles.link}>Öppna privat testadmin</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void lock()}><Text style={styles.link}>Lås testappen</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={lock}><Text style={styles.link}>Lås testappen</Text></Pressable>
       </View>
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     </SafeAreaView>
@@ -77,23 +97,33 @@ export function RemoteTestBoundary({ children }: PropsWithChildren) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <Text accessibilityRole="header" style={styles.title}>Anslut privat testapp</Text>
       <Text style={styles.bannerTitle}>TESTLÄGE – INGA RIKTIGA PENGAR</Text>
-      <Text style={styles.body}>Datorn och Tailscale på telefonen måste vara anslutna. Använd Mobil sessionsnyckel från datorns lokala fil .tmp/remote-credentials.txt. npm run dev:remote visar filens sökväg i PowerShell.</Text>
-      <Text style={styles.hint}>Nyckeln sparas i enhetens säkra lagring, eller tillfälligt i webbläsarens session. Använd aldrig ett riktigt kundnamn, en e-postadress eller ett telefonnummer i testbeställningar.</Text>
+      <Text style={styles.body}>Anslut Tailscale på telefonen och datorn. Första gången registrerar du telefonen här och godkänner den på datorn. Därefter ansluter appen automatiskt, även efter omstart.</Text>
+      <Text style={styles.hint}>Telefonens hemliga enhetsnyckel sparas i SecureStore. Inga sessionsnycklar behöver kopieras. Använd aldrig riktigt kundnamn, e-postadress eller telefonnummer i testbeställningar.</Text>
       {!!remoteTest.error && <Text accessibilityRole="alert" style={styles.error}>{remoteTest.error}</Text>}
-      {remoteTest.enabled && <>
-        <Text style={styles.label}>Mobil sessionsnyckel</Text>
-        <TextInput accessibilityLabel="Mobil sessionsnyckel" value={credential} onChangeText={setCredential}
-          secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="none" autoComplete="off"
-          maxLength={80} style={styles.input} editable={!busy} onSubmitEditing={() => void connect()} />
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || !saved && !credential.trim() }}
-          disabled={busy || !saved && !credential.trim()} onPress={() => void connect()}
-          style={[styles.button, (busy || !saved && !credential.trim()) && { opacity: 0.5 }]}>
-          <Text style={styles.buttonText}>{busy ? 'Verifierar testservern…' : saved && !credential.trim() ? 'Försök ansluta igen' : 'Anslut testappen'}</Text>
-        </Pressable>
+      {remoteTest.enabled && Platform.OS === 'web' && <Text accessibilityRole="alert" style={styles.error}>Registrering kräver Expo Go på iPhone eller Android och telefonens SecureStore. Öppna appen i Expo Go på telefonen.</Text>}
+      {supported && <>
+        {device.status === 'pending' && device.enrollment?.status === 'pending' && <View style={styles.registration}>
+          <Text accessibilityRole="header" style={styles.label}>Godkänn på datorn</Text>
+          <Text selectable style={styles.body}>Enhet: {device.enrollment.id}</Text>
+          <Text selectable style={styles.code}>{device.enrollment.comparison_code}</Text>
+          <Text style={styles.body}>Jämför denna kod med datorns enhetslista. Godkänn sedan i PowerShell:</Text>
+          <Text selectable style={styles.command}>npm run dev:remote:devices -- approve {device.enrollment.id} {device.enrollment.comparison_code}</Text>
+          <Text style={styles.hint}>Koden är en jämförelsekod, ingen inloggningsnyckel. Appen väntar och ansluter när datorn har godkänt telefonen.</Text>
+        </View>}
+        {!device.saved && !blocked && <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy}
+          onPress={() => void connect(true)} style={[styles.button, busy && styles.disabled]}>
+          <Text style={styles.buttonText}>Registrera denna telefon</Text>
+        </Pressable>}
+        {device.saved && !['revoked', 'invalid'].includes(device.status) && <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || device.forgetting }} disabled={busy || device.forgetting}
+          onPress={() => { remoteDeviceAuth.unlock(); void connect(); }} style={[styles.button, (busy || device.forgetting) && styles.disabled]}>
+          <Text style={styles.buttonText}>{busy ? 'Ansluter…' : device.status === 'pending' ? 'Kontrollera godkännandet' : 'Anslut igen'}</Text>
+        </Pressable>}
         {busy && <ActivityIndicator accessibilityLabel="Verifierar testservern" color="#155A43" />}
-        {saved && <Pressable accessibilityRole="button" onPress={() => void lock()}><Text style={styles.link}>Glöm sparad sessionsnyckel</Text></Pressable>}
+        {(device.saved || blocked) && <Pressable accessibilityRole="button" disabled={device.forgetting} accessibilityState={{ disabled: device.forgetting }} onPress={() => void forget()}><Text style={styles.link}>{device.forgetting ? 'Glömmer registreringen…' : 'Glöm telefonens registrering'}</Text></Pressable>}
+        {!!device.message && <Text accessibilityRole="alert" style={blocked ? styles.error : styles.body}>{device.message}</Text>}
+        {device.saved && !blocked && device.status !== 'pending' && <Text style={styles.hint}>Registreringen finns kvar. Appen försöker ansluta igen automatiskt när datorn och Tailscale är tillgängliga.</Text>}
       </>}
-      {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+      {!!error && error !== device.message && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     </ScrollView>
   </SafeAreaView>;
 }
@@ -101,9 +131,12 @@ export function RemoteTestBoundary({ children }: PropsWithChildren) {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#fff' }, content: { padding: 24, gap: 18, maxWidth: 640, width: '100%', alignSelf: 'center' },
   title: { fontSize: 28, color: '#155A43', fontWeight: '700' }, body: { fontSize: 16, lineHeight: 25, color: '#242424' },
-  hint: { fontSize: 12, lineHeight: 18, color: '#533c0a' }, label: { fontSize: 14, fontWeight: '600', color: '#155A43' },
-  input: { borderColor: '#155A43', borderWidth: 1, borderRadius: 10, padding: 14, fontSize: 16, color: '#242424' },
-  button: { backgroundColor: '#155A43', borderRadius: 10, padding: 16 }, buttonText: { color: '#fff', textAlign: 'center', fontWeight: '700' },
+  hint: { fontSize: 12, lineHeight: 18, color: '#533c0a' }, label: { fontSize: 16, fontWeight: '600', color: '#155A43' },
+  registration: { padding: 16, gap: 12, borderColor: '#155A43', borderWidth: 1, borderRadius: 10 },
+  code: { fontSize: 26, fontWeight: '700', letterSpacing: 2, color: '#155A43' },
+  command: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 13, color: '#242424' },
+  button: { backgroundColor: '#155A43', borderRadius: 10, padding: 16 }, disabled: { opacity: 0.5 },
+  buttonText: { color: '#fff', textAlign: 'center', fontWeight: '700' },
   banner: { backgroundColor: '#fff4d6', paddingHorizontal: 14, paddingBottom: 10, gap: 6, borderBottomWidth: 1, borderBottomColor: '#d29922' },
   bannerTitle: { color: '#533c0a', fontWeight: '700' }, actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 },
   link: { color: '#155A43', textDecorationLine: 'underline', paddingVertical: 8 }, error: { color: '#9b2c2c', fontSize: 14, lineHeight: 21 },
