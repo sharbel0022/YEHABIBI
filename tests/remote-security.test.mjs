@@ -33,7 +33,8 @@ async function fixture() {
   session.webEnv = { APP_ENV: 'test', NODE_ENV: 'development', PAYMENTS_ENABLED: 'false', PAYMENTS_LIVE_APPROVED: 'false',
     TEST_ISOLATION_ID: isolationId, TEST_PAYMENT_SECRET: session.controlSecret, TEST_BACKEND_ORIGIN: bridge.origin,
     NEXT_PUBLIC_SUPABASE_URL: bridge.origin, NEXT_PUBLIC_SITE_URL: upstream.origin };
-  const options = { session, publicOrigin, allowedLogins: [approvedLogin, 'second-owner@example.test'], accessToken: secret(), adminToken: secret() };
+  const options = { session, publicOrigin, allowedLogins: [approvedLogin, 'second-owner@example.test'], accessToken: secret(), adminToken: secret(),
+    phoneIps: ['100.64.1.2'], selfIps: ['100.64.1.1'] };
   const gateway = await startRemoteGateway(options);
   // Node's fetch deliberately ignores a custom Host. Native HTTP models the Serve proxy boundary.
   const call = (path, { headers = {}, body, method = body ? 'POST' : 'GET' } = {}) => new Promise((resolve, reject) => {
@@ -51,7 +52,7 @@ async function fixture() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: publicOrigin, ...extra } });
     return { response, cookie: response.headers.getSetCookie()[0]?.split(';')[0] };
   };
-  return { ...options, call, browserLogin, requests, setReadiness: value => { readinessId = value; },
+  return { ...options, call, browserLogin, requests, diagnostics: gateway.diagnostics, setReadiness: value => { readinessId = value; },
     close: async () => { await gateway.close(); await bridge.close(); await upstream.close(); } };
 }
 
@@ -71,6 +72,36 @@ test('private remote contract refuses production, public DB, reused keys and una
     assert.match(guard, /backend.protocol !== 'http:'/);
     assert.match(guard, /checkout.protocol !== 'http:'/);
     assert.equal(guard.includes('ts.net'), false);
+  } finally { await f.close(); }
+});
+
+test('gateway observes selected-phone HTTPS separately from PC self-tests without exposing diagnostics or secrets remotely', async () => {
+  const f = await fixture();
+  try {
+    assert.equal((await f.call('/api/catalog', { headers: { 'X-Forwarded-For': '100.64.1.1' } })).status, 200);
+    assert.equal(f.diagnostics().selfRequests, 1);
+    assert.equal(f.diagnostics().phoneRequests, 0);
+    assert.equal(f.diagnostics().lastPhoneAuthenticatedApiAt, null);
+    const phone = { 'X-Forwarded-For': '100.64.1.2', 'X-Yehabibi-Remote-Token': '' };
+    assert.equal((await f.call('/__remote/login', { headers: phone })).status, 200);
+    assert.equal(f.diagnostics().phoneRequests, 1);
+    assert.equal(f.diagnostics().lastPhoneCategory, 'login');
+    assert.equal(f.diagnostics().lastPhoneAuthenticatedApiAt, null);
+    assert.equal((await f.call('/api/catalog', { headers: phone })).status, 401);
+    assert.equal(f.diagnostics().lastPhoneRejection, 'session');
+    assert.equal(f.diagnostics().lastPhoneAuthenticatedApiAt, null);
+    assert.equal((await f.call('/api/catalog?private=PRIVATE_QUERY', { headers: { 'X-Forwarded-For': '100.64.1.2' } })).status, 200);
+    assert.ok(f.diagnostics().lastPhoneAuthenticatedApiAt);
+    assert.equal(f.diagnostics().lastPhoneCategory, 'catalog');
+    assert.equal(f.diagnostics().deniedPhoneRequests, 1);
+    assert.equal((await f.call('/api/catalog', { headers: { 'X-Forwarded-For': '100.64.1.2, 100.64.1.1' } })).status, 200);
+    assert.equal(f.diagnostics().unknownRequests, 1, 'Forwarded chains cannot be guessed into phone evidence.');
+    for (const route of ['/__remote/diagnostics', '/__remote/status']) assert.equal((await f.call(route)).status, 404);
+    for (const forbidden of ['100.64.', approvedLogin, f.accessToken, f.adminToken, 'PRIVATE_QUERY', '/api/catalog', 'token=']) {
+      assert.equal(JSON.stringify(f.diagnostics()).includes(forbidden), false, forbidden);
+    }
+    assert.equal(f.requests.at(-1).headers['x-yehabibi-remote-token'], undefined);
+    assert.notEqual(f.requests.at(-1).headers['x-forwarded-for'], '100.64.1.2');
   } finally { await f.close(); }
 });
 

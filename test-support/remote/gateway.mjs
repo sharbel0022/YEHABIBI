@@ -1,11 +1,18 @@
 import http from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { equalSecret, remoteContract, remoteCookieName, remoteMarker, remoteTokenHeader, remoteUrl, rewriteCustomerUrls, routePolicy, syntheticOrder } from './contract.mjs';
+import { createIngressRecorder } from './diagnostics.mjs';
 
 const securityHeaders = { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer',
   'X-Robots-Tag': 'noindex, nofollow', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' };
 const escapeHtml = value => String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const json = (response, status, data, headers = {}) => { response.writeHead(status, { ...securityHeaders, 'Content-Type': 'application/json', ...headers }); response.end(JSON.stringify(data)); };
+const routeFamily = pathname => pathname.startsWith('/__remote/login') || pathname === '/__remote/logout' ? 'login'
+  : pathname === '/api/catalog' ? 'catalog' : pathname === '/api/availability' ? 'availability'
+  : pathname.startsWith('/api/orders') || pathname.startsWith('/order/') ? 'orders'
+  : pathname.startsWith('/api/payments/') || pathname.startsWith('/__test/payment/') ? 'payment'
+  : pathname.startsWith('/admin') || pathname.startsWith('/api/admin/') || pathname === '/__test/login' ? 'admin'
+  : pathname === '/__remote/health' || pathname === '/api/health' ? 'health' : 'other';
 
 async function readBody(request, limit = 1024 * 1024) {
   const chunks = []; let size = 0;
@@ -33,6 +40,7 @@ function requestPath(request, contract) {
  */
 export async function startRemoteGateway(options) {
   const contract = remoteContract(options), sessions = new Map(), failures = new Map();
+  const ingress = createIngressRecorder({ phoneIps: options.phoneIps, selfIps: options.selfIps });
   const verifyReady = async () => {
     const result = await fetch(`${contract.localWeb}/__test/ready`, { signal: AbortSignal.timeout(15000) });
     if (!result.ok || (await result.json()).isolation_id !== contract.isolationId) throw new Error('Den isolerade backendens databas kunde inte verifieras.');
@@ -45,19 +53,28 @@ export async function startRemoteGateway(options) {
     // https://fetch.spec.whatwg.org/#append-a-request-origin-header
     response.writeHead(status, { ...securityHeaders, 'Referrer-Policy': 'same-origin', 'Content-Type': 'text/html; charset=utf-8',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'" });
-    response.end(`<!doctype html><html lang="sv"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Privat Yehabibi-test</title><body style="font-family:system-ui;max-width:38rem;margin:3rem auto;padding:1rem"><h1>TESTLÄGE – INGA RIKTIGA PENGAR</h1><p>Privat fjärrtest via Tailscale. Ange sessionsnyckeln från datorns terminal. Testbetalning och admin kräver den separata adminnyckeln.</p><p>${escapeHtml(message)}</p><form method="post" action="/__remote/login"><input type="hidden" name="return_path" value="${escapeHtml(target)}"><label>Sessionsnyckel eller adminnyckel <input name="key" type="password" required autocomplete="off" style="display:block;width:100%;padding:.75rem"></label><button style="margin-top:1rem;padding:.75rem">Öppna privat test</button></form><p>Kunduppgifter ersätts med syntetiska testuppgifter. Inga riktiga betalningar kan genomföras.</p></body></html>`);
+    response.end(`<!doctype html><html lang="sv"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Privat Yehabibi-test</title><body style="font-family:system-ui;max-width:38rem;margin:3rem auto;padding:1rem"><h1>TESTLÄGE – INGA RIKTIGA PENGAR</h1><p>Privat fjärrtest via Tailscale. Nycklarna finns i datorns lokala fil <code>.tmp/remote-credentials.txt</code>. Använd ”Mobil sessionsnyckel” för menyn eller ”Förhöjd webbläsarnyckel” för testbetalning och admin.</p><p>${escapeHtml(message)}</p><form method="post" action="/__remote/login"><input type="hidden" name="return_path" value="${escapeHtml(target)}"><label>Sessionsnyckel eller förhöjd webbläsarnyckel <input name="key" type="password" required autocomplete="off" style="display:block;width:100%;padding:.75rem"></label><button style="margin-top:1rem;padding:.75rem">Öppna privat test</button></form><p>Kunduppgifter ersätts med syntetiska testuppgifter. Inga riktiga betalningar kan genomföras.</p></body></html>`);
   };
   const server = http.createServer(async (request, response) => {
+    let sourceIp, family = 'other', rejection = 'none', authenticatedApi = false;
+    // Source metadata is diagnostic only. It never participates in authorization.
+    response.once('finish', () => ingress.record({ sourceIp, routeFamily: family, status: response.statusCode, rejection, authenticatedApi }));
     try {
       if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.socket.remoteAddress)
         || request.headers.host?.toLowerCase() !== contract.publicHost
-        || (request.headers['x-forwarded-proto'] && request.headers['x-forwarded-proto'] !== 'https')) return json(response, 403, { error: 'Privat Tailscale HTTPS krävs.' });
+        || (request.headers['x-forwarded-proto'] && request.headers['x-forwarded-proto'] !== 'https')) { rejection = 'host'; return json(response, 403, { error: 'Privat Tailscale HTTPS krävs.' }); }
+      // Serve overwrites X-Forwarded-For with the tailnet source IP. Reject lists
+      // for attribution rather than accepting an arbitrary caller-selected entry.
+      sourceIp = typeof request.headers['x-forwarded-for'] === 'string' ? request.headers['x-forwarded-for'] : undefined;
       const login = typeof request.headers['tailscale-user-login'] === 'string' ? request.headers['tailscale-user-login'].toLowerCase() : '';
-      if (!contract.logins.has(login)) return json(response, 403, { error: 'Tailscale-identiteten är inte godkänd för denna testsession.' });
+      if (!contract.logins.has(login)) { rejection = 'identity'; return json(response, 403, { error: 'Tailscale-identiteten är inte godkänd för denna testsession.' }); }
+      rejection = 'malformed';
       const { pathname, target } = requestPath(request, contract), policy = routePolicy(pathname, request.method);
-      if (!policy) return json(response, 404, { error: 'Resursen är blockerad i privat fjärrtest.' });
+      rejection = 'none';
+      family = routeFamily(pathname);
+      if (!policy) { rejection = 'route'; return json(response, 404, { error: 'Resursen är blockerad i privat fjärrtest.' }); }
       const requestOrigin = request.headers.origin;
-      if (requestOrigin && !contract.origins.has(requestOrigin)) return json(response, 403, { error: 'Otillåtet ursprung.' });
+      if (requestOrigin && !contract.origins.has(requestOrigin)) { rejection = 'origin'; return json(response, 403, { error: 'Otillåtet ursprung.' }); }
       const cors = requestOrigin ? { 'Access-Control-Allow-Origin': requestOrigin, Vary: 'Origin',
         'Access-Control-Allow-Headers': 'Content-Type, X-Yehabibi-Remote-Token', 'Access-Control-Allow-Methods': (policy.methods || ['GET', 'POST', 'PATCH']).join(', ') } : {};
       if (request.method === 'OPTIONS') return json(response, 204, null, cors);
@@ -68,21 +85,22 @@ export async function startRemoteGateway(options) {
       const tokenValid = equalSecret(request.headers[remoteTokenHeader], contract.accessToken);
       const authenticated = tokenValid || Boolean(validSession);
       if (policy.level !== 'login' && (!authenticated || (policy.level === 'elevated' && validSession?.level !== 'elevated'))) {
+        rejection = 'session';
         if (request.method === 'GET' && !pathname.startsWith('/api/') && pathname !== '/__remote/health') return loginPage(response, target);
         return json(response, 401, { error: policy.level === 'elevated' ? 'Logga in med separat adminnyckel i den privata webbläsaren.' : 'Ange fjärrtestnyckeln för denna session.' }, cors);
       }
       if (pathname === '/__remote/login') {
         if (request.method === 'GET') return loginPage(response, '/', 200);
-        if (requestOrigin !== contract.publicOrigin || request.headers['sec-fetch-site'] === 'cross-site') return json(response, 403, { error: 'Öppna inloggningen via den privata HTTPS-adressen.' });
+        if (requestOrigin !== contract.publicOrigin || request.headers['sec-fetch-site'] === 'cross-site') { rejection = 'origin'; return json(response, 403, { error: 'Öppna inloggningen via den privata HTTPS-adressen.' }); }
         const failed = failures.get(login);
-        if (failed?.until > Date.now() && failed.count >= 8) return json(response, 429, { error: 'För många försök. Vänta en minut.' });
+        if (failed?.until > Date.now() && failed.count >= 8) { rejection = 'rate_limit'; return json(response, 429, { error: 'För många försök. Vänta en minut.' }); }
         if (!request.headers['content-type']?.startsWith('application/x-www-form-urlencoded')) return json(response, 415, { error: 'Använd det privata inloggningsformuläret.' });
         const form = new URLSearchParams((await readBody(request, 4096)).toString()), key = form.get('key');
         const level = equalSecret(key, contract.adminToken) ? 'elevated' : equalSecret(key, contract.accessToken) ? 'customer' : null;
-        if (!level) { failures.set(login, { count: failed?.until > Date.now() ? failed.count + 1 : 1, until: Date.now() + 60000 }); return loginPage(response, '/', 401, 'Fel sessionsnyckel.'); }
+        if (!level) { rejection = 'session'; failures.set(login, { count: failed?.until > Date.now() ? failed.count + 1 : 1, until: Date.now() + 60000 }); return loginPage(response, '/', 401, 'Fel sessionsnyckel.'); }
         failures.delete(login);
         for (const [id, value] of sessions) if (value.expires < Date.now()) sessions.delete(id);
-        if (sessions.size >= 100) return json(response, 429, { error: 'För många aktiva testsessioner.' });
+        if (sessions.size >= 100) { rejection = 'rate_limit'; return json(response, 429, { error: 'För många aktiva testsessioner.' }); }
         const id = randomBytes(32).toString('base64url');
         sessions.set(id, { login, level, expires: Date.now() + 8 * 60 * 60 * 1000 });
         let returnPath = form.get('return_path') || '/';
@@ -92,11 +110,12 @@ export async function startRemoteGateway(options) {
           'Set-Cookie': `${remoteCookieName}=${id}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=28800` }); response.end(); return;
       }
       if (pathname === '/__remote/logout') {
-        if (requestOrigin !== contract.publicOrigin) return json(response, 403, { error: 'Otillåtet ursprung.' });
+        if (requestOrigin !== contract.publicOrigin) { rejection = 'origin'; return json(response, 403, { error: 'Otillåtet ursprung.' }); }
         sessions.delete(cookieValue);
         return json(response, 200, { signed_out: true }, { 'Set-Cookie': `${remoteCookieName}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0` });
       }
       if (pathname === '/__remote/health') return json(response, 200, await verifyReady(), cors);
+      authenticatedApi = authenticated && policy.api === true && request.method !== 'OPTIONS';
       let body = await readBody(request);
       if (['/api/orders', '/api/orders/direct'].includes(pathname) && request.method === 'POST') {
         if (!request.headers['content-type']?.includes('application/json')) return json(response, 415, { error: 'Testbeställningar kräver JSON.' }, cors);
@@ -128,7 +147,7 @@ export async function startRemoteGateway(options) {
       for (const name of ['content-type', 'content-disposition', 'vary']) if (upstream.headers.has(name)) outputHeaders[name] = upstream.headers.get(name);
       if (upstream.headers.has('location')) {
         const location = remoteUrl(upstream.headers.get('location'), contract);
-        if (location.startsWith('//') || location.includes('\\') || new URL(location, contract.publicOrigin).origin !== contract.publicOrigin) return json(response, 502, { error: 'Otillåten omdirigering från testbackend.' });
+        if (location.startsWith('//') || location.includes('\\') || new URL(location, contract.publicOrigin).origin !== contract.publicOrigin) { rejection = 'upstream'; return json(response, 502, { error: 'Otillåten omdirigering från testbackend.' }); }
         outputHeaders.Location = location;
       }
       const cookies = upstream.headers.getSetCookie();
@@ -143,9 +162,11 @@ export async function startRemoteGateway(options) {
       const contentType = upstream.headers.get('content-type') || '';
       if (contentType.includes('application/json') && output.length) output = Buffer.from(JSON.stringify(rewriteCustomerUrls(JSON.parse(output.toString()), contract)));
       if (contentType.includes('text/html')) output = Buffer.from(output.toString().replaceAll(contract.localWeb, contract.publicOrigin).replaceAll(contract.localBackend, contract.publicOrigin));
+      if (upstream.status >= 400) rejection = 'upstream';
       response.writeHead(upstream.status, { ...outputHeaders, ...securityHeaders,
         ...(contentType.includes('text/html') ? { 'Referrer-Policy': 'same-origin' } : {}), ...cors }); response.end(output);
     } catch (error) {
+      rejection = rejection === 'malformed' || error instanceof URIError || error instanceof SyntaxError || error.status === 413 ? 'malformed' : 'upstream';
       if (!response.headersSent) json(response, error.status || 502, { error: 'Den privata testanslutningen misslyckades. Kontrollera att datorns isolerade backend kör.' });
       else response.destroy();
     }
@@ -153,6 +174,6 @@ export async function startRemoteGateway(options) {
   server.requestTimeout = 60000; server.headersTimeout = 15000;
   server.on('upgrade', (_request, socket) => socket.destroy());
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  return { origin: `http://127.0.0.1:${server.address().port}`, port: server.address().port, health: verifyReady,
+  return { origin: `http://127.0.0.1:${server.address().port}`, port: server.address().port, health: verifyReady, diagnostics: () => ingress.snapshot(),
     close: async () => { sessions.clear(); failures.clear(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } };
 }
