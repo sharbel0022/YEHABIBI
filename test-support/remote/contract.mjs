@@ -57,6 +57,7 @@ export function remoteContract({ session, publicOrigin, allowedLogins, accessTok
 
 export function routePolicy(pathname, method) {
   const read = method === 'GET' || method === 'HEAD';
+  if (['/__remote/device/enroll', '/__remote/device/session'].includes(pathname) && ['POST', 'OPTIONS'].includes(method)) return { level: 'device', local: true, methods: ['POST'] };
   if (pathname === '/__remote/login' && ['GET', 'POST'].includes(method)) return { level: 'login' };
   if (pathname === '/__remote/logout' && method === 'POST') return { level: 'customer', local: true };
   if (pathname === '/__remote/health' && method === 'GET') return { level: 'customer', local: true };

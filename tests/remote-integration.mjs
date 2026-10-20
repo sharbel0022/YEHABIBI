@@ -2,18 +2,24 @@
 // boundary is simulated by native HTTP headers; this is not a physical-phone test.
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { startTestEnvironment, testPackageId } from '../test-support/local/environment.mjs';
 import { startRemoteGateway } from '../test-support/remote/gateway.mjs';
+import { createDeviceRegistry } from '../test-support/remote/devices.mjs';
 
 const publicOrigin = 'https://integration-device.synthetic-tailnet.ts.net:8443';
 const login = 'integration-owner@example.test';
 const accessToken = randomBytes(32).toString('base64url'), adminToken = randomBytes(32).toString('base64url');
-let session, gateway, elevatedCookie, adminCookie;
+let session, gateway, elevatedCookie, adminCookie, registry, registryFile, mobileToken, enrollment;
+const credential = randomBytes(32).toString('base64url');
+const identity = {nodeId:'integration-phone',login};
 const checks = [];
 const call = (route, { method = 'GET', body, headers = {} } = {}) => new Promise((resolve, reject) => {
   const request = http.request(gateway.origin + route, { method,
-    headers: { Host: new URL(publicOrigin).host, 'Tailscale-User-Login': login, 'X-Yehabibi-Remote-Token': accessToken,
+    headers: { Host: new URL(publicOrigin).host, 'Tailscale-User-Login': login, 'X-Yehabibi-Remote-Token': mobileToken || accessToken,
+      'X-Forwarded-For':'100.64.0.2','X-Forwarded-Proto':'https',
       ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers } }, async response => {
     const chunks = []; for await (const chunk of response) chunks.push(chunk);
     const resultHeaders = new Headers();
@@ -29,7 +35,11 @@ const data = async (route, options, status = 200) => {
 };
 const boot = async options => {
   session = await startTestEnvironment(options);
-  gateway = await startRemoteGateway({ session, publicOrigin, allowedLogins: [login], accessToken, adminToken });
+  registryFile ||= path.join(session.directory,'integration-devices.json');
+  registry = createDeviceRegistry({file:registryFile});
+  gateway = await startRemoteGateway({ session, publicOrigin, allowedLogins: [login], accessToken, adminToken,
+    proxySecret:randomBytes(32).toString('base64url'),deviceRegistry:registry,
+    resolveIdentity:async ({sourceIp})=>sourceIp==='100.64.0.2'?identity:{nodeId:'different-phone',login} });
 };
 const browserCookies = () => ({ Cookie: `${elevatedCookie}; ${adminCookie}` });
 const orderPath = receipt => `/api/orders/${receipt.code}?token=${receipt.token}`;
@@ -41,6 +51,15 @@ const input = (quote, method, overrides = {}) => ({ request_id: randomUUID(), me
 
 try {
   await boot({ reusable: true });
+  enrollment = await data('/__remote/device/enroll',{method:'POST',body:{credential}});
+  assert.equal(enrollment.status,'pending');
+  await data('/__remote/device/session',{method:'POST',body:{credential}},401);
+  assert.throws(()=>registry.approve(enrollment.id,'WRONG-CODE'));
+  registry.approve(enrollment.id,enrollment.comparison_code);
+  mobileToken=(await data('/__remote/device/session',{method:'POST',body:{credential}})).token;
+  assert.ok(!fs.readFileSync(registryFile,'utf8').includes(credential),'Only hashed credentials may reach disk.');
+  await data('/__remote/device/session',{method:'POST',body:{credential},headers:{'X-Forwarded-For':'100.64.0.3'}},403);
+  checks.push('Explicit comparison approval, hashed persistent device credential and rejected stolen credential on another node');
   const verified = await data('/__remote/health'); assert.equal(verified.isolation_id, session.isolationId); assert.equal(verified.real_payments, false);
   const catalog = await data('/api/catalog'); assert.equal(catalog.test_mode, true); assert.equal(catalog.direct_orders_enabled, true);
   for (const method of ['swish', 'card', 'apple_pay', 'google_pay']) assert.ok(catalog.payment_methods.includes(method));
@@ -102,10 +121,18 @@ try {
   const directory = session.directory, isolationId = session.isolationId;
   await gateway.close(); gateway = null; await session.stop(); session = null;
   await boot({ restoreDirectory: directory });
+  await data('/api/catalog',{},401);
+  mobileToken=(await data('/__remote/device/session',{method:'POST',body:{credential}})).token;
   assert.equal(session.isolationId, isolationId);
   const retained = await readOrder(retainedReceipt); assert.equal(retained.payment_status, 'paid');
   assert.equal(retained.capacity_status, 'confirmed');
   assert.equal((await call('/api/admin/kitchen', { headers: { Cookie: elevatedCookie } })).status, 401);
-  checks.push('Stop/resume retains isolated DB, existing private order token and paid state; old browser elevation revoked');
-  console.log(`V4.4.2 remote loopback gateway integration: ${checks.length} checks passed\n${checks.map(check => '  ✓ ' + check).join('\n')}\nReal Tailscale HTTPS, 4G/5G and physical phones are separate manual checks.`);
+  assert.notEqual((await call(`/api/orders/${retainedReceipt.code}`)).status,200,'Device authentication cannot replace the customer order token.');
+  assert.notEqual((await call(`/api/orders/${retainedReceipt.code}?token=${'0'.repeat(64)}`)).status,200);
+  registry.revoke(enrollment.id);
+  await data('/api/catalog',{},401);
+  assert.equal((await data('/__remote/device/session',{method:'POST',body:{credential}},401)).code,'device_revoked');
+  assert.equal((await data('/__remote/device/enroll',{method:'POST',body:{credential}},401)).code,'device_revoked');
+  checks.push('Stop/resume retains approved device and paid orders; old session invalidated, fresh session automatic; order token separate; revoke immediate');
+  console.log(`V4.4.3 remote loopback gateway integration: ${checks.length} checks passed\n${checks.map(check => '  ✓ ' + check).join('\n')}\nProxy identity is simulated here. Real Tailscale HTTPS, OS reboot, 4G/5G and physical phones are separate checks.`);
 } finally { if (gateway) await gateway.close(); if (session) await session.stop(); }

@@ -14,16 +14,19 @@ För kompletta orderflöden utan riktiga pengar finns en separat lokal testmilj�
 
 ## Privat fjärrtest med Expo Go
 
-V4.4.2 använder Expo Tunnel för utvecklingsappen och privat Tailscale HTTPS för samma isolerade testbackend. Anslut datorn och telefonen till samma Tailscale-konto och kör från repots rot:
+V4.4.3 använder Expo Tunnel för utvecklingsappen och privat Tailscale HTTPS för samma isolerade testbackend. Telefonen registreras och godkänns på datorn en gång, sparar sin enhetscredential i SecureStore och återansluter med kortlivade kundsessioner. Anslut datorn och telefonen till samma Tailscale-konto och kör från repots rot:
 
 ```powershell
 npm run dev:remote
+# Första gången: välj Registrera denna telefon i appen och jämför koden.
+npm run dev:remote:devices -- list
+npm run dev:remote:devices -- approve <enhets-id> <jämförelsekod>
 npm run dev:remote:doctor
 # Stoppa från en andra PowerShell; testdatabasen behålls.
 npm run dev:remote:stop
 ```
 
-Starten visar aktuell Expo Go-länk och den riktiga privata API-adressen. Sessionsnycklar läses lokalt ur `.tmp/remote-credentials.txt`; de ingår inte i apppaketet. SDK 57 på fysisk iPhone kräver kompatibel Expo Go via `eas go`/TestFlight eller en development build. Vanlig App Store-version kan inte förutsättas fungera. Läs [REMOTE_DEVELOPMENT_V442.md](docs/REMOTE_DEVELOPMENT_V442.md) för installation, ngrok-fixen, behörigheter, Android/iPhone och testprotokollet över 4G/5G.
+Starten visar aktuell Expo Go-länk och den riktiga privata API-adressen. Ingen mobil sessionsnyckel behöver kopieras. Testadmin och betalningssimulator behåller separat webbinloggning med `.tmp/remote-credentials.txt`. Återkalla en telefon med `npm run dev:remote:devices -- revoke <enhets-id>`. Läs [V4.4.3-guiden](docs/REMOTE_DEVELOPMENT_V443.md) för exakta Windows-kommandon, säkerhetsmodell och verifieringsgränser. [V4.4.2-guiden](docs/REMOTE_DEVELOPMENT_V442.md) beskriver tidigare implementation, SDK 57/Expo Go, installation och ngrok-fixen.
 
 ## Starta i Windows
 
