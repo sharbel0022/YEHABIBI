@@ -14,6 +14,8 @@ Expo Go och projektet måste stödja samma SDK. Expos aktuella dokumentation ang
 
 På Android väljer du en kompatibel SDK 57-version på [Expo Go-nedladdningen](https://expo.dev/go). Använd Expos officiella distributionsväg. Ändra inte projektets SDK bara för att kringgå ett versionsfel utan en separat uppgraderings- eller nedgraderingsgranskning.
 
+En kompatibel SDK 57-klient på fysisk iPhone och åtkomst till ett Apple-utvecklarteam är ännu inte verifierade i denna körning. En fungerande Windows-server eller tunnel ersätter inte dessa förutsättningar.
+
 ## Starta från PowerShell
 
 Öppna PowerShell i projektet:
@@ -147,7 +149,38 @@ Efter ett lyckat stopp tas den aktiva sessionsfilen och åtkomstnyckelfilen bort
 
 Serve-inställningen tas bara bort om den fortfarande exakt motsvarar den proxy som sessionen själv skapade. Om någon har ändrat den under tiden lämnas den orörd och stoppet rapporterar att manuell granskning behövs. Kör inte `tailscale serve reset`, eftersom det skulle kunna ta bort andra tjänster.
 
-Diagnostiken ska visa backend, Metro, tunnel, worker, Tailscale, privat HTTPS och API-adress, samt konkreta blockerande fel. En misslyckad kontroll får inte ersättas av en publik backendtunnel.
+Diagnostiken visar backend, Metro, tunnel, worker, Tailscale, privat HTTPS och API-adress, samt separata bevis för telefonanslutningen. En misslyckad kontroll får inte ersättas av en publik backendtunnel.
+
+### Tolka datorns och telefonens kontroller var för sig
+
+| Kontroll | Vad ett lyckat resultat bevisar |
+| --- | --- |
+| Datorns privata HTTPS-självtest | Datorn når sin egen Serve-adress med giltig TLS, autentisering och databasattestering. Telefonens DNS, VPN och Safari har inte provats. |
+| Telefonens Tailscale-status | Telefonen finns i nätverkskartan. `Online` och `Active` är inte bevis på en fungerande webbförbindelse. |
+| Aktuell TSMP-ping | Krypterad Tailscale-transport till telefonen svarar. TSMP går förbi telefonens operativsystem; Safari och HTTPS-porten är fortfarande oprövade. Se [Tailscales pingtyper](https://tailscale.com/docs/reference/ping-types). |
+| Observerat HTTPS-anrop från telefonen | Telefonens Tailscale-adress har nått gatewayen. En inloggningssida bevisar ännu inte åtkomst till kund-API:et. |
+| Observerat autentiserat kund-API | Telefonens aktuella API-anrop har klarat åtkomstskyddet. Detta bevisar inte att scenario A–F genomförts eller att telefonen använder 4G/5G. |
+
+Telefonens HTTP/API-observationer och transportprov räknas som aktuella i **120 sekunder**. Datorns egna kontrollanrop räknas aldrig som telefonanrop. Saknad eller offline telefon blockerar resultatet även när ett tidigare telefonanrop lyckades. `dev:remote:doctor` avslutas med en felkod när telefonanslutningen är offline eller fortfarande overifierad; servern kan fortsätta köra medan telefonen återansluts.
+
+Vid felsökning skiljs även ankomst och behörighet åt. Ett telefonanrop med HTTP 401/403 visar att HTTPS-trafiken nådde gatewayen men nekades. HTTP 5xx efter ankomst pekar på gateway/backend. När inget telefonanrop syns går det inte att avgöra från gatewayen om försöket stannade vid VPN, DNS, TCP eller TLS. Ett grönt självtest från datorn får inte användas för att välja någon av dessa som fastställd orsak.
+
+Gatewayen samlar bara maskerade räknare, tidsstämplar, HTTP-status och fasta kategorier för högst 20 senaste händelser. Telefon och dator skiljs åt med den källadress som Tailscale Serve anger. IP-adresserna används i minnet och följer inte med i diagnostikresultatet. Råa URL:er, orderreferenser, sökparametrar, användaridentiteter, headers, cookies och nycklar sparas inte i denna historik. Uppgifterna läses genom den lokala autentiserade sessionskontrollen; ingen ny publik diagnostikrutt öppnas.
+
+### När Safari inte öppnar den privata adressen
+
+1. Öppna Tailscale på telefonen, använd samma konto som datorn och aktivera anslutningen. Aktivera även användning av Tailscale DNS så att klienten kan använda tailnets namninställningar; se [Tailscales DNS-dokumentation](https://tailscale.com/docs/reference/dns-in-tailscale).
+2. På iPhone: kontrollera **VPN On Demand → Cellular** inför 4G/5G-provet. `Never` kopplar automatiskt ned VPN även efter manuell återanslutning. Använd en regel som tillåter anslutning, exempelvis `Always` under provet. Se [Tailscales VPN On Demand-guide](https://tailscale.com/docs/features/client/ios-vpn-on-demand). Detta är en kontrollpunkt, inte en fastställd orsak till det aktuella felet.
+3. Öppna exakt den privata HTTPS-adress och port som den aktuella starten visar, med `/__remote/login`. Behåll `https://` och exempelvis `:8443`; byt inte till telefonens localhost, datorns hem-IP eller en gammal tunneladress. Logga in med rätt sessionsnyckel när sidan visas.
+4. Kör `npm run dev:remote:doctor` på datorn igen medan försöket görs. Telefonens HTTP-räknare visar om anropet nådde gatewayen. Efter API-inloggning i Expo ska även ett aktuellt autentiserat kund-API-anrop synas.
+
+Den rapporterade Safari-anslutningen är ännu inte verifierad. Datorns privata HTTPS fungerade under felsökningen, medan telefonens närvaroflagga växlade mellan online och offline utan verifierad telefonåtkomst till API:et. Telefonens exakta felorsak och mobilscenarierna ska därför fortsatt redovisas som overifierade.
+
+### När koden inte uppdateras i Expo
+
+Den ursprungliga rensade processmiljön satte `CI=1` även för Metro. Expo loggade då att omladdning var avaktiverad; en redan byggd modul kunde ligga kvar trots en källändring. `remoteExpoEnvironment()` tar nu bort `CI` helt för Expo-processen. Värdet sätts inte till `0`, och databasens och workerns befintliga miljöpolicy behålls.
+
+`npm run test:metro` startar en egen riktig Metro-process med samma Expo-miljö. Testet bygger en syntetisk delad JSON-modul, ändrar filen och verifierar att **samma paket-URL** innehåller den nya versionen. Det kör också de nekade privata fil-, källkarte- och tillgångsproven. Positiv filbevakning och negativa säkerhetsprov måste båda passera; filspärrarna ska inte tas bort för att få omladdning att fungera.
 
 ## Ngrok-felet: exakt orsak och fix
 
@@ -180,6 +213,10 @@ npm run start --workspace @yehabibi/mobile -- --tunnel
 
 Den sista raden startar bara Expo och förutsätter att backend redan har valts korrekt. För hela den privata testmiljön använder du `npm run dev:remote`. [Expos dokumentation om tunnlar](https://docs.expo.dev/more/expo-cli/#tunneling) beskriver ngrok och att tunneltjänsten kan få tillfälliga anslutningsfel. När paketupplösningen lyckas men tunneln ändå misslyckas ska det rapporteras som ett separat tunnel- eller nätverksfel.
 
+En ytterligare startkontroll rättades efter ett verkligt prov: Expos base64url-slumpdel kan innehålla understreck inne i `exp.direct`-värdnamnet. Ett sådant genererat namn gav ett giltigt manifest med HTTP 200 över den publika HTTPS-tunneln, men startprogrammets tidigare för snäva namnkontroll avvisade det ändå. Kontrollen accepterar nu interna understreck och kräver fortfarande ett avgränsat värdnamn med exakt suffix `.exp.direct`, utan sökväg, port eller inloggningsuppgifter.
+
+Metro ska köras utan miljövariabeln `CI`; även värdet `0` lämnas bort helt. Den separata Expo-miljön behåller den rensade hemlighetsfria testkonfigurationen men aktiverar vanlig filbevakning. Ett faktiskt ombyggnadsprov ändrar en unik syntetisk fil i det delade paketet och kontrollerar att samma bundle-adress ger den nya versionen. Provet godkändes utan `CI` och upptäckte det ursprungliga felet när `CI=1` återinfördes i en separat kontroll.
+
 ## Genomförd verifiering och gränser
 
 Följande ngrok-kontroller genomfördes på Windows den 20 oktober 2026:
@@ -198,7 +235,7 @@ Följande ngrok-kontroller genomfördes på Windows den 20 oktober 2026:
 
 Den separata ursprungliga ngrok-provtunneln är avstängd. Den kompletta fjärrstarten verifierades därefter med nya manifest- och paketanrop. Kopiera alltid adressen från den aktuella starten. HTTP-kontroller från datorn visar att tunnelservern kan leverera manifest och paket. De bevisar inte att en fysisk iPhone/Android har öppnat appen, att telefonens Expo Go-version passar eller att 4G/5G kan nå privat backend.
 
-Tailscale fanns redan på datorn och var inloggat; någon ny installation genomfördes inte. Den registrerade telefonen svarade på privat Tailscale-ping. Den kompletta fjärrstarten verifierade privat HTTPS, Tailscale-identitet och backendens isoleringsmarkör. Diagnostiken rapporterade backend, Metro, worker, tunnel, API-adress och privat HTTPS som OK. Dessa kontroller gjordes från datorn; fullständigt mobilgodkännande kräver det fysiska testprotokollet nedan.
+Tailscale fanns redan på datorn och var inloggat; någon ny installation genomfördes inte. Den registrerade telefonen svarade på privat Tailscale-ping vid ett tidigare prov. Den kompletta fjärrstarten verifierade privat HTTPS, Tailscale-identitet och backendens isoleringsmarkör från datorn. Den dåvarande diagnostikens sex OK-resultat avsåg datorns självkontroller och verifierade inte Safari eller Expo på telefonen. Den uppdaterade diagnostiken redovisar dessa separat och blockerar ett overifierat telefonresultat.
 
 Automatiserad verifiering hittills:
 
@@ -214,7 +251,7 @@ Automatiserad verifiering hittills:
 | `npm run test:direct` | Godkänt, 9 integrationskontroller. |
 | `npm run test:background` | Godkänt. |
 | `npm run test:remote` | Godkänt, 8 integrationskontroller av gateway, autentisering, order/betalning och isolering. |
-| `npm run test:metro` | Godkänt, sex nekade privata HTTP-sökvägar, säker symbolikering och fungerande vanlig modul. |
+| `npm run test:metro` | Godkänt, sex nekade privata HTTP-sökvägar, säker symbolikering, fungerande vanlig modul och ombyggnad av samma paket-URL efter en bevakad källändring. |
 | `node scripts/security-audit.mjs` | Godkänt med oförändrad undantagspolicy, både alla paket och produktionsberoenden. |
 
 Ett separat Windows-prov avbröt `dev:remote` medan databasen startade via den autentiserade stoppkontrollen. Det bekräftade att den egna databasen stoppades, att databasdata behölls, att sessionslåsen försvann och att den tidigare Serve-konfigurationen på port 443 var oförändrad. Normal start, stopp och återstart verifierades också.

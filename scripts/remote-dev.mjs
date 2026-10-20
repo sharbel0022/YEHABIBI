@@ -4,8 +4,10 @@ import http from 'node:http';
 import {spawn, spawnSync} from 'node:child_process';
 import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {createRequire} from 'node:module';
-import {repositoryRoot as root, cleanProcessEnvironment, freePort, startTestEnvironment} from '../test-support/local/environment.mjs';
+import {repositoryRoot as root, freePort, startTestEnvironment} from '../test-support/local/environment.mjs';
 import {tailscale, tailscaleJson, selectPrivateDevice, assertUnusedServePort, ownsServePort, releaseServe} from '../test-support/remote/tailscale.mjs';
+import {classifyPhoneConnection} from '../test-support/remote/diagnostics.mjs';
+import {isExpoTunnelHost, remoteExpoEnvironment} from '../test-support/remote/expo-environment.mjs';
 
 const directory = path.join(root,'.tmp');
 const stateFile = path.join(directory,'remote-active.json');
@@ -33,15 +35,24 @@ async function doctor() {
   let status;
   try{status=await tailscaleJson(['status','--json']);console.log(`Tailscale: ${status.BackendState==='Running'?'anslutet':'inte anslutet'}`);if(status.BackendState!=='Running')problems.push('Logga själv in på Tailscale.');}catch(error){problems.push(error.message);}
   const state=readState();
-  if(!state){console.log('Backend / worker / Expo: ingen aktiv fjärrsession.');if(fs.existsSync(lockFile))problems.push('En start pågår eller avbröts. Granska remote-starting.json; ta inte bort låset medan processer kör.');}
+  if(!state){console.log('Backend / worker / Expo: ingen aktiv fjärrsession.');problems.push('Starta dev:remote för att verifiera fjärrtest.');if(fs.existsSync(lockFile))problems.push('En start pågår eller avbröts. Granska remote-starting.json; ta inte bort låset medan processer kör.');}
   else {
     try{
       const live=await controller(state,'/status');
-      for(const [key,title] of Object.entries({backend:'Backend',worker:'Bakgrundsworker',metro:'Expo/Metro',privateHttps:'Privat backend-HTTPS',tunnel:'Expo Tunnel',api:'API-adress'})){console.log(`${title}: ${live[key]?'OK':'BLOCKERAD'}`);if(!live[key])problems.push(`${title} kunde inte verifieras.`);}
+      for(const [key,title] of Object.entries({backend:'Backend',worker:'Bakgrundsworker',metro:'Expo/Metro',privateHttps:'Privat HTTPS från datorn (självtest)',tunnel:'Expo Tunnel',api:'API-adress'})){console.log(`${title}: ${live[key]?'OK':'BLOCKERAD'}`);if(!live[key])problems.push(`${title} kunde inte verifieras.`);}
+      if(live.phone){
+        const phone=live.phone;
+        console.log(`Telefonens Tailscale-status: ${phone.peerReportedOnline?'online':'offline eller saknas'}`);
+        console.log(`Telefonens verifierade transport (TSMP): ${phone.transportVerified?'OK':'inte verifierad'}`);
+        console.log(`Aktuellt HTTPS-anrop från telefonen: ${phone.phoneHttpObserved?'observerat':'saknas'}`);
+        console.log(`Aktuellt autentiserat kund-API från telefonen: ${phone.authenticatedPhoneApiObserved?'observerat':'saknas'}`);
+        if(phone.lastPhoneRequestAt)console.log(`Senaste telefonanrop: ${phone.lastPhoneRequestAt}; HTTP ${phone.lastPhoneStatus}; kategori ${live.ingress.lastPhoneCategory}; utfall ${live.ingress.lastPhoneRejection}`);
+        console.log(phone.message);
+        if(!phone.ready)problems.push(...phone.blockers.map(value=>value.message));
+      }else problems.push('Sessionen saknar aktuell telefondiagnostik. Stoppa och starta den med den nya koden.');
       console.log(`Privat webb/API: ${state.publicOrigin}`);
       if(live.tunnel)console.log(`Expo Go: ${state.expoUrl}`);
     }catch{problems.push('Sessionskontrollen svarar inte. Ingen automatisk processavslutning utförs.');}
-    if(status){const peer=Object.values(status.Peer||{}).find(value=>value.ID===state.deviceId);console.log(`Vald telefon: ${peer?.Online?'online':'offline eller inte tillgänglig'} (fysiskt 4G/5G-prov krävs separat).`);}
   }
   console.log('Fysisk mobil och SDK-kompatibel Expo Go: måste verifieras på telefonen.');
   if(problems.length){problems.forEach(problem=>console.log(`BLOCKERAR: ${problem}`));process.exitCode=1;}
@@ -55,7 +66,7 @@ async function discoverExpo(port,child,expectedApiOrigin,shouldStop=()=>false,de
     try{
       const manifest=await request(`http://127.0.0.1:${port}/`,{headers}).then(response=>response.json());
       const host=manifest.extra?.expoClient?.hostUri;
-      if(typeof host==='string' && /^[a-z0-9-]+\.exp\.direct$/.test(host)){
+      if(isExpoTunnelHost(host)){
         const remote=await request(`https://${host}/`,{headers});
         const remoteManifest=await remote.json();
         if(remote.ok && remoteManifest.extra?.expoClient?.hostUri===host && remoteManifest.extra?.expoClient?.sdkVersion===manifest.extra.expoClient.sdkVersion
@@ -129,7 +140,9 @@ async function start() {
     writePrivate(databaseFile,{marker,directory:session.directory});
     checkContinue();
     const {startRemoteGateway}=await import('../test-support/remote/gateway.mjs');
-    gateway=await startRemoteGateway({session,publicOrigin,allowedLogins:device.allowedLogins,accessToken,adminToken});
+    const selectedPeer=Object.values(status.Peer||{}).find(peer=>peer.ID===device.deviceId);
+    gateway=await startRemoteGateway({session,publicOrigin,allowedLogins:device.allowedLogins,accessToken,adminToken,
+      phoneIps:selectedPeer?.TailscaleIPs || [],selfIps:status.Self.TailscaleIPs || []});
     checkContinue();
     // Recheck immediately before mutation. Only an entirely unused port is eligible.
     assertUnusedServePort(await tailscaleJson(['serve','status','--json']),httpsPort);
@@ -151,7 +164,7 @@ async function start() {
     const metroPort=await freePort(session.metroPort);
     log=fs.createWriteStream(path.join(directory,'remote-expo.log'),{flags:'w',mode:0o600});
     expo=spawn(process.execPath,['--dns-result-order=ipv4first',path.join(root,'node_modules/expo/bin/cli'),'start','--go','--tunnel','--port',String(metroPort)],{
-      cwd:path.join(root,'apps/mobile'),windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...cleanProcessEnvironment(),EXPO_NO_DOTENV:'1',APP_ENV:'test',EXPO_PUBLIC_REMOTE_TEST:'true',EXPO_PUBLIC_API_URL:publicOrigin},
+      cwd:path.join(root,'apps/mobile'),windowsHide:true,stdio:['ignore','pipe','pipe'],env:remoteExpoEnvironment(publicOrigin),
     });
     for(const stream of [expo.stdout,expo.stderr])stream.on('data',chunk=>log.write(chunk));
     expo.once('error',()=>{console.error('Expo kunde inte startas.');process.exitCode=1;shutdown();});
@@ -159,16 +172,28 @@ async function start() {
     const expoUrl=await discoverExpo(metroPort,expo,publicOrigin,()=>shutdownRequested);
     checkContinue();
     health=async()=>{
-      const [backend,metro,remote,privateHttps]=await Promise.all([
+      const phoneTransport=async()=>{
+        const current=await tailscaleJson(['status','--json']).catch(()=>null);
+        const peer=Object.values(current?.Peer||{}).find(value=>value.ID===device.deviceId);
+        let transportReachable=false;
+        if(current?.BackendState==='Running' && peer?.Online===true){
+          try{transportReachable=/pong from/i.test(await tailscale(['ping','--tsmp','--c=1','--timeout=3s',device.deviceName]));}catch{}
+        }
+        return {peer,transportReachable,transportCheckedAt:Date.now()};
+      };
+      const [backend,metro,remote,privateHttps,transport]=await Promise.all([
         request(`${session.origin}/__test/ready`,{},3000).then(response=>response.json()).then(value=>value.isolation_id===session.isolationId).catch(()=>false),
         request(`http://127.0.0.1:${metroPort}/status`,{},3000).then(response=>response.text()).then(value=>value.includes('packager-status:running')).catch(()=>false),
         request(expoUrl.replace('exp://','https://')+'/',{headers:{'expo-platform':'ios',accept:'application/expo+json','ngrok-skip-browser-warning':'true'}},3000).then(response=>response.json()).catch(()=>null),
         verifyPrivate(3000),
+        phoneTransport(),
       ]);
       const tunnel=remote?.extra?.expoClient?.hostUri===expoUrl.slice(6);
       const api=remote?.extra?.expoClient?.extra?.appEnvironment==='test' && remote?.extra?.expoClient?.extra?.remoteTestApiOrigin===publicOrigin;
       const worker=session.children.find(child=>child.spawnargs?.some(arg=>arg.endsWith('background-worker.mjs')));
-      return {backend,metro,tunnel,worker:!!worker && worker.exitCode===null && worker.signalCode===null,privateHttps,api};
+      const ingress=gateway.diagnostics();
+      const phone=classifyPhoneConnection({...transport,ingress,pcHttpsSelfCheck:privateHttps});
+      return {backend,metro,tunnel,worker:!!worker && worker.exitCode===null && worker.signalCode===null,privateHttps,api,phone,ingress};
     };
     writePrivate(stateFile,{marker,pid:process.pid,controlOrigin:`http://127.0.0.1:${control.address().port}`,controlToken,publicOrigin,expoUrl,deviceId:device.deviceId,isolationId:session.isolationId,serveLease});
     fs.writeFileSync(credentialsFile,`TESTLÄGE – INGA RIKTIGA PENGAR\nMobil sessionsnyckel: ${accessToken}\nFörhöjd webbläsarnyckel (simulator/admin): ${adminToken}\nTestadmin-lösenord: ${session.adminPassword}\nPrivat inloggning: ${publicOrigin}/__remote/login\n`,{mode:0o600});

@@ -64,7 +64,7 @@ export function RemoteTestBoundary({ children }: PropsWithChildren) {
   if (ready) return <View style={{ flex: 1 }}>
     <SafeAreaView edges={['top']} style={styles.banner}>
       <Text accessibilityRole="alert" style={styles.bannerTitle}>TESTLÄGE – INGA RIKTIGA PENGAR</Text>
-      <Text style={styles.hint}>Privat test via Tailscale. Endast syntetiska uppgifter. Testadmin och betalningssimulator kräver den separata åtgärdsnyckeln i webbläsaren.</Text>
+      <Text style={styles.hint}>Privat test via Tailscale. Endast syntetiska uppgifter. Testadmin och betalningssimulator kräver Förhöjd webbläsarnyckel från datorns lokala fil .tmp/remote-credentials.txt.</Text>
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={() => void openAdmin()}><Text style={styles.link}>Öppna privat testadmin</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => void lock()}><Text style={styles.link}>Lås testappen</Text></Pressable>
@@ -77,12 +77,12 @@ export function RemoteTestBoundary({ children }: PropsWithChildren) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <Text accessibilityRole="header" style={styles.title}>Anslut privat testapp</Text>
       <Text style={styles.bannerTitle}>TESTLÄGE – INGA RIKTIGA PENGAR</Text>
-      <Text style={styles.body}>Datorn och Tailscale på telefonen måste vara anslutna. Använd kundappens sessionsnyckel som visas av npm run dev:remote i PowerShell.</Text>
+      <Text style={styles.body}>Datorn och Tailscale på telefonen måste vara anslutna. Använd Mobil sessionsnyckel från datorns lokala fil .tmp/remote-credentials.txt. npm run dev:remote visar filens sökväg i PowerShell.</Text>
       <Text style={styles.hint}>Nyckeln sparas i enhetens säkra lagring, eller tillfälligt i webbläsarens session. Använd aldrig ett riktigt kundnamn, en e-postadress eller ett telefonnummer i testbeställningar.</Text>
       {!!remoteTest.error && <Text accessibilityRole="alert" style={styles.error}>{remoteTest.error}</Text>}
       {remoteTest.enabled && <>
-        <Text style={styles.label}>Kundappens sessionsnyckel</Text>
-        <TextInput accessibilityLabel="Kundappens sessionsnyckel" value={credential} onChangeText={setCredential}
+        <Text style={styles.label}>Mobil sessionsnyckel</Text>
+        <TextInput accessibilityLabel="Mobil sessionsnyckel" value={credential} onChangeText={setCredential}
           secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="none" autoComplete="off"
           maxLength={80} style={styles.input} editable={!busy} onSubmitEditing={() => void connect()} />
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || !saved && !credential.trim() }}

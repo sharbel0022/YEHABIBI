@@ -6,17 +6,21 @@ import net from 'node:net';
 import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { repositoryRoot as root, cleanProcessEnvironment } from '../test-support/local/environment.mjs';
+import { repositoryRoot as root } from '../test-support/local/environment.mjs';
+import { remoteExpoEnvironment } from '../test-support/remote/expo-environment.mjs';
 
 fs.mkdirSync(path.join(root, '.tmp'), { recursive: true });
 const id = randomUUID(), sentinel = randomBytes(32).toString('hex');
 const relativeJson = `.tmp/metro-denial-${id}.json`;
 const relativeAsset = `.tmp/metro-denial-${id}.png`;
 const relativeEnvironment = `.env.metro-denial-${id}.json`;
-const files = [relativeJson, relativeAsset, relativeEnvironment].map(relative => path.join(root, relative));
+const relativeWatch = `packages/shared/metro-watch-${id}.json`;
+const beforeNonce = `metro-watch-before-${id}`, afterNonce = `metro-watch-after-${id}`;
+const files = [relativeJson, relativeAsset, relativeEnvironment, relativeWatch].map(relative => path.join(root, relative));
 fs.writeFileSync(files[0], JSON.stringify({ sentinel }));
 fs.writeFileSync(files[1], sentinel);
 fs.writeFileSync(files[2], JSON.stringify({ sentinel }));
+fs.writeFileSync(files[3], JSON.stringify({ nonce: beforeNonce }));
 
 let child, log;
 try {
@@ -27,7 +31,7 @@ try {
   const base = `http://localhost:${port}`;
   child = spawn(process.execPath, [path.join(root, 'node_modules/expo/bin/cli'), 'start', '--go', '--localhost', '--port', String(port)], {
     cwd: path.join(root, 'apps/mobile'),
-    env: { ...cleanProcessEnvironment(), EXPO_NO_DOTENV: '1' },
+    env: remoteExpoEnvironment('https://metro-watch.synthetic-tailnet.ts.net:8443'),
     windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
   });
   let spawnFailure;
@@ -67,7 +71,24 @@ try {
   const normal = await fetch(base + '/index.bundle?platform=ios&dev=true&bundleEntry=packages%2Fshared%2Fpackage.json.bundle', { signal: AbortSignal.timeout(30000) });
   assert.equal(normal.status, 200, 'Normal shared JSON must remain compilable.');
   assert.equal((await normal.text()).includes('@yehabibi/shared'), true, 'Positive control did not return the expected shared package.');
-  console.log('Metro security integration PASS: 6 denied private bundle/source/assets probes; symbolication does not leak; normal shared JSON works. No real credentials used.');
+  const watchUrl = base + '/index.bundle?platform=ios&dev=true&bundleEntry=' + encodeURIComponent(relativeWatch + '.bundle');
+  const initialBundle = await fetch(watchUrl, { signal: AbortSignal.timeout(30000) });
+  assert.equal(initialBundle.status, 200, 'Synthetic shared watch module must compile.');
+  assert.equal((await initialBundle.text()).includes(beforeNonce), true, 'Initial bundle did not contain the first synthetic revision.');
+  fs.writeFileSync(files[3], JSON.stringify({ nonce: afterNonce }));
+  let updated = false;
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    assert.ok(!spawnFailure && child.exitCode === null && child.signalCode === null, 'Metro exited while waiting for the watched change.');
+    const response = await fetch(watchUrl, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    assert.equal(response.status, 200, 'The same bundle URL must remain available after a source edit.');
+    const content = await response.text();
+    updated = content.includes(afterNonce) && !content.includes(beforeNonce);
+    if (updated) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  assert.ok(updated, 'Metro did not rebuild the same bundle URL after a shared source edit; CI watch mode may be disabled.');
+  console.log('Metro security/watch integration PASS: 6 denied private bundle/source/assets probes; symbolication does not leak; normal shared JSON works; same bundle URL updates after a watched source edit. No real credentials used.');
 } finally {
   if (child?.pid && child.exitCode === null && child.signalCode === null) {
     const exited = new Promise(resolve => child.once('exit', resolve));
