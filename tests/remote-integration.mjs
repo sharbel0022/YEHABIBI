@@ -37,7 +37,7 @@ const boot = async options => {
   session = await startTestEnvironment(options);
   registryFile ||= path.join(session.directory,'integration-devices.json');
   registry = createDeviceRegistry({file:registryFile});
-  gateway = await startRemoteGateway({ session, publicOrigin, allowedLogins: [login], accessToken, adminToken,
+  gateway = await startRemoteGateway({ session, publicOrigin, allowedLogins: [login], accessToken, adminToken, trustVerifiedPhones:true,
     proxySecret:randomBytes(32).toString('base64url'),deviceRegistry:registry,
     resolveIdentity:async ({sourceIp})=>sourceIp==='100.64.0.2'?identity:{nodeId:'different-phone',login} });
 };
@@ -52,14 +52,12 @@ const input = (quote, method, overrides = {}) => ({ request_id: randomUUID(), me
 try {
   await boot({ reusable: true });
   enrollment = await data('/__remote/device/enroll',{method:'POST',body:{credential}});
-  assert.equal(enrollment.status,'pending');
-  await data('/__remote/device/session',{method:'POST',body:{credential}},401);
-  assert.throws(()=>registry.approve(enrollment.id,'WRONG-CODE'));
-  registry.approve(enrollment.id,enrollment.comparison_code);
+  assert.equal(enrollment.status,'approved');
+  assert.equal(enrollment.comparison_code,undefined);
   mobileToken=(await data('/__remote/device/session',{method:'POST',body:{credential}})).token;
   assert.ok(!fs.readFileSync(registryFile,'utf8').includes(credential),'Only hashed credentials may reach disk.');
   await data('/__remote/device/session',{method:'POST',body:{credential},headers:{'X-Forwarded-For':'100.64.0.3'}},403);
-  checks.push('Explicit comparison approval, hashed persistent device credential and rejected stolen credential on another node');
+  checks.push('Automatic verified Tailscale phone connection without comparison or manual approval; hashed credential and stolen credential denied');
   const verified = await data('/__remote/health'); assert.equal(verified.isolation_id, session.isolationId); assert.equal(verified.real_payments, false);
   const catalog = await data('/api/catalog'); assert.equal(catalog.test_mode, true); assert.equal(catalog.direct_orders_enabled, true);
   for (const method of ['swish', 'card', 'apple_pay', 'google_pay']) assert.ok(catalog.payment_methods.includes(method));
@@ -118,12 +116,13 @@ try {
   assert.ok(jobs.health.last_watchdog_success_at, 'Independent background worker has not completed its authenticated watchdog tick.');
   checks.push('Synthetic delivery fee/address and existing signed payment handled while new orders are paused');
 
-  const directory = session.directory, isolationId = session.isolationId;
+  const directory = session.directory, isolationId = session.isolationId, retainedMetroPort=session.metroPort;
   await gateway.close(); gateway = null; await session.stop(); session = null;
   await boot({ restoreDirectory: directory });
   await data('/api/catalog',{},401);
   mobileToken=(await data('/__remote/device/session',{method:'POST',body:{credential}})).token;
   assert.equal(session.isolationId, isolationId);
+  assert.equal(session.metroPort,retainedMetroPort,'Normal restart must preserve the Metro port used by the Expo tunnel URL.');
   const retained = await readOrder(retainedReceipt); assert.equal(retained.payment_status, 'paid');
   assert.equal(retained.capacity_status, 'confirmed');
   assert.equal((await call('/api/admin/kitchen', { headers: { Cookie: elevatedCookie } })).status, 401);

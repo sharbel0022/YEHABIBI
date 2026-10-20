@@ -63,7 +63,7 @@ try {
   };
   async function mount() {
     assertUnusedServePort(await tailscaleJson(['serve', 'status', '--json']), port);
-    gateway = await startRemoteGateway({ session, publicOrigin, allowedLogins: [login], accessToken: secret(), adminToken: secret(),
+    gateway = await startRemoteGateway({ session, publicOrigin, allowedLogins: [login], accessToken: secret(), adminToken: secret(), trustVerifiedPhones:true,
       proxySecret: secret(), deviceRegistry: registry, resolveIdentity });
     lease = { dns, port, target: gateway.origin };
     // CLI output includes the private backend target, so it is intentionally not printed.
@@ -87,17 +87,16 @@ try {
   stage = 'Serve overwrites forged identity and forwarding headers';
   const credential = secret();
   const enrollment = await request('/__remote/device/enroll', { credential, forged: true });
-  assert.ok(enrollment.status === 200 && enrollment.data.status === 'pending', 'Real Serve must replace forged caller identity headers.');
+  assert.ok(enrollment.status === 200 && enrollment.data.status === 'approved' && !enrollment.data.comparison_code, 'Real Serve must authenticate automatically without a comparison code.');
   assert.ok(observedIdentity?.login === login && status.Self.TailscaleIPs.includes(observedIdentity?.sourceIp), 'Observed identity must be the actual local Serve caller.');
   const pending = registry.list();
   assert.ok(pending.length === 1 && pending[0].nodeId === status.Self.ID && pending[0].login === login, 'Enrollment must bind only the verified caller identity.');
-  registry.approve(enrollment.data.id, enrollment.data.comparison_code);
   const authorization = await request('/__remote/device/session', { credential, forged: true });
   assert.ok(authorization.status === 200 && typeof authorization.data.token === 'string', 'Approved local identity must obtain a customer session.');
   const initialToken = authorization.data.token;
   const catalog = await request('/api/catalog', { token: initialToken, forged: true });
   assert.ok(catalog.status === 200 && catalog.data.synthetic_transport_test === true, 'Customer session must reach the synthetic catalog through actual Serve.');
-  console.log('PASS: real Serve sanitized forged login, forwarding and node headers; registration required local approval.');
+  console.log('PASS: real Serve sanitized forged headers and authenticated automatically without a code or local approval.');
 
   stage = 'bare loopback proxy spoofing';
   const direct = await new Promise((resolve, reject) => {
@@ -141,6 +140,8 @@ try {
   const revokedCredential = await request('/__remote/device/session', { credential });
   assert.ok(revokedSession.status === 401 && revokedSession.data.code === 'device_revoked', 'Local revoke must invalidate an active session immediately.');
   assert.ok(revokedCredential.status === 401 && revokedCredential.data.code === 'device_revoked', 'A revoked credential must remain denied.');
+  const newCredential=await request('/__remote/device/enroll',{credential:secret()});
+  assert.ok(newCredential.status===401&&newCredential.data.code==='device_revoked','Revoked phone must not bypass denial by generating a new credential.');
   console.log('PASS: local revocation immediately blocked both active session and persistent credential.');
 } catch {
   // Error payloads and assertion values may contain private tailnet metadata.

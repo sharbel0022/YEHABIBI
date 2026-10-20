@@ -5,7 +5,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {repositoryRoot as root, freePort, startTestEnvironment} from '../test-support/local/environment.mjs';
-import {tailscale, tailscaleJson, selectPrivateDevice, assertUnusedServePort, ownsServePort, releaseServe, createServeIdentityResolver} from '../test-support/remote/tailscale.mjs';
+import {tailscale, tailscaleJson, selectPrivateDevice, privateServerIdentity, assertUnusedServePort, ownsServePort, releaseServe, createServeIdentityResolver} from '../test-support/remote/tailscale.mjs';
 import {classifyPhoneConnection} from '../test-support/remote/diagnostics.mjs';
 import {isExpoTunnelHost, remoteExpoEnvironment} from '../test-support/remote/expo-environment.mjs';
 import {createDeviceRegistry} from '../test-support/remote/devices.mjs';
@@ -63,6 +63,8 @@ async function manageDevices() {
   console.log(JSON.stringify(result,null,2));
 }
 async function stopActive() {
+  fs.mkdirSync(directory,{recursive:true});
+  writePrivate(path.join(directory,'remote-server-paused.json'),{bootId:await currentBootId()});
   const state=readState();
   if(!state){console.log('Ingen aktiv privat fjärrtestsession.');return;}
   try{await controller(state,'/stop','POST');}catch{throw new Error('Sessionskontrollen kan inte nås. Inga process-ID:n eller främmande Serve-inställningar stoppas. Kör doctor och granska den sparade sessionen manuellt.');}
@@ -124,6 +126,10 @@ async function start() {
   if(major<22 || major===22 && minor<13)throw new Error('Node.js 22.13 eller senare krävs.');
   fs.mkdirSync(directory,{recursive:true});
   const bootId=await currentBootId();
+  if(!argv.includes('--server') && fs.existsSync(path.join(directory,'remote-server-paused.json')))fs.unlinkSync(path.join(directory,'remote-server-paused.json'));
+  const servicePaused=()=>argv.includes('--server')&&fs.existsSync(path.join(directory,'remote-server-paused.json'))
+    && JSON.parse(fs.readFileSync(path.join(directory,'remote-server-paused.json'),'utf8')).bootId===bootId;
+  if(servicePaused())return;
   await recoverReboot(bootId);
   const active=readState();
   if(active){await controller(active,'/status');console.log(`En egen session kör redan. Privat webb: ${active.publicOrigin}\nExpo Go: ${active.expoUrl}\nAnvänd dev:remote:stop före omstart.`);return;}
@@ -131,7 +137,7 @@ async function start() {
   for(const dependency of ['expo/package.json','@expo/ngrok/package.json','next/package.json']){try{require.resolve(dependency);}catch{throw new Error(`Beroendet ${dependency} saknas. Kör npm ci från repots rot.`);}}
   console.log(`Node ${process.version}; npm ${process.env.npm_config_user_agent?.match(/npm\/([^ ]+)/)?.[1]||'starta via npm run dev:remote'}.`);
   const status=await tailscaleJson(['status','--json']);
-  const device=selectPrivateDevice(status,readOption('--device'));
+  const device=readOption('--device') ? selectPrivateDevice(status,readOption('--device')) : privateServerIdentity(status);
   const httpsPort=Number(readOption('--https-port') || 8443);
   const previousServe=await tailscaleJson(['serve','status','--json']);
   assertUnusedServePort(previousServe,httpsPort);
@@ -140,10 +146,11 @@ async function start() {
     try{await tailscale(['ping','--c=1','--timeout=5s',device.deviceName]);console.log('Registrerad telefon svarar via privat tailnet. 4G/5G och Expo måste verifieras på telefonen.');}
     catch{console.log('Telefonen är registrerad men svarar inte på Tailscale-ping just nu. Servern startas med samma privata autentisering; mobilprovet kräver att telefonen återansluts.');}
   }
+  if(servicePaused())return;
   let lock;
   try{lock=fs.openSync(lockFile,'wx',0o600);fs.writeFileSync(lock,JSON.stringify({marker,pid:process.pid,bootId}));}catch{throw new Error('En start pågår eller avbröts. Kör dev:remote:doctor; inget befintligt startlås skrivs över.');}
   let session,gateway,expo,serveLease,control,log,stopping=false,booting=true,shutdownRequested=false;
-  const checkContinue=()=>{if(shutdownRequested)throw new Error('Starten avbröts. Den egna sessionen stängs säkert.');};
+  const checkContinue=()=>{if(shutdownRequested||servicePaused())throw new Error('Starten avbröts. Den egna sessionen stängs säkert.');};
   let finish;const finished=new Promise(resolve=>{finish=resolve;});
   const cleanup=async()=>{
     if(stopping)return;stopping=true;
@@ -199,10 +206,10 @@ async function start() {
     checkContinue();
     const {startRemoteGateway}=await import('../test-support/remote/gateway.mjs');
     const selectedPeer=Object.values(status.Peer||{}).find(peer=>peer.ID===device.deviceId);
-    gateway=await startRemoteGateway({session,publicOrigin,allowedLogins:device.allowedLogins,accessToken,adminToken,
+    gateway=await startRemoteGateway({session,publicOrigin,allowedLogins:device.allowedLogins,accessToken,adminToken,trustVerifiedPhones:true,
       proxySecret:randomBytes(32).toString('base64url'),deviceRegistry:registry,
-      resolveIdentity:createServeIdentityResolver({allowedNodeIds:[device.deviceId]}),
-      phoneIps:selectedPeer?.TailscaleIPs || [],selfIps:status.Self.TailscaleIPs || []});
+      resolveIdentity:createServeIdentityResolver({allowedNodeIds:device.deviceId?[device.deviceId]:[],allowOwnPhones:!readOption('--device')}),
+      phoneIps:device.phoneIps || selectedPeer?.TailscaleIPs || [],selfIps:status.Self.TailscaleIPs || []});
     checkContinue();
     // Recheck immediately before mutation. Only an entirely unused port is eligible.
     assertUnusedServePort(await tailscaleJson(['serve','status','--json']),httpsPort);
@@ -257,10 +264,10 @@ async function start() {
       return {backend,metro,tunnel,worker:!!worker && worker.exitCode===null && worker.signalCode===null,privateHttps,api,phone,ingress};
     };
     writePrivate(stateFile,{marker,pid:process.pid,bootId,controlOrigin:`http://127.0.0.1:${control.address().port}`,controlToken,publicOrigin,expoUrl,deviceId:device.deviceId,isolationId:session.isolationId,serveLease});
-    fs.writeFileSync(credentialsFile,`TESTLÄGE – INGA RIKTIGA PENGAR\nFörhöjd webbläsarnyckel (simulator/admin): ${adminToken}\nTestadmin-lösenord: ${session.adminPassword}\nPrivat inloggning: ${publicOrigin}/__remote/login\nTelefon: registrera en gång i appen och godkänn jämförelsekoden med dev:remote:devices. Ingen mobil sessionsnyckel behövs.\n`,{mode:0o600});
+    fs.writeFileSync(credentialsFile,`TESTLÄGE – INGA RIKTIGA PENGAR\nFörhöjd webbläsarnyckel (simulator/admin): ${adminToken}\nTestadmin-lösenord: ${session.adminPassword}\nPrivat inloggning: ${publicOrigin}/__remote/login\nTelefon: öppna Expo Go med Tailscale anslutet. Anslutningen godkänns automatiskt för datorägarens privata telefoner.\n`,{mode:0o600});
     expo.once('exit',()=>{if(!stopping){console.error('Expo avslutades. Den egna fjärrsessionen stängs.');process.exitCode=1;void cleanup();}});
     booting=false;
-    console.log(`TESTLÄGE – INGA RIKTIGA PENGAR\nExpo Go: ${expoUrl}\nPrivat webb/API: ${publicOrigin}\nPrivat webbinloggning: ${publicOrigin}/__remote/login\nFörsta gången: välj Registrera telefon i appen. Kör npm run dev:remote:devices -- list och godkänn samma id/kod med approve <id> <kod>.\nGodkänd telefon återansluter automatiskt.\nSeparata adminnycklar: ${credentialsFile}\nExpo SDK 57 kräver kompatibel Expo Go eller development build.\nCtrl+C eller npm run dev:remote:stop stoppar endast denna session. Databas och godkända enheter behålls.`);
+    console.log(`TESTLÄGE – INGA RIKTIGA PENGAR\nExpo Go: ${expoUrl}\nPrivat webb/API: ${publicOrigin}\nÖppna Expo Go med Tailscale anslutet. Ingen registrering, kod eller enhetslista behövs.\nSeparata adminnycklar: ${credentialsFile}\nExpo SDK 57 kräver kompatibel Expo Go eller development build.\nCtrl+C eller npm run dev:remote:stop stoppar denna session. Databas och telefonernas säkra anslutningar behålls.`);
     await finished;
   }catch(error){await cleanup();throw error;}
 }

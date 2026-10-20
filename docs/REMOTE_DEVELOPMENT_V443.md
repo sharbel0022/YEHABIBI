@@ -1,5 +1,7 @@
 # V4.4.3 – godkänd telefon utan återkommande sessionsnyckel
 
+**Historik:** Den manuella registrering som beskrivs nedan har ersatts av [automatiskt privat serverläge](AUTOMATIC_PRIVATE_SERVER.md). Nu räcker telefonens verifierade befintliga Tailscale-inloggning; ingen lista, kodjämförelse eller godkännandekommando behövs i normal användning.
+
 ## Varför den gamla nyckeln behövdes
 
 V4.4.2 lade en separat, slumpmässig kundnyckel framför den isolerade testmiljön. Gatewayens nyckel och sessioner fanns bara för den aktuella starten. Telefonens sparade nyckel blev därför ogiltig när Windows eller fjärrstarten startades om. Tailscale-inloggning ensam visade vilken användare som anslöt, inte vilken av användarens telefoner som godkänts för Yehabibi.
