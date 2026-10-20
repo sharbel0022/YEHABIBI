@@ -4,18 +4,60 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { createApiClient } from '@yehabibi/api-client';
 import { localApiStorageKey, safeExternalUrl, safePaymentUrl, type OrderReference } from '@yehabibi/shared';
+import { createRemoteTestFetch, remoteTestConfiguration, remoteTestStorageKey, validRemoteTestCredential } from './remote-test';
 
 export const apiUrl = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
 export type { OrderReference } from '@yehabibi/shared';
-const storageKey = localApiStorageKey('cedar-mezze-orders-v1', apiUrl);
-const draftKey = localApiStorageKey('cedar-mezze-selection-v4', apiUrl);
-const requestKey = localApiStorageKey('cedar-mezze-request-v1', apiUrl);
+export const remoteTest = remoteTestConfiguration({
+  requested: process.env.EXPO_PUBLIC_REMOTE_TEST === 'true',
+  development: typeof __DEV__ !== 'undefined' && __DEV__,
+  environment: Constants.expoConfig?.extra?.appEnvironment || '',
+  apiUrl,
+});
+const scopedStorageKey = (key: string) => remoteTest.requested ? remoteTestStorageKey(key, apiUrl) : localApiStorageKey(key, apiUrl);
+const storageKey = scopedStorageKey('cedar-mezze-orders-v1');
+const draftKey = scopedStorageKey('cedar-mezze-selection-v4');
+const requestKey = scopedStorageKey('cedar-mezze-request-v1');
+const remoteCredentialKey = scopedStorageKey('cedar-mezze-remote-session-v442');
+let remoteCredential = '';
+const remoteLockListeners = new Set<() => void>();
+
+export function onRemoteTestLock(listener: () => void) {
+  remoteLockListeners.add(listener);
+  return () => { remoteLockListeners.delete(listener); };
+}
+
+export async function readRemoteTestCredential() {
+  if (!remoteTest.enabled) return false;
+  const value = Platform.OS === 'web'
+    ? typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(remoteCredentialKey) : null
+    : await SecureStore.getItemAsync(remoteCredentialKey);
+  remoteCredential = value && validRemoteTestCredential(value) ? value : '';
+  return Boolean(remoteCredential);
+}
+
+export async function saveRemoteTestCredential(value: string) {
+  if (!remoteTest.enabled || !validRemoteTestCredential(value)) throw new Error('Använd kundappens sessionsnyckel från dev:remote i PowerShell.');
+  if (Platform.OS === 'web') sessionStorage.setItem(remoteCredentialKey, value);
+  else await SecureStore.setItemAsync(remoteCredentialKey, value);
+  remoteCredential = value;
+}
+
+export async function clearRemoteTestCredential() {
+  remoteCredential = '';
+  remoteLockListeners.forEach(listener => listener());
+  if (Platform.OS === 'web') sessionStorage.removeItem(remoteCredentialKey);
+  else await SecureStore.deleteItemAsync(remoteCredentialKey);
+}
 
 // Bara adressen och utvecklingsläget är mobilspecifika; kontrakt/fel delas med webben.
 export const api = createApiClient({
   baseUrl: apiUrl,
   requireBaseUrl: true,
-  allowHttp: typeof __DEV__ !== 'undefined' && __DEV__,
+  allowHttp: typeof __DEV__ !== 'undefined' && __DEV__ && !remoteTest.requested,
+  allowPrivateRemoteTest: remoteTest.enabled,
+  fetch: createRemoteTestFetch({ configuration: remoteTest, credential: () => remoteCredential,
+    onUnauthorized: () => { void clearRemoteTestCredential().catch(() => {}); } }),
 });
 export const getCatalog = api.getCatalog;
 export const getOrder = api.getOrderStatus;
@@ -122,7 +164,7 @@ export async function registerOrderPush(reference: OrderReference, testMode = fa
 }
 
 export async function openWebsite(value: string | null | undefined, checkout = false, verifiedTestMode = false) {
-  const url = checkout ? safePaymentUrl(value, apiUrl, verifiedTestMode) : safeExternalUrl(value);
+  const url = checkout ? safePaymentUrl(value, apiUrl, verifiedTestMode, remoteTest.enabled) : safeExternalUrl(value);
   if (!url) {
     throw new Error('Den här länken är inte tillgänglig. Kontakta Cedar Mezze.');
   }

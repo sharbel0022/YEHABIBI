@@ -44,6 +44,8 @@ jobs:
       - name: Production HTTP, server rendering and disabled demo checks
         run: npm run test:web
       - run: npm run export:mobile
+      - name: Public Metro denies private JSON entries, source maps and asset traversal
+        run: npm run test:metro
       - name: Install pinned PostgREST for isolated database tests
         shell: bash
         run: |
@@ -61,6 +63,8 @@ jobs:
         run: npm run test:direct
       - name: Independent scheduled worker, crash recovery and kitchen alarms without browsers
         run: npm run test:background
+      - name: Private remote gateway, synthetic payments, denied internals and preserved orders after restart
+        run: npm run test:remote
       - name: Database test diagnostics on failure
         if: failure()
         shell: bash

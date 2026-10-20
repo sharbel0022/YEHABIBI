@@ -25,6 +25,8 @@ export type ApiClientOptions = {
   requireBaseUrl?: boolean;
   /** HTTP får bara aktiveras uttryckligen i lokal utveckling. */
   allowHttp?: boolean;
+  /** Endast den autentiserade utvecklingsklienten får använda privat tailnet-checkout. */
+  allowPrivateRemoteTest?: boolean;
   timeoutMs?: number;
   fetch?: typeof fetch;
 };
@@ -72,12 +74,12 @@ function isAvailability(value:unknown):value is AvailabilityResponse {
       typeof slot.event_time==='string' && (slot.remaining_capacity===undefined || Number.isInteger(slot.remaining_capacity) && Number(slot.remaining_capacity)>0));
 }
 
-function isPaymentSession(value: unknown, origin: string, verifiedTestMode: boolean): value is PaymentSessionResponse {
+function isPaymentSession(value: unknown, origin: string, verifiedTestMode: boolean, allowPrivateRemoteTest = false): value is PaymentSessionResponse {
   if (!isObject(value) || typeof value.checkout_url !== 'string' ||
       !['unpaid', 'pending', 'paid', 'failed', 'refunded'].includes(String(value.payment_status))) return false;
   if (value.test_mode !== undefined && typeof value.test_mode !== 'boolean' ||
       value.test_mode === true && !verifiedTestMode || verifiedTestMode && value.test_mode !== true) return false;
-  return Boolean(safePaymentUrl(value.checkout_url, origin, verifiedTestMode && value.test_mode === true));
+  return Boolean(safePaymentUrl(value.checkout_url, origin, verifiedTestMode && value.test_mode === true, allowPrivateRemoteTest));
 }
 
 function apiBase(options: ApiClientOptions) {
@@ -152,6 +154,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const getCatalog = async (requestOptions?: RequestOptions) => {
     try {
       const catalog = await request('/api/catalog', isCatalog, {}, requestOptions);
+      if (options.allowPrivateRemoteTest && (catalog.test_mode !== true || catalog.demo)) {
+        throw new ApiError('Den privata servern har inte verifierat ett isolerat testläge. Beställning och betalning är blockerade.', 'response');
+      }
       verifiedTestMode = catalog.test_mode === true;
       return catalog;
     } catch (error) { verifiedTestMode = false; throw error; }
@@ -180,11 +185,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return request(orderPath(reference), isOrderResponse, {}, requestOptions);
     },
     async createPayment(reference: OrderReference, method: OnlinePaymentMethod, requestOptions?: RequestOptions) {
+      if (options.allowPrivateRemoteTest && !verifiedTestMode) {
+        throw new ApiError('Hämta och verifiera testmenyn innan du öppnar en testbetalning.', 'configuration');
+      }
       const result = await request('/api/payments/create', (value): value is PaymentSessionResponse =>
-        isPaymentSession(value, paymentOrigin(), verifiedTestMode), {
+        isPaymentSession(value, paymentOrigin(), verifiedTestMode, options.allowPrivateRemoteTest), {
         method: 'POST', body: JSON.stringify({ code:reference.code, token:reference.token, payment_method: method }),
       }, requestOptions);
-      const url = safePaymentUrl(result.checkout_url, paymentOrigin(), verifiedTestMode && result.test_mode === true);
+      const url = safePaymentUrl(result.checkout_url, paymentOrigin(), verifiedTestMode && result.test_mode === true, options.allowPrivateRemoteTest);
       if (!url) throw new ApiError('Betalningslänken kunde inte verifieras.', 'response');
       return { ...result, checkout_url: url };
     },

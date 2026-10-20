@@ -130,11 +130,18 @@ export function safeExternalUrl(value: string | null | undefined) {
 }
 
 /** Lokal simulering får bara öppna samma privata backend som intygat testläget. */
-export function safePaymentUrl(value: string | null | undefined, apiOrigin: string, verifiedTestMode = false) {
+export function safePaymentUrl(value: string | null | undefined, apiOrigin: string, verifiedTestMode = false, allowPrivateRemoteTest = false) {
   if (!verifiedTestMode) return safeExternalUrl(value);
   if (!value) return null;
   try {
     const base = new URL(apiOrigin), url = new URL(value, base);
+    // Ett separat kontrakt för privat fjärrtestning. Den gamla localhost-spärren
+    // gäller fortfarande när klienten inte uttryckligen aktiverat detta läge.
+    if (allowPrivateRemoteTest && base.protocol === 'https:' &&
+        /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+ts\.net$/i.test(base.hostname) &&
+        !base.username && !base.password && !base.search && !base.hash && base.pathname === '/' &&
+        url.origin === base.origin && !url.username && !url.password && !url.search && !url.hash &&
+        /^\/__test\/payment\/lt_[a-f\d]{64}$/.test(url.pathname)) return url.toString();
     const privateHost = (hostname: string) => {
       if (hostname === 'localhost' || hostname === '[::1]') return true;
       const parts = hostname.split('.');

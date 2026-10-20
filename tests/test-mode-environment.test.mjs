@@ -56,3 +56,7 @@ test('a successful readiness response cannot hide a process that exited during t
     await assert.rejects(waitReady(endpoint.url, [child], 'synthetic-only', isolationId), /Testprocess avslutades \(1\)/);
   } finally { await endpoint.close(); }
 });
+
+test('a child spawn error fails readiness so the owner can stop its database', async () => {
+  await assert.rejects(waitReady('http://127.0.0.1:1', [{exitCode:null,signalCode:null,testStartupError:{code:'EACCES'}}], 'synthetic-only'), /kunde inte startas \(EACCES\)/);
+});

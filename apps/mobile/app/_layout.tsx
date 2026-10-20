@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CateringProvider } from '../lib/store';
 import { colors } from '../lib/ui';
+import { RemoteTestBoundary } from '../lib/remote-test-boundary';
 
 function Brand() {
   return (
@@ -20,6 +21,7 @@ function Brand() {
 export default function Layout() {
   return (
     <SafeAreaProvider>
+      <RemoteTestBoundary>
       <CateringProvider>
         <StatusBar style="dark" />
         <Tabs
@@ -79,6 +81,7 @@ export default function Layout() {
           />
         </Tabs>
       </CateringProvider>
+      </RemoteTestBoundary>
     </SafeAreaProvider>
   );
 }
