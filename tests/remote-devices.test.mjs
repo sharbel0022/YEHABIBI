@@ -122,7 +122,7 @@ async function listen(handler) {
   await new Promise(resolve => instance.listen(0, '127.0.0.1', resolve));
   return { origin: `http://127.0.0.1:${instance.address().port}`, close: async () => { instance.closeAllConnections(); await new Promise(resolve => instance.close(resolve)); } };
 }
-async function gatewayFixture({ configureDevices = true, configureResolver = true } = {}) {
+async function gatewayFixture({ configureDevices = true, configureResolver = true, trustVerifiedPhones = false } = {}) {
   const f = registryFixture(), requests = [], isolationId = randomUUID();
   const upstream = await listen((request, response) => {
     response.setHeader('Content-Type', 'application/json');
@@ -135,7 +135,7 @@ async function gatewayFixture({ configureDevices = true, configureResolver = tru
   const session = { marker: 'YEHABIBI_ISOLATED_LOCAL_TEST', isolationId, origin: upstream.origin, backendOrigin: backend.origin, controlSecret: randomBytes(32).toString('hex') };
   session.webEnv = { APP_ENV: 'test', NODE_ENV: 'development', PAYMENTS_ENABLED: 'false', PAYMENTS_LIVE_APPROVED: 'false', TEST_ISOLATION_ID: isolationId,
     TEST_PAYMENT_SECRET: session.controlSecret, TEST_BACKEND_ORIGIN: backend.origin, NEXT_PUBLIC_SUPABASE_URL: backend.origin, NEXT_PUBLIC_SITE_URL: upstream.origin };
-  const options = { session, publicOrigin, allowedLogins: [login], accessToken: secret(), adminToken: secret(), proxySecret: secret(),
+  const options = { session, publicOrigin, allowedLogins: [login], accessToken: secret(), adminToken: secret(), proxySecret: secret(), trustVerifiedPhones,
     ...(configureDevices ? { deviceRegistry: f.registry } : {}),
     ...(configureResolver ? { resolveIdentity: async ({ sourceIp, login: claimed }) => {
       if (claimed !== login) return null;
@@ -160,6 +160,27 @@ async function gatewayFixture({ configureDevices = true, configureResolver = tru
     await gateway.close(); gateway = await startRemoteGateway({ ...options, accessToken: secret(), adminToken: secret(), proxySecret: secret(), deviceRegistry: createDeviceRegistry({ file: f.file }) });
   }, close: async () => { await gateway.close(); await backend.close(); await upstream.close(); f.close(); } };
 }
+
+test('automatic trusted-phone connection needs no comparison or approval and revocation cannot be bypassed by a new credential', async () => {
+  const f = await gatewayFixture({trustVerifiedPhones:true}), credential=secret();
+  try {
+    const enrolled=await f.call('/__remote/device/enroll',{body:{credential}});
+    assert.equal(enrolled.status,200);assert.equal(enrolled.body.status,'approved');
+    assert.equal(enrolled.body.comparison_code,undefined);
+    const session=await f.call('/__remote/device/session',{body:{credential}});
+    assert.equal(session.status,200);
+    assert.equal((await f.call('/api/catalog',{token:session.body.token})).status,200);
+    assert.equal((await f.call('/api/admin/settings',{token:session.body.token})).status,401);
+    assert.equal((await f.call('/__remote/device/enroll',{body:{credential},headers:{'X-Forwarded-For':'100.64.1.3'}})).status,403);
+    await f.restart();
+    assert.equal((await f.call('/__remote/device/session',{body:{credential}})).status,200);
+    f.registry.revoke(enrolled.body.id);
+    const bypass=await f.call('/__remote/device/enroll',{body:{credential:secret()}});
+    assert.equal(bypass.status,401);assert.equal(bypass.body.code,'device_revoked');
+    assert.equal((await f.call('/__remote/device/session',{body:{credential}})).body.code,'device_revoked');
+    assert.equal((await f.call('/__remote/device/enroll',{body:{credential:secret()},bare:true})).status,403);
+  }finally{await f.close();}
+});
 
 test('gateway explicit enrollment, approval and automatic short session resume survive gateway reconstruction', async () => {
   const f = await gatewayFixture(), credential = secret();

@@ -99,7 +99,7 @@ export async function startTestEnvironment(options = {}) {
     // Reject an occupied fixed port before initializing the database or launching any process.
     return freePort(selected);
   };
-  const pgPort = await freePort(), restPort = await freePort(), bridgePort = await choosePort('bridge'), webPort = await choosePort('web'), metroPort = await freePort();
+  const pgPort = await freePort(), restPort = await freePort(), bridgePort = await choosePort('bridge'), webPort = await choosePort('web'), metroPort = await choosePort('metro');
   assert.equal(new Set([pgPort, restPort, bridgePort, webPort, metroPort]).size, 5, 'Testprocesserna behöver fem olika portar.');
   const origin = `http://127.0.0.1:${webPort}`, backendOrigin = `http://127.0.0.1:${bridgePort}`;
   const sql = text => command(executable('psql'), ['-h', '127.0.0.1', '-p', String(pgPort), '-U', 'postgres', '-d', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1'], text);

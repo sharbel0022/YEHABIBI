@@ -28,6 +28,34 @@ function deviceFixture(options = {}) {
 }
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
+test('automatisk anslutning: första API-anropet ansluter utan lista, kod eller användaråtgärd och överlever Expo-omstart', async () => {
+  const calls=[];
+  const fetch=async(url,init)=>{
+    calls.push({url,credential:JSON.parse(init.body).credential});
+    return Response.json(url.endsWith('/enroll')?{id:'automatic_device',status:'approved'}:{token,expires_at:expiration()});
+  };
+  const first=deviceFixture({automatic:true,fetch});
+  assert.equal(await first.auth.getSessionToken(),token);assert.equal(first.writes(),1);
+  assert.deepEqual(calls.map(call=>call.url),[origin+'/__remote/device/enroll',origin+'/__remote/device/session']);
+  assert.ok(calls.every(call=>call.credential===first.saved()));
+  const resumed=deviceFixture({automatic:true,fetch,saved:first.saved()});
+  assert.equal(await resumed.auth.getSessionToken(),token);assert.equal(resumed.writes(),0);
+});
+
+test('automatisk anslutning: tappat första svar återanvänder credential och återkallning stoppar automatiska försök', async()=>{
+  let available=false,revoked=false,calls=0;
+  const device=deviceFixture({automatic:true,fetch:async url=>{
+    calls++;if(!available)throw new TypeError('offline');
+    if(revoked)return Response.json({code:'device_revoked'},{status:401});
+    return Response.json(url.endsWith('/enroll')?{id:'automatic_device',status:'approved'}:{token,expires_at:expiration()});
+  }});
+  await assert.rejects(device.auth.getSessionToken(),/Tailscale/);const saved=device.saved();
+  available=true;assert.equal(await device.auth.getSessionToken(),token);assert.equal(device.saved(),saved);assert.equal(device.writes(),1);
+  const revokedDevice=deviceFixture({automatic:true,saved,fetch:async()=>{calls++;return Response.json({code:'device_revoked'},{status:401});}});
+  revoked=true;await assert.rejects(revokedDevice.auth.getSessionToken(),/återkallat/);
+  const before=calls;await assert.rejects(revokedDevice.auth.getSessionToken());assert.equal(calls,before);
+});
+
 test('fjärrmobil: explicit utvecklingsläge, APP_ENV=test och exakt privat HTTPS-origin krävs', () => {
   assert.equal(configuration.enabled, true);
   for (const override of [

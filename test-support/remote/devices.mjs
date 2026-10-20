@@ -108,11 +108,20 @@ export function createDeviceRegistry({ file, now = Date.now, bootId }) {
     return record;
   };
   return {
-    requestEnrollment({ credential, identity }) {
+    requestEnrollment({ credential, identity, trustVerifiedPhone = false }) {
       credentialValue(credential); identity = identityValue(identity);
       return mutate(records => {
+        if (trustVerifiedPhone && records.some(record => record.nodeId === identity.nodeId && record.status === 'revoked')) throw deviceError('device_revoked');
         const current = match(records, credential, identity), time = now();
         if (current?.status === 'approved') return { id: current.id, status: 'approved' };
+        if (trustVerifiedPhone) {
+          if (!current && records.length >= maxDevices) throw deviceError('enrollment_limit', 429);
+          const record = current || { id: randomUUID(), ...identity, credential_hash: fingerprint(credential), binding_hash: binding(credential, identity), created_at: new Date(time).toISOString() };
+          record.status = 'approved'; record.approved_at = new Date(time).toISOString();
+          delete record.comparison_code; delete record.expires_at;
+          if (!current) records.push(record);
+          return { id: record.id, status: 'approved' };
+        }
         if (current && Date.parse(current.expires_at) > time) return { id: current.id, status: 'pending', comparison_code: current.comparison_code, expires_at: current.expires_at };
         // Expired pending requests grant nothing and may be pruned. Approved and revoked records persist.
         for (let index = records.length - 1; index >= 0; index--) if (records[index].status === 'pending' && Date.parse(records[index].expires_at) <= time) records.splice(index, 1);

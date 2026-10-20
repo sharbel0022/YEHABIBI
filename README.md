@@ -14,19 +14,19 @@ För kompletta orderflöden utan riktiga pengar finns en separat lokal testmilj�
 
 ## Privat fjärrtest med Expo Go
 
-V4.4.3 använder Expo Tunnel för utvecklingsappen och privat Tailscale HTTPS för samma isolerade testbackend. Telefonen registreras och godkänns på datorn en gång, sparar sin enhetscredential i SecureStore och återansluter med kortlivade kundsessioner. Anslut datorn och telefonen till samma Tailscale-konto och kör från repots rot:
+Serverläget använder Expo Tunnel för appen och privat Tailscale HTTPS för samma isolerade testbackend. Öppna appen i Expo Go med Tailscale anslutet på telefonen och datorn: kundanslutningen sker automatiskt. Ingen enhetslista, jämförelsekod eller separat registrering behövs. Telefonen måste redan tillhöra datorägarens Tailscale-konto.
 
 ```powershell
+# Windows: installera bakgrundsstart en gång; startar även servern nu.
+npm run server:install
+# Vanlig manuell start fungerar också.
 npm run dev:remote
-# Första gången: välj Registrera denna telefon i appen och jämför koden.
-npm run dev:remote:devices -- list
-npm run dev:remote:devices -- approve <enhets-id> <jämförelsekod>
 npm run dev:remote:doctor
 # Stoppa från en andra PowerShell; testdatabasen behålls.
 npm run dev:remote:stop
 ```
 
-Starten visar aktuell Expo Go-länk och den riktiga privata API-adressen. Ingen mobil sessionsnyckel behöver kopieras. Testadmin och betalningssimulator behåller separat webbinloggning med `.tmp/remote-credentials.txt`. Återkalla en telefon med `npm run dev:remote:devices -- revoke <enhets-id>`. Läs [V4.4.3-guiden](docs/REMOTE_DEVELOPMENT_V443.md) för exakta Windows-kommandon, säkerhetsmodell och verifieringsgränser. [V4.4.2-guiden](docs/REMOTE_DEVELOPMENT_V442.md) beskriver tidigare implementation, SDK 57/Expo Go, installation och ngrok-fixen.
+Servern startar dolt vid Windows-inloggning, återstartar efter avbrott och håller datorn vaken under normal inaktivitet. Databas, order och Metro-port bevaras. Testadmin och betalningssimulator behåller separat webbinloggning med `.tmp/remote-credentials.txt`. Läs [serverguiden](docs/AUTOMATIC_PRIVATE_SERVER.md) för start/stopp, säkerhetsmodell och verifieringsgränser. [V4.4.2-guiden](docs/REMOTE_DEVELOPMENT_V442.md) beskriver SDK 57/Expo Go, installation och ngrok-fixen.
 
 ## Starta i Windows
 

@@ -21,6 +21,7 @@ const draftKey = scopedStorageKey('cedar-mezze-selection-v4');
 const requestKey = scopedStorageKey('cedar-mezze-request-v1');
 const remoteCredentialKey = scopedStorageKey('cedar-mezze-remote-device-v443');
 export const remoteDeviceAuth = createRemoteDeviceAuth({
+  automatic: true,
   configuration: remoteTest,
   native: Platform.OS !== 'web',
   // Ingen webbläsarlagring eller offentlig miljövariabel innehåller enhetens credential.

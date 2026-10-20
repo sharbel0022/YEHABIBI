@@ -53,6 +53,7 @@ export async function startRemoteGateway(options) {
     try { identity = await resolveIdentity({ sourceIp, login }); } catch { throw deviceError('device_identity', 403); }
     if (!identity || identity.login !== login || !contract.logins.has(identity.login)
       || typeof identity.nodeId !== 'string' || !/^[A-Za-z\d_-]{1,200}$/.test(identity.nodeId)) throw deviceError('device_identity', 403);
+    if (options.trustVerifiedPhones && deviceRegistry.list().some(device => device.nodeId === identity.nodeId && device.status === 'revoked')) throw deviceError('device_revoked');
     return { nodeId: identity.nodeId, login: identity.login };
   };
   const ingress = createIngressRecorder({ phoneIps: options.phoneIps, selfIps: options.selfIps });
@@ -114,7 +115,7 @@ export async function startRemoteGateway(options) {
           if (!seen && ((attempt?.credentials.size || 0) >= 12 || enrollmentAttempts.size >= 1000 && !attempt)) throw deviceError('enrollment_limit', 429);
           const credentials = attempt?.credentials || new Set(); credentials.add(fingerprint);
           enrollmentAttempts.set(key, { credentials, until: attempt?.until || time + 10 * 60 * 1000 });
-          return json(response, 200, deviceRegistry.requestEnrollment({ credential: input.credential, identity }), cors);
+          return json(response, 200, deviceRegistry.requestEnrollment({ credential: input.credential, identity, trustVerifiedPhone: options.trustVerifiedPhones === true }), cors);
         }
         const attemptKey = `${identity.nodeId}\0${identity.login}`, attemptTime = Date.now();
         for (const [id, attempt] of sessionAttempts) if (attempt.until <= attemptTime) sessionAttempts.delete(id);

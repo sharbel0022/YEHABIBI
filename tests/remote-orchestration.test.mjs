@@ -1,8 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {selectPrivateDevice,assertUnusedServePort,ownsServePort,resolveServeIdentity,createServeIdentityResolver} from '../test-support/remote/tailscale.mjs';
-import {canRecoverAfterReboot} from '../test-support/remote/reboot.mjs';
+import {selectPrivateDevice,privateServerIdentity,assertUnusedServePort,ownsServePort,resolveServeIdentity,createServeIdentityResolver} from '../test-support/remote/tailscale.mjs';
+import {canRecoverAfterReboot,currentBootId} from '../test-support/remote/reboot.mjs';
+import {serverPaused} from '../scripts/remote-server.mjs';
 const status=()=>({BackendState:'Running',Self:{Online:true,DNSName:'testpc.testtail.ts.net.',UserID:42},CertDomains:['testpc.testtail.ts.net'],Peer:{mobile:{ID:'phone1',OS:'iOS',DNSName:'phone.testtail.ts.net.',HostName:'phone',UserID:42,Online:false,InNetworkMap:true}},User:{42:{LoginName:'test@example.test'}}});
+test('server accepts only owner-account phone nodes automatically and can start with zero or multiple phones',()=>{
+  const map=status();map.Peer.mobile.TailscaleIPs=['100.64.0.2'];
+  assert.equal(privateServerIdentity(map).dns,'testpc.testtail.ts.net');
+  assert.equal(resolveServeIdentity(map,{sourceIp:'100.64.0.2',login:'test@example.test'},[],true).nodeId,'phone1');
+  map.Peer.mobile.OS='windows';assert.equal(resolveServeIdentity(map,{sourceIp:'100.64.0.2',login:'test@example.test'},[],true),null);
+  map.Peer={};assert.doesNotThrow(()=>privateServerIdentity(map));
+  assert.equal(serverPaused({bootId:'current'},'current'),true);
+  assert.equal(serverPaused({bootId:'before-reboot'},'current'),false);
+  assert.equal(serverPaused(null,'current'),false);
+});
+
+test('native OS boot identifier is stable across independent processes, with no wall-clock timestamp recovery',async()=>{
+  const first=await currentBootId(),second=await currentBootId();
+  assert.equal(first,second);assert.match(first,/^(?:windows|linux):[a-f\d-]{36}$/i);
+  assert.equal(canRecoverAfterReboot({state:{marker:'test',bootId:first},bootId:second,marker:'test'}),false);
+});
+
 test('private remote selects an enrolled own-account mobile without pretending an offline phone was tested',()=>{
   const result=selectPrivateDevice(status());assert.equal(result.dns,'testpc.testtail.ts.net');assert.equal(result.deviceId,'phone1');assert.equal(result.online,false);assert.deepEqual(result.allowedLogins,['test@example.test']);
   const unknown=status();unknown.Peer.mobile.UserID=43;assert.throws(()=>selectPrivateDevice(unknown),/testanvändare/);
@@ -51,10 +69,11 @@ test('live identity refresh coalesces reads, fails closed after Tailscale loss a
 });
 
 test('only a verified different OS boot permits stale session recovery; never infer ownership from reused PIDs',()=>{
-  const marker='TEST',state={marker,bootId:'boot-before',pid:123},lock={...state};
-  assert.equal(canRecoverAfterReboot({state,lock,bootId:'boot-after',marker}),true);
-  assert.equal(canRecoverAfterReboot({lock,bootId:'boot-after',marker}),true);
-  for(const override of [{bootId:'boot-before'},{bootId:''},{state:{marker,pid:123}},{lock:{marker:'foreign',bootId:'boot-before'}},{lock:{marker,bootId:'boot-after'}}])
-    assert.equal(canRecoverAfterReboot({state,lock,bootId:'boot-after',marker,...override}),false);
-  assert.equal(canRecoverAfterReboot({bootId:'boot-after',marker}),false);
+  const before='windows:11111111-1111-4111-8111-111111111111',after='windows:22222222-2222-4222-8222-222222222222';
+  const marker='TEST',state={marker,bootId:before,pid:123},lock={...state};
+  assert.equal(canRecoverAfterReboot({state,lock,bootId:after,marker}),true);
+  assert.equal(canRecoverAfterReboot({lock,bootId:after,marker}),true);
+  for(const override of [{bootId:before},{bootId:''},{state:{marker,pid:123}},{lock:{marker:'foreign',bootId:before}},{lock:{marker,bootId:after}},{state:{marker,bootId:'2026-10-20T08:11:00.000Z'}}])
+    assert.equal(canRecoverAfterReboot({state,lock,bootId:after,marker,...override}),false);
+  assert.equal(canRecoverAfterReboot({bootId:after,marker}),false);
 });

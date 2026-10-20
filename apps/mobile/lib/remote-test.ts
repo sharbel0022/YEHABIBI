@@ -58,6 +58,7 @@ class RemoteDeviceDenied extends ApiError {}
 
 /** Hemligheten lämnar bara SecureStore för exakt privat HTTPS-origin; sessionen finns enbart i minnet. */
 export function createRemoteDeviceAuth(options: {
+  automatic?: boolean;
   configuration: RemoteTestConfiguration;
   native: boolean;
   storage: { read: () => Promise<string | null>; write: (value: string) => Promise<void>; remove: () => Promise<void> };
@@ -114,7 +115,7 @@ export function createRemoteDeviceAuth(options: {
       assertCurrent(attempt);
       credential = saved && validRemoteTestCredential(saved) ? saved : '';
       loaded = true;
-      emit({ saved: Boolean(credential), status: saved && !credential ? 'invalid' : credential ? 'saved' : 'unregistered',
+      emit({ saved: Boolean(credential), status: saved && !credential && !options.automatic ? 'invalid' : credential ? 'saved' : 'unregistered',
         message: saved && !credential ? 'Telefonens sparade registrering är ogiltig. Glöm registreringen och godkänn telefonen på datorn igen.' : '' });
       return Boolean(credential);
     })();
@@ -196,6 +197,7 @@ export function createRemoteDeviceAuth(options: {
     if (token && expiresAt > now() + 30000) return token;
     if (refreshing) return refreshing;
     const promise = (async () => {
+      if (options.automatic && state.status !== 'approved') await enroll();
       const data = await exchange('/__remote/device/session', attempt);
       const expiration = typeof data.expires_at === 'string' ? Date.parse(data.expires_at) : NaN;
       if (typeof data.token !== 'string' || !validRemoteTestCredential(data.token) || !Number.isFinite(expiration) || expiration <= now()) {
