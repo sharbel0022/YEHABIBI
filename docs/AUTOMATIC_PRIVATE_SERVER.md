@@ -17,6 +17,8 @@ Servern väntar/återförsöker om internet eller Tailscale ännu inte är redo.
 
 Återställning efter OS-omstart använder Windows faktiska boot-GUID, inte WMI:s klockbaserade boottid. En tidskorrigering får inte radera den levande serverns sessionsmetadata. På Linux används kärnans boot-ID. Gamla tidsstämplar räknas inte som bevis för att en OS-omstart har skett.
 
+Den isolerade backendens interna JWT:er gäller i 24 timmar. Bakgrundsservern gör därför en kontrollerad förnyelse/omstart efter tolv timmar med samma databas och Expo-adress. Tokenlivslängden eller behörigheterna vidgas inte. Telefonen återansluter automatiskt under den korta omstarten; ingen nyckel behöver anges nästa dag.
+
 Windows får en tillfällig, processbunden begäran att hålla systemet vaket medan servern körs. Skärmen kan släckas och energischemat ändras inte. Aktivt valt viloläge, avstängning eller strömavbrott kan fortfarande stoppa åtkomsten. [Microsoft: SetThreadExecutionState](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate).
 
 ```powershell

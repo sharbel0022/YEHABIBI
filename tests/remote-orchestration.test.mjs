@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {selectPrivateDevice,privateServerIdentity,assertUnusedServePort,ownsServePort,resolveServeIdentity,createServeIdentityResolver} from '../test-support/remote/tailscale.mjs';
 import {canRecoverAfterReboot,currentBootId} from '../test-support/remote/reboot.mjs';
-import {serverPaused} from '../scripts/remote-server.mjs';
+import {serverPaused,requestServerRefresh} from '../scripts/remote-server.mjs';
 const status=()=>({BackendState:'Running',Self:{Online:true,DNSName:'testpc.testtail.ts.net.',UserID:42},CertDomains:['testpc.testtail.ts.net'],Peer:{mobile:{ID:'phone1',OS:'iOS',DNSName:'phone.testtail.ts.net.',HostName:'phone',UserID:42,Online:false,InNetworkMap:true}},User:{42:{LoginName:'test@example.test'}}});
 test('server accepts only owner-account phone nodes automatically and can start with zero or multiple phones',()=>{
   const map=status();map.Peer.mobile.TailscaleIPs=['100.64.0.2'];
@@ -19,6 +19,16 @@ test('native OS boot identifier is stable across independent processes, with no 
   const first=await currentBootId(),second=await currentBootId();
   assert.equal(first,second);assert.match(first,/^(?:windows|linux):[a-f\d-]{36}$/i);
   assert.equal(canRecoverAfterReboot({state:{marker:'test',bootId:first},bootId:second,marker:'test'}),false);
+});
+
+test('scheduled credential renewal stops only its authenticated own loopback controller and never redirects secrets',async()=>{
+  let calls=0;
+  const state={marker:'YEHABIBI_PRIVATE_REMOTE_V442',pid:123,controlOrigin:'http://127.0.0.1:12345',controlToken:'synthetic-control-token'};
+  const send=async(url,options)=>{calls++;assert.equal(url.href,'http://127.0.0.1:12345/stop');assert.equal(options.redirect,'error');assert.equal(options.headers['x-yehabibi-control'],state.controlToken);return Response.json({stopping:true});};
+  assert.equal(await requestServerRefresh({state,pid:123,fetch:send}),true);
+  for(const change of [{pid:456},{marker:'foreign'},{controlOrigin:'https://external.example'},{controlOrigin:'http://127.0.0.1:12345?credential=private'},{controlOrigin:'http://user@127.0.0.1:12345'}])
+    assert.equal(await requestServerRefresh({state:{...state,...change},pid:123,fetch:send}),false);
+  assert.equal(calls,1);
 });
 
 test('private remote selects an enrolled own-account mobile without pretending an offline phone was tested',()=>{
