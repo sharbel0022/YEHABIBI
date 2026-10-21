@@ -22,7 +22,7 @@ De bifogade panelbilderna innehåller redan rubrik, beskrivning och mörk övert
 
 Bilderna behåller kvadratiska proportioner och visas utan beskärning i normalläget. Desktop har två lika breda paneler. Vid högst 900 px bredd staplas de för att hålla texten i de kompletta bilderna läsbar. På skärmar vars proportioner inte motsvarar två kvadrater kan en diskret svart yta uppstå runt bilderna, eller sidan scrolla, så att hela bildinnehållet bevaras.
 
-Hela Catering-panelen länkar till `/catering`, hela Fest-panelen till `/festlokal`. Hover ger en tunn guldram, 3 % zoom av hela bildpanelen och lätt mörkläggning av den andra panelen. Texten följer bilden eftersom den är inbakad i originalet; den animeras inte separat. Inga layoutförskjutningar uppstår. Touch behöver ingen hover. Reducerad rörelse stänger av zoom och övergångar.
+Hela Catering-panelen länkar till `/catering`, hela Fest-panelen till `/festlokal`. Efter användarens önskemål om starkare pop-out ger hover en tydligare guldram med diskret glöd, 6,5 % zoom och en lätt ljus-/kontrasthöjning av den aktiva bilden. Den andra panelen får ett 62 % svart lager. Texten följer bilden eftersom den är inbakad i originalet; den animeras inte separat. Inga layoutförskjutningar uppstår. Touch behöver ingen hover. Reducerad rörelse stänger av zoom och övergångar. När pekaren lämnar panelerna återställs båda till normalläget.
 
 HTML-rubriker och beskrivningar finns kvar för skärmläsare och länkarnas tillgängliga namn, men är visuellt dolda så att texten inte dubblas. Text som ingår i bilden kan inte få oberoende fontstorlek eller radbrytning; detta följer valet att visa exakt originalbilden. Båda länkarna fungerar med Tab/Enter och får tydlig fokusram.
 
@@ -62,7 +62,7 @@ Inga beroenden, undersidesrutter, databasfiler, betalningsfunktioner eller priva
 | Layout | 1440 × 900, 1280 × 800, 390 × 844, 360 × 800, 768 × 1024 och 1920 × 1080. |
 | Tillstånd | Ingen hover, Catering-hover, Fest-hover, tangentbordsfokus samt mobilmeny öppen. |
 | Hela bilder | Bildens proportioner och kanter ryms inom respektive panel i normalläget, utan dubbel text eller horisontell scroll. |
-| Hover | Guldram, bildskala 1,03 och andra panelens mörkläggning. Samma panelmått före/efter hover. |
+| Hover | Guldram med glöd, bildskala 1,065 och 62 % svart lager på den andra panelen. Samma panelmått före/efter hover. Återställning när pekaren lämnar panelerna. |
 | Navigation | Båda panelerna, headerlänkar och retur till startsidan via klientnavigation. Undersidornas vita header och ursprungliga footer återkommer. |
 | Tillgänglighet | Tab/Enter till båda panelerna, synligt fokus, dialogens fokusfälla, Escape och återställt fokus. Reducerad rörelse ger ingen zoom och inga övergångar. |
 | Mobil | Staplade paneler, fungerande touch och meny. Ingen horisontell scroll. |
