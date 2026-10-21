@@ -17,11 +17,11 @@ export function Brand({
     >
       {signature ? (
         <img
-          src="/brand/ye-habibi-signature.svg"
+          src="/brand/ye-habibi.png"
           alt=""
           aria-hidden="true"
-          width="240"
-          height="84"
+          width="233"
+          height="68"
         />
       ) : (
         <>

@@ -1,40 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import type { HospitalityCatalog } from "@yehabibi/shared";
 import styles from "./HomeSplitHero.module.css";
 
-export function HomeSplitHero({ catalog }: { catalog: HospitalityCatalog }) {
-  const food = catalog.menus.find((menu) => menu.approved && menu.image);
-  const venuePhoto = catalog.venues.find((venue) => venue.images.length)?.images[0];
-  const panels = [
-    {
-      href: "/catering",
-      title: "Catering",
-      description: (
-        <>
-          Tre färdiga menyer och en egen plockmeny.
-          <br />
-          Vi planerar maten tillsammans med dig.
-        </>
-      ),
-      image: food?.image || "/images/catering-fest/meze.webp",
-      alt: food?.imageAlt || "Bildexempel: ostrullar och kubbe på serveringsfat",
-      example: !food,
-      position: "47% center",
-    },
-    {
-      href: "/festlokal",
-      title: "Fest",
-      description:
-        "Boka festlokal för bröllop, födelsedag och speciella event – all bokning sker via telefon.",
-      image: venuePhoto?.src || "/images/catering-fest/dukning.webp",
-      alt: venuePhoto?.alt || "Bildexempel: festdukning med blommor och glas",
-      example: !venuePhoto,
-      position: "50% center",
-    },
-  ];
+const panels = [
+  {
+    href: "/catering",
+    title: "Catering",
+    description:
+      "Tre färdiga menyer och en egen plockmeny. Vi planerar maten tillsammans med dig.",
+    image: "/images/home/catering.png",
+  },
+  {
+    href: "/festlokal",
+    title: "Fest",
+    description:
+      "Boka festlokal för bröllop, födelsedag och speciella event – all bokning sker via telefon.",
+    image: "/images/home/fest.png",
+  },
+];
 
+export function HomeSplitHero() {
   return (
     <section className={`home-split-hero ${styles.hero}`} aria-labelledby="home-title">
       <h1 id="home-title" className={styles.srOnly}>
@@ -48,33 +33,24 @@ export function HomeSplitHero({ catalog }: { catalog: HospitalityCatalog }) {
           aria-labelledby={`home-panel-${index}`}
           aria-describedby={`home-description-${index}`}
         >
+          {/* These exact user-supplied artworks include the visible text.
+              Preserve the complete image and its original PNG bytes. */}
           <Image
-            className={styles.photo}
+            className={styles.artwork}
             src={panel.image}
-            alt={panel.alt}
-            fill
-            sizes="(max-width: 700px) 100vw, 50vw"
+            alt=""
+            aria-hidden="true"
+            width={724}
+            height={724}
+            sizes="(max-width: 900px) 100vw, 50vw"
             preload
-            // HTTPS images from the admin catalog retain the existing delivery
-            // policy; local assets use Next's responsive image optimization.
-            unoptimized={!panel.image.startsWith("/")}
-            style={{ objectPosition: panel.position }}
+            unoptimized
           />
-          <span className={styles.shade} aria-hidden="true" />
           <span className={styles.interactionShade} aria-hidden="true" />
-          {panel.example && <span className={styles.imageLabel}>Bildexempel</span>}
-          <div className={styles.content}>
-            <span className={styles.kicker}>{panel.title.toUpperCase()}</span>
-            <h2 id={`home-panel-${index}`} className={styles.title}>
-              {panel.title}
-            </h2>
-            <p id={`home-description-${index}`} className={styles.description}>
-              {panel.description}
-            </p>
+          <div className={styles.srOnly}>
+            <h2 id={`home-panel-${index}`}>{panel.title}</h2>
+            <p id={`home-description-${index}`}>{panel.description}</p>
           </div>
-          <span className={styles.arrow} aria-hidden="true">
-            <ArrowRight size={19} strokeWidth={1.2} />
-          </span>
         </Link>
       ))}
     </section>

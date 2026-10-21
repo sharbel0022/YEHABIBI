@@ -1,9 +1,22 @@
 {
-  "created": "2026-10-21",
-  "asset": "ye-habibi-signature.svg",
-  "status": "Nytecknad logotyp baserad på användarens bildreferens; originalets logotypfil saknas.",
-  "font": "Sacramento Regular, Brian J. Bonislawsky / Astigmatic",
-  "source": "https://github.com/google/fonts/tree/main/ofl/sacramento",
-  "license": "SIL Open Font License 1.1; Sacramento-OFL.txt",
-  "delivery": "Handskriften är SVG-konturer; ingen extern font eller nätverksbegäran behövs. Samma skalbara fil används i mindre storlek på mobil och i sidfot."
+  "status": "Exakt de tre bilder användaren bifogade och uttryckligen valde för Hem.",
+  "assets": [
+    {
+      "source": "codex-clipboard-154e441e-cc2b-4a4d-81aa-718811bcc5ab.png",
+      "sha256": "5f10c7941260d74855e4e6ba21c2b5b531c67b8a68436a77c45efd1bc24feeeb",
+      "file": "/images/home/catering.png"
+    },
+    {
+      "source": "codex-clipboard-cbc6870c-9a55-4d65-a931-214637b82775.png",
+      "sha256": "c577d95cddec0ac49f0de9fbba84bc525b766736de9e6d2e862efa901bd8f76f",
+      "file": "/images/home/fest.png"
+    },
+    {
+      "source": "codex-clipboard-8dbb5937-9b8e-4b8c-bf19-207d334e60b7.png",
+      "sha256": "ca0a57c848bf0fbb915b315fcb8e996809357d7e15b739190cb0885806f46a55",
+      "file": "/brand/ye-habibi.png"
+    }
+  ],
+  "delivery": "Oförändrade PNG-original. Ingen beskärning, omritning, font- eller fotoreferensersättning. Panelernas synliga text ingår i bilderna.",
+  "supplied": "2026-10-21"
 }
