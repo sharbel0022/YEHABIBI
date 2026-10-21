@@ -1,31 +1,101 @@
-'use client';
-import Link from 'next/link';
-import {usePathname} from 'next/navigation';
-import {Menu,X,ArrowUpRight} from 'lucide-react';
-import {useState} from 'react';
-import {Brand} from '@/components/Brand';
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Menu, Phone, X } from "lucide-react";
+import { useRef } from "react";
+import { phoneHref } from "@yehabibi/shared";
+import { Brand } from "@/components/Brand";
+import { keepDialogFocus } from "@/components/hospitality/dialog-focus";
 
-const links=[
-  ['/', 'Hem'],
-  ['/menyer', 'Menyer'],
-  ['/bestall', 'Boka catering'],
-  ['/#sa-funkar-det', 'Så fungerar det'],
-  ['/kontakt', 'Kontakt']
+const links = [
+  ["/", "Hem"],
+  ["/catering", "Catering"],
+  ["/festlokal", "Festlokaler"],
+  ["/om-oss", "Om oss"],
+  ["/kontakt", "Kontakt"],
 ];
-
-export function Header(){
-  const [open,setOpen]=useState(false);
-  const path=usePathname();
-  return <header className="header"><div className="header-inner">
-    <Brand/>
-    <nav id="primary-navigation" className={`primary-nav ${open?'open':''}`} aria-label="Huvudmeny">
-      {links.map(([href,label])=><Link key={href} href={href}
-        aria-current={path===href?'page':undefined} onClick={()=>setOpen(false)}>{label}</Link>)}
-      <Link href="/bestall-nu" className="nav-mobile-cta" onClick={()=>setOpen(false)}>Beställ nu</Link>
-    </nav>
-    <Link href="/bestall-nu" className="btn btn-primary header-cta">Beställ nu <ArrowUpRight size={16}/></Link>
-    <button type="button" className="nav-toggle" aria-controls="primary-navigation" aria-label={open?'Stäng meny':'Öppna meny'} aria-expanded={open} onClick={()=>setOpen(!open)}>
-      {open?<X/>:<Menu/>}
-    </button>
-  </div></header>;
+export function Header({ phone }: { phone: string }) {
+  const path = usePathname();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const current = (href: string) =>
+    href === "/" ? path === "/" : path.startsWith(href);
+  const call = phoneHref(phone);
+  return (
+    <header className="header">
+      <div className="header-inner">
+        <Brand />
+        <nav className="primary-nav" aria-label="Huvudmeny">
+          {links.map(([href, label]) => (
+            <Link
+              key={href}
+              href={href}
+              aria-current={current(href) ? "page" : undefined}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+        {call && (
+          <a
+            href={call}
+            className="btn btn-primary header-cta"
+            aria-label={`Ring oss på ${phone}`}
+          >
+            <Phone size={16} aria-hidden="true" />
+            <span>Ring oss</span>
+          </a>
+        )}
+        <button
+          ref={toggle}
+          type="button"
+          className="nav-toggle"
+          aria-haspopup="dialog"
+          aria-controls="mobile-navigation"
+          aria-label="Öppna meny"
+          onClick={() => dialog.current?.showModal()}
+        >
+          <Menu />
+        </button>
+        <dialog
+          ref={dialog}
+          id="mobile-navigation"
+          className="mobile-navigation"
+          aria-label="Huvudmeny"
+          onKeyDown={keepDialogFocus}
+          onClose={() => toggle.current?.focus()}
+        >
+          <div className="mobile-navigation-top">
+            <Brand onNavigate={() => dialog.current?.close()} />
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Stäng meny"
+              onClick={() => dialog.current?.close()}
+            >
+              <X />
+            </button>
+          </div>
+          <nav aria-label="Mobilmeny">
+            {links.map(([href, label]) => (
+              <Link
+                key={href}
+                href={href}
+                aria-current={current(href) ? "page" : undefined}
+                onClick={() => dialog.current?.close()}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+          {call && (
+            <a href={call} className="btn btn-primary">
+              <Phone size={17} aria-hidden="true" />
+              Ring {phone}
+            </a>
+          )}
+        </dialog>
+      </div>
+    </header>
+  );
 }

@@ -75,7 +75,7 @@ export async function notifyCustomerPush(order:CateringOrder,message:string) {
   const tokens = data.map(row=>row.token).filter(isExpoPushToken);
   try {
     const response = await fetch('https://exp.host/--/api/v2/push/send',{method:'POST',signal:AbortSignal.any([signal,AbortSignal.timeout(8000)]),headers:expoHeaders(),
-      body:JSON.stringify(tokens.map(to=>({to,sound:'default',title:'Yehabibi · din beställning',body:`${order.code}: ${message}`,data:{code:order.code},ttl:3600}))) });
+      body:JSON.stringify(tokens.map(to=>({to,sound:'default',title:'Yei Habibi · din beställning',body:`${order.code}: ${message}`,data:{code:order.code},ttl:3600}))) });
     if(!response.ok) { console.error('Customer push unavailable; email remains active'); return; }
     const result = await response.json();
     const tickets = Array.isArray(result.data)?result.data:[];

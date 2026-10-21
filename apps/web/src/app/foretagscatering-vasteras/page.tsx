@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
-import { Cta } from '@/components/Cta';
-export const metadata: Metadata = { alternates: { canonical: '/foretagscatering-vasteras' }, title:'Företagscatering i Västerås – libanesisk catering', description:'Libanesisk catering för företag i Västerås – möten, personalfester och evenemang. Skicka en enkel förfrågan.' };
-export default function CompanyCatering(){return <section className="shell section inner-page"><span className="eyebrow">FÖRETAGSCATERING VÄSTERÅS</span><h1>Samlas kring något gott.</h1><div className="simple-two"><div><p className="intro">Bjud kollegorna på generösa libanesiska smaker vid möten, företagsevent och personalkvällar.</p><p>Berätta hur många ni är och vilken dag ni önskar catering. Vi återkommer med bekräftelse.</p><Cta href="/bestall?typ=foretag">Beställ till företag</Cta></div><img src="/images/grill.webp" alt="Libanesisk grillbuffé för företagsevent"/></div></section>}
+import Link from 'next/link';
+export const metadata: Metadata = { title: 'Catering för företag och företagsfest i Västerås', description: 'Libanesisk catering för företagets event och fest i Västerås. Meze, grill och plockmeny med personlig planering hos Yei Habibi.', alternates: { canonical: '/foretagscatering-vasteras' } };
+export default function CorporateCateringPage() {
+  return <section className="shell hospitality-page"><header className="page-intro"><span className="eyebrow">FÖRETAGSCATERING I VÄSTERÅS</span><h1>Samla kollegorna kring god mat.</h1><p>Libanesisk buffé för företagets event och fest. Välj meze och grill eller fråga om en plockmeny för ert sällskap.</p></header><p>Berätta om datum, gästantal och önskemål. Vi bekräftar innehåll, pris och upplägg i personlig kontakt via mejl eller telefon.</p><Link className="btn btn-primary" href="/catering">Se cateringmenyer</Link></section>;
+}

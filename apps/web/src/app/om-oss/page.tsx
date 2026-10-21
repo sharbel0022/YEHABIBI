@@ -1,4 +1,54 @@
-import type { Metadata } from 'next';
-import { Cta } from '@/components/Cta';
-export const metadata: Metadata = { alternates: { canonical: '/om-oss' }, title:'Om vår libanesiska catering', description:'Cedar Mezze – mat, gemenskap och libanesiska smaker för hem och fest i Västerås.' };
-export default function About() {return <section className="shell section inner-page"><span className="eyebrow">VÅR IDÉ</span><h1>Mat som samlar människor.</h1><div className="simple-two"><div><p className="intro">Cedar Mezze är ett arbetsnamn för catering med inspiration från Libanons rika matkultur. Vi vill göra det enkelt att samlas runt en riktigt god måltid.</p><p>Välj ett paket, berätta om ditt tillfälle och få ett personligt svar innan din beställning bekräftas.</p><Cta href="/bestall">Skicka förfrågan</Cta></div><img src="/images/mezze.webp" alt="Mezzerätter på ett generöst bord"/></div></section>}
+import type { Metadata } from "next";
+import Link from "next/link";
+export const metadata: Metadata = {
+  title: "Om Yei Habibi",
+  description:
+    "Libanesisk mat att dela och tillfällen att minnas. Yei Habibi presenterar catering och festlokaler i Västerås, med personlig service via mejl och telefon.",
+  alternates: { canonical: "/om-oss" },
+};
+export default function AboutPage() {
+  return (
+    <div className="shell hospitality-page">
+      <section className="about-detail">
+        <div>
+          <span className="eyebrow">YEI HABIBI · CATERING &amp; FEST</span>
+          <h1>
+            Mat att dela.
+            <br />
+            Tillfällen att minnas.
+          </h1>
+          <p className="intro">
+            Libanesiska smaker hör hemma där människor möts. Här presenterar vi
+            catering för era tillfällen och hjälper er att planera festen.
+          </p>
+          <p>
+            Välj bland tre menyer med meze och grill eller fråga om en egen
+            plockmeny. Berätta om sällskapet och era önskemål, så pratar vi om
+            maten och upplägget tillsammans.
+          </p>
+          <p>
+            För frågor och bokning av festlokaler ringer du oss. Catering
+            planerar vi via mejl eller telefon.
+          </p>
+          <div className="contact-actions">
+            <Link className="btn btn-primary" href="/catering">
+              Se cateringmenyer
+            </Link>
+            <Link className="btn btn-outline-light" href="/festlokal">
+              Se festlokaler
+            </Link>
+          </div>
+        </div>
+        <figure className="detail-photo">
+          <img
+            src="/images/catering-fest/meze.webp"
+            alt="Libanesiska varma meze från företagets bildmaterial"
+            width={1080}
+            height={719}
+          />
+          <figcaption className="image-label">Bildexempel</figcaption>
+        </figure>
+      </section>
+    </div>
+  );
+}

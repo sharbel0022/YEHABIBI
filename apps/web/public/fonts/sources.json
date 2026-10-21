@@ -1,0 +1,30 @@
+{
+  "retrieved": "2026-10-21",
+  "cssSource": "https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Noto+Serif+Display:wght@400..600&display=swap",
+  "files": [
+    {
+      "file": "inter-latin-ext.woff2",
+      "family": "Inter",
+      "subset": "latin-ext",
+      "source": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2"
+    },
+    {
+      "file": "inter-latin.woff2",
+      "family": "Inter",
+      "subset": "latin",
+      "source": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2"
+    },
+    {
+      "file": "noto-serif-display-latin-ext.woff2",
+      "family": "Noto Serif Display",
+      "subset": "latin-ext",
+      "source": "https://fonts.gstatic.com/s/notoserifdisplay/v29/buEeppa9f8_vkXaZLAgP0G5Wi6QmA1QaeYah2sovLCDq_ZgL4N_KhO94.woff2"
+    },
+    {
+      "file": "noto-serif-display-latin.woff2",
+      "family": "Noto Serif Display",
+      "subset": "latin",
+      "source": "https://fonts.gstatic.com/s/notoserifdisplay/v29/buEeppa9f8_vkXaZLAgP0G5Wi6QmA1QaeYah2sovLCDq_ZgL4NHKhA.woff2"
+    }
+  ]
+}

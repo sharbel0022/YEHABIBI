@@ -58,7 +58,7 @@ async function send(to:string,subject:string,html:string,key:string) {
     const response=await fetch('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(8000),
       headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':key},
       body:JSON.stringify({from:process.env.EMAIL_FROM,to:[to],subject,
-        html:`<div style="font:16px system-ui;max-width:600px;margin:auto;line-height:1.8"><h2 style="color:#155A43">Yehabibi · Cedar Mezze</h2>${html}</div>`})});
+        html:`<div style="font:16px system-ui;max-width:600px;margin:auto;line-height:1.8"><h2 style="color:#155A43">Yei Habibi · Catering & Fest</h2>${html}</div>`})});
     if (!response.ok) throw new DeliveryRetryError(retryAfterSeconds(response.headers.get('retry-after')));
     return true;
   } catch(error) { if(error instanceof DeliveryRetryError)throw error; return false; }

@@ -14,7 +14,7 @@ export default async function PrintOrder({params}:{params:Promise<{id:string}>})
   if(error)return <p className="form-error">Ordern kunde inte läsas. Försök igen.</p>;
   if(!data)notFound();const order=data as CateringOrder;
   const lines=order.order_items?.length?order.order_items:order.items_snapshot?.map(line=>({...line,total_ore:line.line_total_ore}));
-  return <article className="kitchen-print"><PrintOrderButton/><p>YEHABIBI · CEDAR MEZZE · KÖKSORDER</p><h1>#{order.code}</h1>
+  return <article className="kitchen-print"><PrintOrderButton/><p>YEI HABIBI · CATERING & FEST · KÖKSORDER</p><h1>#{order.code}</h1>
     <p><strong>{order.full_name}</strong><br/>{order.phone}<br/>{order.fulfillment==='pickup'?'Hämtning':`Leverans: ${order.address}, ${order.postal_code} ${order.city}`}</p>
     <p><strong>Kundtid:</strong> {formatScheduledTime(order.scheduled_at)||`${order.event_date} kl ${order.event_time}`}<br/><strong>Börja förbereda:</strong> {formatScheduledTime(order.preparation_starts_at)||'Kontrollera kökets planering'}<br/>{statusLabels[order.status]} · {paymentStatusLabels[order.payment_status]}</p>
     <table><thead><tr><th>Antal</th><th>Mat</th><th>Enhet</th></tr></thead><tbody>{lines?.map((line,index)=><tr key={index}><td>{line.quantity}</td><td>{line.title}</td><td>{line.unit_label||'st'}</td></tr>)}</tbody></table>

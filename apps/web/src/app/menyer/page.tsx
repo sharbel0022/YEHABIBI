@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation';
+import { paymentRuntimeInfo } from '@/lib/payments';
 import type { Metadata } from 'next';
 import { getCatalog } from '@/lib/data';
 import { MenuCatalog } from '@/components/MenuCatalog';
@@ -8,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default async function MenusPage({ searchParams }: { searchParams: Promise<{ val?: string; ratt?: string }> }) {
+  // Den äldre kundvyn finns bara i den verifierade, isolerade testmiljön.
+  if (!(await paymentRuntimeInfo()).isSimulation) redirect('/catering');
   const [catalog, params] = await Promise.all([getCatalog(), searchParams]);
   return <section className="shell section inner-page">
     <span className="eyebrow">SMÅ RÄTTER. STORA UPPLEVELSER.</span><h1>Våra menyer.</h1>

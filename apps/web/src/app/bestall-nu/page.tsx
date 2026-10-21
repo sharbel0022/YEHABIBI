@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation';
+import { paymentRuntimeInfo } from '@/lib/payments';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getCatalog } from '@/lib/data';
@@ -9,6 +11,8 @@ export const metadata: Metadata = {
 };
 
 export default async function DirectOrderPage({ searchParams }: { searchParams: Promise<{ meny?: string; antal?: string; tillagg?: string; kampanj?: string }> }) {
+  // Den äldre kundvyn finns bara i den verifierade, isolerade testmiljön.
+  if (!(await paymentRuntimeInfo()).isSimulation) redirect('/catering');
   const [catalog, params] = await Promise.all([getCatalog(), searchParams]);
   return <section className="shell section inner-page form-shell">
     <span className="eyebrow">MAT FÖR IDAG OCH SNART</span><h1>Beställ nu.</h1>
