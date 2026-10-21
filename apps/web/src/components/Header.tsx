@@ -16,7 +16,7 @@ const links = [
 ];
 export function Header({ phone }: { phone: string }) {
   const path = usePathname();
-  const isHome = path === "/" || path === "/catering" || path.startsWith("/catering/") || path === "/festlokal" || path.startsWith("/festlokal/");
+  const isHome = path === "/" || path === "/catering" || path.startsWith("/catering/") || path === "/festlokal" || path.startsWith("/festlokal/") || path === "/om-oss" || path === "/kontakt";
   const dialog = useRef<HTMLDialogElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const current = (href: string) =>

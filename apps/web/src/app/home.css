@@ -1,11 +1,14 @@
 /* Shared black shell for the homepage and catering experience. */
-body:has(.home-split-hero) {
+body:has(.home-split-hero),
+body:has(.brand-experience) {
   display: flex;
   flex-direction: column;
   min-height: 100svh;
   background: #0b0e0d;
 }
 body:has(.home-split-hero) > main { display: flex; flex: 1; }
+body:has(.brand-experience) > main { display: flex; flex: 1; min-width: 0; }
+.brand-experience { flex: 1; width: 100%; min-width: 0; }
 
 .header[data-home] {
   flex: none;

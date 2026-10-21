@@ -112,6 +112,25 @@ try {
   for (const href of ['/catering', '/festlokal']) {
     assert.ok(home.includes(`href="${href}"`), `${href}: startsidans huvudval ska kunna öppnas utan JavaScript.`);
   }
+  for (const route of ['/om-oss', '/kontakt']) {
+    const html = renderedHtml(pages.get(route));
+    assert.match(html, /<header\b[^>]*\bdata-home="true"/, `${route}: den gemensamma svarta huvudmenyn saknas.`);
+    assert.match(html, /<footer\b[^>]*\bclass="home-footer"/, `${route}: den gemensamma sidfoten saknas.`);
+  }
+  const about = visibleText(pages.get('/om-oss'));
+  assert.match(about, /Vår passion[,\s]+din upplevelse/i);
+  for (const value of ['Äkta libanesisk mat', 'Personlig service', 'Unika festlokaler', 'Hög kvalitet']) {
+    assert.ok(about.includes(value), `Om oss: värdet ${value} saknas.`);
+  }
+  const contact = renderedHtml(pages.get('/kontakt'));
+  assert.match(visibleText(contact), /Kontakta oss/);
+  assert.ok(contact.includes('href="tel:+4621415711"'), 'Kontakt: verifierat telefonnummer saknas.');
+  assert.ok(contact.includes('href="mailto:sharbelrasho@gmail.com'), 'Kontakt: verifierad e-postadress saknas.');
+  assert.match(visibleText(contact), /Slakterigatan 14, 721 32 Västerås/);
+  assert.match(contact, /href="https:\/\/(?:www\.)?google\.com\/maps/);
+  assert.match(visibleText(contact), /(?:All |Bokning av )?fest(?:lokaler|bokning).*?(?:telefon|ringer)|bokning.*?endast.*?telefon/i);
+  assert.doesNotMatch(visibleText(contact), /070-123 45 67|info@yehabibi\.se|08[:.]00\s*[–-]\s*22[:.]00/,
+    'Kontakt: referensens exempeluppgifter och obekräftade öppettider får inte visas.');
   const menuHtml = renderedHtml(pages.get('/catering'));
   assert.equal((menuHtml.match(/<article\b[^>]*\bdata-catering-menu=/g) || []).length,
     4, 'Cateringsidan ska serverrendera tre fasta menyer och en plockmeny.');

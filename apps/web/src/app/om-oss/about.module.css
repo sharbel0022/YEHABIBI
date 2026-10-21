@@ -1,0 +1,119 @@
+.page {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  min-height: calc(100svh - 168px);
+  overflow: hidden;
+  background: #090c0a;
+  color: #f5f1e8;
+}
+
+.photo {
+  position: absolute;
+  z-index: -2;
+  inset: 0 0 0 27%;
+  width: 73%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: 60% center;
+}
+
+.page::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(90deg, #090c0a 0%, #090c0af8 26%, #090c0ad9 40%, #090c0a63 62%, #090c0a0d 84%), linear-gradient(0deg, #090c0a85, #090c0a00 45%);
+  content: "";
+}
+
+.inner {
+  width: min(100% - 112px, 1320px);
+  margin-inline: auto;
+  padding-block: clamp(44px, 4vw, 70px);
+}
+
+.copy { max-width: 540px; }
+.eyebrow { display: block; color: #e7c178; font-size: .65rem; font-weight: 600; letter-spacing: .24em; line-height: 1.7; }
+.title { margin: 14px 0 23px; color: #f8f4ec; font-size: clamp(3.25rem, 5.4vw, 5.6rem); font-weight: 400; line-height: 1.02; letter-spacing: -.045em; }
+.intro { max-width: 450px; margin: 0; color: #d0d0c6; font-size: .92rem; line-height: 1.85; }
+
+.values {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  width: min(100%, 640px);
+  margin: 32px 0 29px;
+  padding: 0;
+  list-style: none;
+}
+
+.value { min-width: 0; padding-inline: 17px; border-left: 1px solid #ad8e4e44; }
+.value:first-child { padding-left: 0; border-left: 0; }
+.value:last-child { padding-right: 0; }
+.value > svg { display: block; margin-bottom: 11px; color: #e9c16c; }
+.value h2 { margin: 0 0 8px; color: #f0eadb; font-family: inherit; font-size: .76rem; font-weight: 600; line-height: 1.5; letter-spacing: 0; }
+.value p { margin: 0; color: #c3c4b9; font-size: .72rem; line-height: 1.75; }
+
+.philosophy {
+  display: grid;
+  grid-template-columns: 23px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 15px;
+  width: min(100%, 605px);
+  margin: 0;
+  padding: 24px 27px 23px;
+  border: 1px solid #b18c49;
+  border-radius: 6px;
+  background: #0a0d0ac7;
+}
+
+.quoteMark { grid-row: 1 / span 2; margin-top: 2px; color: #e6bd6c; }
+.philosophy blockquote { margin: 0; color: #eee7d8; font-family: "Noto Serif Display", Georgia, serif; font-size: clamp(1.05rem, 1.3vw, 1.25rem); font-style: italic; font-weight: 400; line-height: 1.6; }
+.philosophy figcaption { grid-column: 2; margin-top: 10px; color: #e7c17a; font-size: .71rem; font-weight: 500; }
+.quoteLabel { color: #bfc1b3; font-size: .66rem; font-weight: 400; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 20px; }
+.actions a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: #e8c582; font-size: .75rem; font-weight: 500; text-underline-offset: 5px; }
+.actions a:focus-visible { outline: 2px solid #f4d395; outline-offset: 5px; border-radius: 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .actions a:hover { color: #ffe6ae; text-decoration: underline; }
+}
+
+@media (max-width: 1000px) {
+  .inner { width: calc(100% - 80px); padding-block: 42px 35px; }
+  .copy { max-width: 470px; }
+  .title { font-size: clamp(3.1rem, 6.1vw, 4.3rem); }
+  .intro { max-width: 410px; font-size: .86rem; }
+  .values { width: min(100%, 590px); margin-block: 29px 26px; }
+  .value { padding-inline: 14px; }
+  .value h2 { font-size: .72rem; }
+  .value p { font-size: .68rem; }
+  .philosophy { max-width: 560px; padding: 22px; }
+  .photo { inset-inline-start: 23%; width: 77%; object-position: 56% center; }
+  .page::before { background: linear-gradient(90deg, #090c0a 0%, #090c0af5 29%, #090c0ab8 52%, #090c0a25 90%), linear-gradient(0deg, #090c0a99, #090c0a00 50%); }
+}
+
+@media (max-width: 650px) {
+  .page { min-height: 0; }
+  .inner { width: calc(100% - 40px); padding-block: 43px 30px; }
+  .copy { max-width: 100%; }
+  .title { font-size: clamp(2.85rem, 10vw, 4rem); margin-block: 13px 22px; }
+  .intro { max-width: 39ch; font-size: .86rem; line-height: 1.9; }
+  .photo { inset: 0; width: 100%; object-position: 66% center; }
+  .page::before { background: linear-gradient(90deg, #090c0af2, #090c0ab8 70%, #090c0a85), linear-gradient(0deg, #090c0af5 3%, #090c0aa6 55%, #090c0a40); }
+  .values { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 25px 0; margin-block: 31px; }
+  .value { padding-inline: 17px; }
+  .value:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .value:nth-child(even) { padding-right: 0; }
+  .value h2 { font-size: .78rem; }
+  .value p { max-width: 24ch; font-size: .74rem; }
+  .value > svg { margin-bottom: 9px; }
+  .philosophy { grid-template-columns: 20px minmax(0, 1fr); column-gap: 12px; padding: 21px 18px; background: #0a0d0ae3; }
+  .philosophy blockquote { font-size: 1.03rem; }
+  .quoteMark { width: 20px; height: 20px; }
+  .quoteLabel { display: block; margin-top: 3px; }
+  .actions { gap: 3px 24px; margin-top: 15px; }
+  .actions a { font-size: .73rem; }
+}
