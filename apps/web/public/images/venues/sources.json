@@ -1,0 +1,175 @@
+{
+  "description": "Silent illustrated slideshows made from the supplied design references. These are not recorded venue footage. The PNG references are preserved byte for byte.",
+  "label": "Bildspel",
+  "overview": {
+    "source": "overview-reference.png",
+    "sourceSha256": "0541133892ff9209ba6f1450ef5c23ba43f8323df32777431431afc978bd97fd",
+    "sourceWidth": 1448,
+    "sourceHeight": 1086
+  },
+  "authoring": {
+    "tool": "ffmpeg 7.1",
+    "temporaryPackage": "imageio-ffmpeg 0.6.0 Windows x86-64 wheel",
+    "packageUrl": "https://pypi.org/project/imageio-ffmpeg/0.6.0/",
+    "wheelSha256": "02fa47c83703c37df6bfe4896aab339013f62bf02c5ebf2dce6da56af04ffc0a",
+    "editing": "Crop/scale frame filters, two 0.75-second crossfades and an in-video Bildspel label. No PNG files written or edited."
+  },
+  "files": [
+    {
+      "video": "/videos/venues/festlokal-1.mp4",
+      "kind": "slideshow",
+      "source": "festlokal-1-reference.png",
+      "sourceSha256": "1ece773d7d8f3f39036e3db38c2b4609985fb1db23e95fe7d0499b2af4bf4d77",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "frameCrops": [
+        {
+          "x": 35,
+          "y": 735,
+          "width": 340,
+          "height": 198
+        },
+        {
+          "x": 395,
+          "y": 735,
+          "width": 315,
+          "height": 198
+        },
+        {
+          "x": 733,
+          "y": 735,
+          "width": 330,
+          "height": 198
+        }
+      ],
+      "durationSeconds": 12,
+      "width": 960,
+      "height": 540,
+      "frameRate": 24,
+      "frameCount": 288,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "fastStart": true,
+      "bytes": 834090,
+      "sha256": "deb7a510530c659bcf6354b9c5ee0bd9fce1f09c6ec24f82103f60af5ae575c1"
+    },
+    {
+      "video": "/videos/venues/festlokal-2.mp4",
+      "kind": "slideshow",
+      "source": "festlokal-2-reference.png",
+      "sourceSha256": "b85749dc3f1c797fa2b059228b683d8c1f275d50a57afe5fe71f18857414013d",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "frameCrops": [
+        {
+          "x": 30,
+          "y": 699,
+          "width": 314,
+          "height": 240
+        },
+        {
+          "x": 365,
+          "y": 699,
+          "width": 336,
+          "height": 240
+        },
+        {
+          "x": 1099,
+          "y": 699,
+          "width": 319,
+          "height": 240
+        }
+      ],
+      "durationSeconds": 12,
+      "width": 960,
+      "height": 540,
+      "frameRate": 24,
+      "frameCount": 288,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "fastStart": true,
+      "bytes": 737689,
+      "sha256": "381eb2da06c085980f58c57ee0469dc2ab6d29395efa16557a6208400899825a"
+    },
+    {
+      "video": "/videos/venues/festlokal-3.mp4",
+      "kind": "slideshow",
+      "source": "festlokal-3-reference.png",
+      "sourceSha256": "eb8829ce43a841c7165aa7b68193f3e1609ef52b764d95d90579574e3c70a085",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "frameCrops": [
+        {
+          "x": 46,
+          "y": 729,
+          "width": 331,
+          "height": 206
+        },
+        {
+          "x": 398,
+          "y": 729,
+          "width": 330,
+          "height": 206
+        },
+        {
+          "x": 738,
+          "y": 729,
+          "width": 327,
+          "height": 206
+        }
+      ],
+      "durationSeconds": 12,
+      "width": 960,
+      "height": 540,
+      "frameRate": 24,
+      "frameCount": 288,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "fastStart": true,
+      "bytes": 613015,
+      "sha256": "47cd7ec7a198aeee8f067b786ad480c51678402a422ded1baae8dcac5b678dfd"
+    },
+    {
+      "video": "/videos/venues/festlokal-4.mp4",
+      "kind": "slideshow",
+      "source": "festlokal-4-reference.png",
+      "sourceSha256": "7f6adb924ef6c2134c7d448bb90efdbddda90ee8d014e182d86f2e2d7b5d2453",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "frameCrops": [
+        {
+          "x": 57,
+          "y": 724,
+          "width": 324,
+          "height": 188
+        },
+        {
+          "x": 397,
+          "y": 724,
+          "width": 326,
+          "height": 188
+        },
+        {
+          "x": 1084,
+          "y": 724,
+          "width": 316,
+          "height": 188
+        }
+      ],
+      "durationSeconds": 12,
+      "width": 960,
+      "height": 540,
+      "frameRate": 24,
+      "frameCount": 288,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "fastStart": true,
+      "bytes": 594591,
+      "sha256": "21b925ad9c40870153e55496e5a29496c2e7783af5f2ab325bf3bcea9bca531d"
+    }
+  ]
+}

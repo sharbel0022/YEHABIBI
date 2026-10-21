@@ -104,6 +104,7 @@ try {
   const routes = ['/', '/catering', '/catering/meny-1', '/catering/meny-2', '/catering/meny-3',
     '/catering/plockmeny', '/catering/forfragan', '/festlokal', '/om-oss', '/kontakt',
     '/festcatering-vasteras', '/foretagscatering-vasteras', '/integritet', '/villkor'];
+  routes.push(...[1, 2, 3, 4].map(number => `/festlokal/festlokal-${number}`));
   const pages = new Map();
   for (const route of routes) pages.set(route, await verifyPublicPage(route));
 
@@ -157,6 +158,28 @@ try {
     'Festbokning ska endast gå via telefon, utan mejlbokning, formulär eller kalender.');
   assert.doesNotMatch(visibleText(venuesHtml), /Lokal [1-4]|\b(?:250|120|80|100) gäster\b/,
     'Interna lokalutkast och konstruerade gästantal får inte visas som verkliga lokaler.');
+  assert.equal((venuesHtml.match(/\bdata-venue-card=/g) || []).length, 4, 'Översikten ska serverrendera fyra separata inspirationskort.');
+  assert.match(visibleText(venuesHtml), /Inspirationsbilder/, 'Illustrationerna ska beskrivas som inspiration.');
+  for (const number of [1, 2, 3, 4]) {
+    const route = `/festlokal/festlokal-${number}`;
+    assert.ok(venuesHtml.includes(`href="${route}"`), `${route}: inspirationskortet ska ha en egen sida.`);
+    const html = renderedHtml(pages.get(route));
+    assert.match(visibleText(html), new RegExp(`Festlokal ${number}`));
+    assert.match(visibleText(html), /Inspirationsbilder/);
+    assert.match(contentOf(pages.get(route), 'meta', 'name', 'robots', 'content') || '', /noindex/i, `${route}: inspirationssidan ska inte indexeras.`);
+    assert.ok(html.includes('tel:+4621415711'), `${route}: verifierad telefonkontakt saknas.`);
+    assert.doesNotMatch(html, /href="mailto:|<form\b|<input\b[^>]*type="date"/i, `${route}: bokning ska gå via telefon.`);
+    assert.doesNotMatch(visibleText(html), /Maxkapacitet|\b(?:250|120|80|100) gäster\b/, `${route}: obekräftade lokalfakta får inte hittas på.`);
+    assert.equal((html.match(/\bdata-venue-thumbnail=/g) || []).length, 3, `${route}: tre bildknappar ska serverrenderas.`);
+    const video = (html.match(/<video\b[^>]*>/gi) || [])[0] || '';
+    assert.match(video, /\bcontrols(?:\s|=|>)/i); assert.match(video, /\bplaysinline(?:\s|=|>)/i);
+    assert.ok(video.includes(`/videos/venues/festlokal-${number}.mp4`), `${route}: spelbart bildspel saknas.`);
+    assert.match(visibleText(html), /Bildspel/i);
+    const media = await request(`/videos/venues/festlokal-${number}.mp4`, { headers: { Range: 'bytes=0-31' } });
+    assert.equal(media.status, 206, `${route}: MP4 ska stödja delvis uppspelning.`);
+    assert.match(media.headers.get('content-type') || '', /video\/mp4/i);
+    assert.equal(Buffer.from(await media.arrayBuffer()).subarray(4, 8).toString('ascii'), 'ftyp');
+  }
   for (const route of ['/festlokal/lokal-1', '/festlokal/lokal-2', '/festlokal/lokal-3', '/festlokal/lokal-4', '/festlokal/okand-lokal', '/catering/okand-meny']) {
     assert.equal((await request(route)).status, 404, `${route}: opublicerat eller okänt innehåll ska inte bli en publik detaljsida.`);
   }

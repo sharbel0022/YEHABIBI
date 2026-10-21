@@ -1,0 +1,110 @@
+.experience {
+  --venue-gold: #deb975;
+  width: 100%;
+  min-width: 0;
+  background: #0b0e0d;
+  color: #f5f1e8;
+}
+.experience h1, .experience h2 { color: #f5f1e8; font-weight: 400; }
+.overview { padding: 49px 0 0; }
+.overviewInner, .detailInner { width: min(100% - 80px, 1330px); margin-inline: auto; }
+.intro { max-width: 640px; margin: 0 auto 40px; text-align: center; }
+.eyebrow { display: block; color: var(--venue-gold); font-size: .65rem; font-weight: 500; letter-spacing: .2em; line-height: 1.7; }
+.intro h1 { margin: 13px 0 16px; font-size: clamp(2.7rem, 5vw, 4.2rem); line-height: 1.1; }
+.intro p { max-width: 520px; margin: 0 auto; color: #bfc0b8; font-size: .9rem; line-height: 1.85; }
+.venueGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 25px; }
+.venueCard { min-width: 0; }
+.cardLink { position: relative; display: flex; align-items: flex-end; width: 100%; min-height: clamp(240px, 23vw, 340px); overflow: hidden; isolation: isolate; border: 1px solid #987b45; border-radius: 6px; background: #11150f; text-decoration: none; }
+.cardImage { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; transition: transform 400ms ease, filter 400ms ease; }
+.cardLink::before { position: absolute; z-index: -1; inset: 0; background: linear-gradient(180deg, #0000 15%, #080c0a29 43%, #070b09e0 78%, #080c0af7 100%); content: ""; }
+.cardCopy { width: 100%; min-width: 0; padding: clamp(24px, 3vw, 40px); }
+.cardRule { display: block; width: 39px; height: 1px; margin-bottom: 14px; background: var(--venue-gold); }
+.cardCopy h2 { margin: 0; font-size: clamp(2.3rem, 3.5vw, 3.65rem); line-height: 1.15; }
+.cardCopy p { max-width: 410px; min-height: 3.2em; margin: 11px 0 20px; color: #d8d7ce; font-size: .84rem; line-height: 1.7; }
+.cardAction { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 15px; border-top: 1px solid #d7b57055; color: #edcb8c; font-size: .73rem; font-weight: 500; }
+.arrowCircle { display: grid; flex: none; width: 35px; height: 35px; place-items: center; border: 1px solid #bd9855; border-radius: 50%; }
+.cardLink:focus-visible { outline: 3px solid #f2cd86; outline-offset: 5px; }
+.inspiration { margin: 20px 0 0; color: #a9ab9f; font-size: .7rem; line-height: 1.8; }
+.emptyVenues { max-width: 620px; margin: 0 auto 38px; padding: 25px; border: 1px solid #715d37; border-radius: 5px; color: #d6d5ca; font-size: .9rem; line-height: 1.9; text-align: center; }
+.contactBand { display: flex; align-items: center; justify-content: space-between; gap: 25px; margin-top: 38px; padding: 34px 0 40px; border-top: 1px solid #9b80413f; }
+.contactBand h2 { margin: 0 0 11px; font-size: clamp(1.8rem, 3vw, 2.45rem); }
+.contactBand p { margin: 0; color: #b9bcb1; font-size: .83rem; line-height: 1.8; }
+.phoneButton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex: none; min-height: 47px; padding: 12px 22px; border: 1px solid #c5a266; border-radius: 5px; background: #d8b56e; color: #11160f; font-size: .81rem; font-weight: 600; line-height: 1.5; text-decoration: none; }
+.phoneButton:focus-visible, .backLink:focus-visible { outline: 3px solid #f4d396; outline-offset: 4px; }
+.hero { position: relative; min-width: 0; overflow: hidden; isolation: isolate; background: #10140f; }
+.heroImage { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; object-position: center; }
+.hero::before { position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, #080c0bf5 0%, #080c0be8 25%, #080c0b9c 48%, #080c0b16 80%), linear-gradient(0deg, #0b0e0d85, #0b0e0d00 35%); content: ""; }
+.heroInner { display: flex; flex-direction: column; justify-content: center; width: min(100% - 80px, 1330px); min-height: clamp(520px, 42vw, 650px); margin-inline: auto; padding-block: 28px 58px; }
+.backLink { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; margin-bottom: 30px; color: #dec18a; font-size: .73rem; text-decoration: none; }
+.heroCopy { max-width: 545px; }
+.heroCopy .phoneButton { min-width: min(100%, 320px); min-height: 62px; background: #080c0b80; color: #edc97f; font-size: 1.05rem; }
+.heroCopy h1 { margin: 16px 0 18px; font-size: clamp(3.1rem, 6.5vw, 6rem); line-height: 1.05; }
+.tagline { margin: 0 0 16px; color: #e8ce9b; font-size: clamp(1.03rem, 1.6vw, 1.27rem); line-height: 1.55; }
+.description { max-width: 465px; margin: 0 0 26px; color: #d2d4ca; font-size: .88rem; line-height: 1.85; }
+.bookingNote { margin: 11px 0 0; color: #d2c3a1; font-size: .73rem; line-height: 1.7; }
+.detailInner > .inspiration { margin-top: 19px; }
+.factsSection { margin-top: 34px; padding: 26px; border: 1px solid #79633966; border-radius: 5px; background: #11150f; }
+.factsSection > h2 { margin: 0 0 23px; font-size: 1.8rem; }
+.factsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 27px; }
+.facts { display: grid; align-content: start; grid-template-columns: auto minmax(0, 1fr); gap: 11px 21px; margin: 0; font-size: .84rem; line-height: 1.7; }
+.facts dt { color: #b9bbac; }
+.facts dd { min-width: 0; margin: 0; color: #eee8d9; overflow-wrap: anywhere; }
+.facilities h3 { margin: 0 0 13px; color: #ebd09a; font-size: 1.25rem; font-weight: 400; }
+.facilities ul { margin: 0; padding-left: 20px; color: #d5d7cb; font-size: .84rem; line-height: 1.9; }
+.facilities li::marker { color: #c5a66b; }
+.mediaSection { padding-top: 37px; }
+.sectionHeading { margin-bottom: 25px; }
+.sectionHeading h2 { margin: 11px 0 0; font-size: clamp(1.85rem, 3vw, 2.6rem); }
+@media (hover: hover) and (pointer: fine) {
+  .cardLink:hover .cardImage { transform: scale(1.035); filter: brightness(1.08); }
+  .cardLink:hover { border-color: #e2bd70; }
+  .cardLink:hover .arrowCircle { background: #d9b570; color: #10140d; }
+  .phoneButton:hover { border-color: #f0d191; background: #edcc8b; }
+  .backLink:hover { color: #f7d99e; }
+}
+@media (max-width: 900px) {
+  .overviewInner, .detailInner, .heroInner { width: calc(100% - 48px); }
+  .venueGrid { gap: 20px; }
+  .cardLink { min-height: 370px; }
+  .cardCopy { padding: 25px; }
+  .heroInner { min-height: 560px; }
+  .heroCopy { max-width: 490px; }
+  .hero::before { background: linear-gradient(90deg, #080c0bf7 0%, #080c0bdc 36%, #080c0b70 78%, #080c0b42), linear-gradient(0deg, #0b0e0d85, #0b0e0d00 35%); }
+}
+@media (max-width: 700px) {
+  .overview { padding-top: 35px; }
+  .overviewInner, .detailInner, .heroInner { width: calc(100% - 36px); }
+  .intro { margin-bottom: 29px; }
+  .intro h1 { font-size: clamp(2.55rem, 9.6vw, 3.3rem); }
+  .intro p { font-size: .82rem; }
+  .eyebrow { font-size: .59rem; letter-spacing: .16em; }
+  .venueGrid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .cardLink { min-height: 390px; }
+  .cardCopy { padding: 27px 24px; }
+  .cardCopy h2 { font-size: 2.8rem; }
+  .cardCopy p { min-height: 0; font-size: .82rem; }
+  .contactBand { align-items: flex-start; flex-direction: column; gap: 22px; margin-top: 29px; padding-block: 27px 32px; }
+  .contactBand p { font-size: .79rem; }
+  .heroInner { min-height: 570px; padding-block: 13px 42px; }
+  .heroImage { object-position: 62% center; }
+  .hero::before { background: linear-gradient(90deg, #080c0be8 0%, #080c0bb3 72%, #080c0b8c), linear-gradient(0deg, #0b0e0dbd, #0b0e0d14 85%); }
+  .backLink { margin-bottom: 32px; }
+  .heroCopy h1 { font-size: clamp(3.05rem, 12vw, 4.2rem); margin-block: 13px 18px; }
+  .tagline { max-width: 29ch; font-size: 1.05rem; }
+  .description { max-width: 43ch; font-size: .82rem; }
+  .phoneButton { padding-inline: 19px; font-size: .77rem; }
+  .inspiration { font-size: .66rem; }
+  .mediaSection { padding-top: 29px; }
+  .factsSection { padding: 22px 19px; }
+  .factsGrid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .facts { gap: 10px 17px; font-size: .8rem; }
+}
+@media (max-width: 380px) {
+  .cardLink { min-height: 360px; }
+  .cardCopy { padding: 24px 20px; }
+  .cardCopy h2 { font-size: 2.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cardImage { transition: none; }
+  .cardLink:hover .cardImage { transform: none; }
+}

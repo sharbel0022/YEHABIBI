@@ -13,6 +13,7 @@ import "./globals.css";
 import "./hospitality.css";
 import "./home.css";
 import "./catering.css";
+import "./venues.css";
 
 // Även startsidans paket och sidfotens kontaktuppgifter ska följa adminändringar.
 export const dynamic = "force-dynamic";
