@@ -57,6 +57,8 @@ jobs:
           echo "PG_BIN=$(dirname "$(find /usr/lib/postgresql -path '*/bin/initdb' | sort -V | tail -n 1)")" >> "$GITHUB_ENV"
       - name: Real PostgreSQL, PostgREST and Next HTTP flow
         run: npm run test:integration
+      - name: Catering and venue content, publication, permissions and concurrent edits
+        run: npm run test:hospitality
       - name: Isolated test orders, simulation, notifications and security boundaries
         run: npm run test:mode
       - name: Direct packages, atomic slot capacity and simulated payments

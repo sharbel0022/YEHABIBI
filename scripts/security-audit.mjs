@@ -28,7 +28,9 @@ export function evaluateAudit(report, policy, lock, now = new Date()) {
     const ids = idsFor(name);
     if (!expected || !ids.length) { errors.push(`${name}: unreviewed vulnerability/dependency path.`); continue; }
     if (vulnerability.severity !== expected.severity) errors.push(`${name}: severity changed to ${vulnerability.severity}.`);
-    if (JSON.stringify(ids) !== JSON.stringify(expected.advisories)) errors.push(`${name}: advisory set changed (${ids.join(', ')}).`);
+    // Registry updates may remove a reviewed root advisory from a transitive
+    // package without removing its other findings. Only additions expand risk.
+    if (ids.some(id => !expected.advisories.includes(id))) errors.push(`${name}: advisory set changed (${ids.join(', ')}).`);
     for (const id of ids) {
       const exception = advisories[id];
       if (!exception) { errors.push(`${name}: unreviewed ${id}.`); continue; }

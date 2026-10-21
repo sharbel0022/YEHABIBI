@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
 
 /* Gemensamma färger, typografi och knappar. */
 :root { --green:#155A43; --green2:#104733; --sand:#F7F5F2; --ink:#202B27; --muted:#626B68; --line:#E3E8E4; --red:#B63842; --mint:#EAF3EE; --white:#fff; }
@@ -6,7 +6,7 @@
 html { scroll-behavior:smooth; scroll-padding-top:95px; }
 body { margin:0; background:#fff; color:var(--ink); font:16px/1.65 'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
 button,input,select,textarea { font:inherit; }
-h1,h2,h3 { font-family:'Playfair Display',Georgia,serif; font-weight:600; line-height:1.12; letter-spacing:-.035em; color:var(--green); }
+h1,h2,h3 { font-family:'Noto Serif Display',Georgia,serif; font-weight:600; line-height:1.12; letter-spacing:-.035em; color:var(--green); }
 h1 { font-size:clamp(3rem,5.4vw,5.5rem); }
 h2 { font-size:clamp(2rem,3.8vw,3.7rem); }
 h3 { font-size:1.5rem; }
@@ -47,7 +47,7 @@ summary { cursor:pointer; }
 .header-inner { width:min(100% - 64px,1380px); height:86px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:25px; }
 .brand { display:inline-flex; align-items:center; gap:11px; white-space:nowrap; line-height:1.1; }
 .brand img { width:43px; height:51px; }
-.brand strong { font:600 2rem/1 'Playfair Display',Georgia,serif; letter-spacing:-.04em; color:var(--green); }
+.brand strong { font:600 2rem/1 'Noto Serif Display',Georgia,serif; letter-spacing:-.04em; color:var(--green); }
 .brand small { display:block; margin-top:9px; font-size:.56rem; font-weight:650; letter-spacing:.25em; color:var(--green); }
 .primary-nav { display:flex; align-items:center; gap:28px; }
 .primary-nav a { font-size:.82rem; font-weight:550; }
@@ -76,7 +76,7 @@ summary { cursor:pointer; }
 .hero-photo-note { position:absolute; bottom:24px; left:24px; padding:10px 16px; color:#fff; background:#153C2ACA; border:1px solid #FFFFFF40; border-radius:30px; font-size:.75rem; backdrop-filter:blur(10px); }
 .hero-play { position:absolute; bottom:20px; right:20px; display:flex; align-items:center; gap:6px; padding:9px 12px; border:1px solid #FFFFFF70; border-radius:28px; color:#fff; background:#173F2CCF; font-size:.72rem; }
 .hero-signature { display:flex; align-items:center; gap:9px; margin-top:36px; }
-.hero-signature span { font:600 1.2rem/1.2 'Playfair Display',Georgia,serif; color:var(--green); }
+.hero-signature span { font:600 1.2rem/1.2 'Noto Serif Display',Georgia,serif; color:var(--green); }
 .hero-signature small { display:block; font:600 .48rem 'Inter',sans-serif; letter-spacing:.22em; margin-top:5px; }
 .values-bar { min-height:82px; display:flex; justify-content:center; align-items:center; gap:65px; border-bottom:1px solid var(--line); }
 .values-bar span { display:flex; align-items:center; gap:10px; color:var(--green); font-size:.74rem; }
@@ -138,7 +138,7 @@ summary { cursor:pointer; }
 .review-layout p { color:var(--muted); max-width:540px; font-size:.93rem; }
 .review-actions { display:flex; align-items:center; flex-wrap:wrap; gap:23px; }
 .review-illustration { min-height:280px; padding:25px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; border:1px solid #D8DED7; border-radius:100px 100px 18px 18px; color:var(--green); }
-.review-illustration strong { font:500 1.5rem 'Playfair Display',Georgia,serif; text-align:center; }
+.review-illustration strong { font:500 1.5rem 'Noto Serif Display',Georgia,serif; text-align:center; }
 .review-illustration span { font-size:.8rem; }
 
 /* Menybyggare och gemensamt beställningsformulär. */

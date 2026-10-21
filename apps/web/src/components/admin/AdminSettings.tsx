@@ -56,7 +56,7 @@ export function AdminSettings({initialSettings}:{initialSettings:Settings}) {
   }
   return <form className="admin-panel" onSubmit={save}>
     <fieldset className="plain-fieldset" disabled={busy||uploading}>
-    <h2>Inställningar för Cedar Mezze</h2>
+    <h2>Inställningar för Yei Habibi</h2>
     <p className="admin-note">Bara riktiga företagsuppgifter, godkända priser och bilder från ägaren/fotografen ska publiceras.</p>
 
     <h3>Företag och kontakt</h3>

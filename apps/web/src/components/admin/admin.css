@@ -1,4 +1,11 @@
 .admin-panel + .admin-panel { margin-top:24px; }
+.hospitality-editor section { margin-top:38px; }
+.hospitality-admin-section { padding:18px; margin:14px 0; border:1px solid var(--line); border-radius:10px; }
+.hospitality-admin-section summary { cursor:pointer; font-weight:650; color:var(--green); padding:5px 0; }
+.hospitality-admin-section[open] summary { margin-bottom:20px; }
+.hospitality-check { display:flex; align-items:flex-start; gap:10px; margin:16px 0; }
+.hospitality-check input { width:20px; height:20px; flex-shrink:0; }
+.hospitality-admin-save { display:flex; flex-wrap:wrap; gap:12px; padding-top:30px; }
 .kitchen-views,.kitchen-controls { display:flex; flex-wrap:wrap; gap:9px; margin:20px 0; }
 .kitchen-views a { padding:10px 15px; background:var(--sand); border:1px solid var(--line); border-radius:10px; font-size:.8rem; }
 .kitchen-views a[aria-current=page] { background:var(--green); color:#fff; }

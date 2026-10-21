@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation';
+import { paymentRuntimeInfo } from '@/lib/payments';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getCatalog } from '@/lib/data';
@@ -11,6 +13,8 @@ export const metadata: Metadata = {
 export default async function OrderPage({ searchParams }: {
   searchParams: Promise<{ meny?: string; typ?: string; val?: string; varor?: string; personer?: string; kampanj?: string }>
 }) {
+  // Den äldre kundvyn finns bara i den verifierade, isolerade testmiljön.
+  if (!(await paymentRuntimeInfo()).isSimulation) redirect('/catering/forfragan');
   const [catalog, params] = await Promise.all([getCatalog(), searchParams]);
   return <section className="shell section inner-page form-shell">
     <span className="eyebrow">BOKA CATERING I FÖRVÄG</span><h1>Libanesisk catering på ditt sätt.</h1>

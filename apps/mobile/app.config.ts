@@ -7,7 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || 'a93fde8c-7227-4824-af1f-9bcffe77221d';
   return {
     ...config,
-    name: `Cedar Mezze${suffix === '.dev' ? ' Dev' : suffix === '.preview' ? ' Test' : ''}`,
+    name: `Yei Habibi${suffix === '.dev' ? ' Dev' : suffix === '.preview' ? ' Test' : ''}`,
     slug: 'cedar-mezze',
     owner: 'sharbel1423',
     version: '4.4.0',

@@ -65,35 +65,113 @@ function contentOf(html, tagName, key, value, attribute) {
   return tag?.match(new RegExp(`\\b${attribute}="([^"]*)"`, 'i'))?.[1];
 }
 
+function renderedHtml(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+}
+
+function visibleText(html) {
+  return renderedHtml(html).replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ').trim();
+}
+
 async function verifyPublicPage(route) {
   const response = await request(route);
   assert.equal(response.status, 200, `${route}: sidan ska svara 200.`);
   assert.match(response.headers.get('content-type') || '', /text\/html/i, `${route}: HTML saknas.`);
   const html = await response.text();
   assert.ok(/<html\b[^>]*\blang="sv"/i.test(html), `${route}: svenskt dokumentspråk saknas.`);
-  assert.ok(/<title>[^<]*Cedar Mezze[^<]*<\/title>/i.test(html), `${route}: sidtitel saknas.`);
+  assert.ok(/<title>[^<]*Yei Habibi[^<]*<\/title>/i.test(html), `${route}: sidtitel med rätt varumärke saknas.`);
   const description = contentOf(html, 'meta', 'name', 'description', 'content');
   assert.ok(description?.length >= 20, `${route}: metabeskrivning saknas.`);
   const canonical = contentOf(html, 'link', 'rel', 'canonical', 'href');
   assert.ok(canonical, `${route}: canonical saknas.`);
   assert.equal(new URL(canonical).href, new URL(route, origin).href, `${route}: fel canonical.`);
   assert.ok(/<main\b[^>]*\bid="main"/i.test(html) && /<h1\b/i.test(html), `${route}: serverrenderat huvudinnehåll saknas.`);
+  const rendered = renderedHtml(html);
+  assert.doesNotMatch(rendered, /href="\/(?:bestall(?:-nu)?|menyer)(?:[?"#])/i,
+    `${route}: den publika kundupplevelsen får inte länka till äldre kassa eller menybyggare.`);
+  assert.doesNotMatch(rendered, /href="[^\"]*(?:\/api\/payments|\/checkout|\/__test\/payment)/i,
+    `${route}: betalning och testsimulator ska inte vara publika kontaktvägar.`);
+  assert.doesNotMatch(visibleText(html), /Cedar Mezze|Apple Pay|Google Pay|Stripe|Swish/i,
+    `${route}: äldre varumärke eller betalningsmetoder får inte visas.`);
   return html;
 }
 
 try {
   await waitForServer();
-  const routes = ['/', '/menyer', '/bestall', '/bestall-nu', '/om-oss', '/kontakt',
+  const routes = ['/', '/catering', '/catering/meny-1', '/catering/meny-2', '/catering/meny-3',
+    '/catering/plockmeny', '/catering/forfragan', '/festlokal', '/om-oss', '/kontakt',
     '/festcatering-vasteras', '/foretagscatering-vasteras', '/integritet', '/villkor'];
-  for (const route of routes) await verifyPublicPage(route);
+  const pages = new Map();
+  for (const route of routes) pages.set(route, await verifyPublicPage(route));
 
-  const menuResponse = await request('/menyer?val=bygg');
-  assert.equal(menuResponse.status, 200, 'Menybyggaren ska svara 200.');
-  const menuHtml = (await menuResponse.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
-  assert.equal((menuHtml.match(/<article\b[^>]*class="[^"]*\bdish-card\b/g) || []).length,
-    11, 'Menybyggaren ska serverrendera elva demorätter.');
-  for (const title of ['Hummus', 'Ostrullar', 'Kycklingspett', 'Dessert']) {
-    assert.ok(menuHtml.includes(`<h3>${title}</h3>`), `${title}: rättnamnet ska finnas utan JavaScript.`);
+  const home = renderedHtml(pages.get('/'));
+  for (const href of ['/catering', '/festlokal']) {
+    assert.ok(home.includes(`href="${href}"`), `${href}: startsidans huvudval ska kunna öppnas utan JavaScript.`);
+  }
+  const menuHtml = renderedHtml(pages.get('/catering'));
+  assert.equal((menuHtml.match(/<article\b[^>]*class="[^"]*\bcatering-card\b/g) || []).length,
+    4, 'Cateringsidan ska serverrendera tre fasta menyer och en plockmeny.');
+  const menuExpectations = [
+    ['/catering/meny-1', 'Lilla Meny 1', '250 kr/person', ['Hummus', 'Muhammara', 'Baba Ganoush', 'Labne', 'Fatoush', 'Mixgrill']],
+    ['/catering/meny-2', 'Meny 2', '300 kr/person', ['Hummus', 'Ostrulle', 'Sambosak', 'Kubbe', 'Mixgrill']],
+    ['/catering/meny-3', 'Meny 3', '399 kr/person', ['Tarator Djaj', 'Tabbouleh', 'Kubbe', 'Ostrulle', 'Sambosak', 'Mixgrill Special', 'lammspett']],
+    ['/catering/plockmeny', 'Plockmeny', 'Pris enligt offert', []],
+  ];
+  for (const [route, name, price, dishes] of menuExpectations) {
+    const text = visibleText(pages.get(route));
+    assert.ok(text.includes(name), `${route}: menynamnet ska finnas utan JavaScript.`);
+    assert.ok(text.includes(price), `${route}: rätt prisstatus ska visas.`);
+    for (const dish of dishes) assert.ok(text.includes(dish), `${route}: ${dish} saknas i menyinnehållet.`);
+    assert.ok(text.includes('Välj denna meny'), `${route}: kunden ska kunna välja menyn.`);
+    assert.match(renderedHtml(pages.get(route)), /href="mailto:sharbelrasho@gmail\.com\?subject=/,
+      `${route}: menyknappen ska öppna ett utkast till ägarens bekräftade cateringadress.`);
+  }
+  const inquiry = renderedHtml(pages.get('/catering/forfragan'));
+  for (const name of ['name', 'phone', 'email', 'people', 'date', 'time', 'fulfillment', 'menu', 'allergies', 'message']) {
+    assert.ok(new RegExp(`\\bname="${name}"`).test(inquiry), `Cateringförfrågan: fältet ${name} saknas.`);
+  }
+  assert.match(visibleText(inquiry), /Du (?:behöver |skickar )?själv|Du behöver själv skicka mejlet/,
+    'Det ska framgå att kunden själv skickar mejlet från sitt e-postprogram.');
+  assert.doesNotMatch(visibleText(inquiry), /din (?:bokning|förfrågan) är (?:klar|skickad)/i,
+    'Ett oskickat mejlutkast får inte beskrivas som skickat eller bokat.');
+
+  const venuesHtml = renderedHtml(pages.get('/festlokal'));
+  assert.ok(venuesHtml.includes('tel:+4621415711'), 'Festkontakt ska använda verifierat telefonnummer.');
+  assert.doesNotMatch(venuesHtml, /href="mailto:|<form\b|<input\b[^>]*type="date"/i,
+    'Festbokning ska endast gå via telefon, utan mejlbokning, formulär eller kalender.');
+  assert.doesNotMatch(visibleText(venuesHtml), /Lokal [1-4]|\b(?:250|120|80|100) gäster\b/,
+    'Interna lokalutkast och konstruerade gästantal får inte visas som verkliga lokaler.');
+  for (const route of ['/festlokal/lokal-1', '/festlokal/lokal-2', '/festlokal/lokal-3', '/festlokal/lokal-4', '/festlokal/okand-lokal', '/catering/okand-meny']) {
+    assert.equal((await request(route)).status, 404, `${route}: opublicerat eller okänt innehåll ska inte bli en publik detaljsida.`);
+  }
+
+  for (const route of ['/menyer', '/menyer?val=bygg', '/bestall', '/bestall-nu']) {
+    const response = await request(route, { redirect: 'manual' });
+    assert.ok([307, 308].includes(response.status), `${route}: äldre publik kassa ska omdirigeras.`);
+    const location = response.headers.get('location');
+    assert.ok(location, `${route}: omdirigeringens mål saknas.`);
+    assert.equal(new URL(location, origin).origin, origin, `${route}: omdirigeringen ska stanna på webbplatsen.`);
+    assert.ok(['/catering', '/catering/forfragan', '/kontakt'].includes(new URL(location, origin).pathname),
+      `${route}: omdirigeringen ska leda till den nya kontaktupplevelsen.`);
+  }
+
+  for (const route of ['/api/hospitality', '/api/hospitality?preview=true']) {
+    const response = await request(route);
+    assert.equal(response.status, 200, `${route}: gemensam Catering & Fest-katalog ska kunna läsas.`);
+    assert.match(response.headers.get('cache-control') || '', /no-store/i, 'Adminändringar får inte döljas av gammal katalogcache.');
+    const hospitality = await response.json();
+    assert.deepEqual(hospitality.menus.map(menu => menu.pricePerPerson), [250, 300, 399, null], 'Webb och mobil ska läsa källornas priser och offertstatus.');
+    assert.deepEqual(hospitality.menus.map(menu => menu.meze.length), [5, 8, 10, 0], 'Grillraden ska bevaras separat från antalet meze.');
+    assert.equal(hospitality.contact.email, 'sharbelrasho@gmail.com', 'Endast ägarens bekräftade cateringadress ska visas.');
+    assert.equal(hospitality.contact.emailVerified, true, 'Mottagaradressen ska vara verifierad av ägaren.');
+    assert.equal(hospitality.contact.phone, '021-41 57 11', 'Gemensamma telefonuppgiften ska följa källan.');
+    assert.equal(hospitality.preview, true, 'Ofullständigt innehåll ska vara märkt som utkast.');
+    assert.deepEqual(hospitality.venues, [], 'Fyra interna lokalutkast får inte läcka till webb eller Expo.');
+    assert.doesNotMatch(JSON.stringify(hospitality), /lokal-[1-4]|SUPABASE_SERVICE_ROLE_KEY|RESEND_API_KEY|payment_methods|checkout_url/,
+      'Innehållskatalogen får inte exponera opublicerade lokalposter, hemligheter eller betalningsfunktioner.');
   }
 
   const catalogResponse = await request('/api/catalog');
@@ -102,7 +180,7 @@ try {
   assert.equal(catalog.demo, true, 'Röktestet ska använda demonstrationskatalogen.');
   assert.equal(catalog.orders_enabled, false, 'Beställningar ska vara avstängda.');
   assert.equal(catalog.direct_orders_enabled, false, 'Direktbeställningar ska vara avstängda publikt.');
-  assert.equal(catalog.dishes.length, 11, 'API och SSR ska visa samma elva rätter.');
+  assert.equal(catalog.dishes.length, 11, 'Det äldre interna katalogkontraktets elva demorätter ska bevaras.');
   assert.ok(catalog.dishes.every(dish => dish.price_ore === 0), 'Demorätter ska sakna fastställda priser.');
   assert.ok(catalog.menus.length > 0 && catalog.menus.every(menu => menu.price_ore === 0), 'Demopaket ska sakna fastställda priser.');
   assert.deepEqual(catalog.payment_methods, [], 'Inget betalsätt ska vara aktiverat.');
@@ -145,6 +223,21 @@ try {
     headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(unauthorized.status, 401, 'Adminändring utan session ska avvisas.');
 
+  for (const method of ['GET', 'PATCH']) {
+    const response = await request('/api/admin/hospitality', { method,
+      ...(method === 'PATCH' ? { headers: { 'Content-Type': 'application/json', Origin: origin }, body: '{}' } : {}) });
+    assert.equal(response.status, 401, `Catering & Fest-innehåll: ${method} kräver adminsession.`);
+  }
+  const foreignMutation = await request('/api/admin/hospitality', { method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://foreign.example' }, body: '{}' });
+  assert.equal(foreignMutation.status, 403, 'Innehållsändringar från främmande webbsida ska avvisas före databasanrop.');
+  const contentAdmin = await request('/admin/innehall');
+  assert.equal(contentAdmin.status, 200, 'Skyddad innehållssida ska erbjuda ägarinloggning.');
+  const adminHtml = renderedHtml(await contentAdmin.text());
+  assert.match(visibleText(adminHtml), /Logga in/, 'Obehöriga ska få inloggning i stället för innehållsredigering.');
+  assert.doesNotMatch(adminHtml, /lokal-[1-4]|Lokal [1-4]|name="capacity"|Publicera lokalen/,
+    'Inloggningssidan får inte serverrendera privata lokalutkast eller redigeringskontroller.');
+
   const robots = await request('/robots.txt');
   assert.equal(robots.status, 200, 'robots.txt ska svara 200.');
   assert.ok(/Disallow:\s*\/\s*(?:\r?\n|$)/i.test(await robots.text()), 'Demonstrationen ska blockera indexering.');
@@ -153,7 +246,7 @@ try {
   const sitemapXml = await sitemap.text();
   assert.ok(/<urlset\b/i.test(sitemapXml), 'Sitemap ska vara XML.');
   assert.equal(/<loc>/i.test(sitemapXml), false, 'Avstängd indexering ska ge en tom sitemap.');
-  process.stdout.write(`PRODUCTION WEB SMOKE PASSED ${JSON.stringify({ pages: routes.length, serverRenderedDishes: 11, demo: true, externalServices: false })}\n`);
+  process.stdout.write(`PRODUCTION WEB SMOKE PASSED ${JSON.stringify({ pages: routes.length, serverRenderedMenus: 4, unpublishedVenuesHidden: 4, legacyCatalogPreserved: true, protectedContentAdmin: true, demo: true, externalServices: false })}\n`);
 } finally {
   if (server.exitCode === null && server.signalCode === null) {
     const stopped = new Promise(resolve => server.once('exit', resolve));

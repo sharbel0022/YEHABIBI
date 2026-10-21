@@ -34,17 +34,23 @@ const photos: Record<string, ImageSourcePropType> = {
   '/images/mezze.webp': require('../assets/mezze.webp'),
   '/images/grill.webp': require('../assets/grill.webp'),
   '/images/fest.webp': require('../assets/fest.webp'),
+  '/images/catering-fest/meze.webp': require('../assets/catering-fest/meze.webp'),
+  '/images/catering-fest/grill.webp': require('../assets/catering-fest/grill.webp'),
+  '/images/catering-fest/catering.webp': require('../assets/catering-fest/catering.webp'),
+  '/images/catering-fest/dukning.webp': require('../assets/catering-fest/dukning.webp'),
 };
 
-export function Photo({ url, hero = false, label }: { url?: string | null; hero?: boolean; label?: string }) {
+export function Photo({ url, hero = false, label, contain = false, strict = false }: { url?: string | null; hero?: boolean; label?: string; contain?: boolean; strict?: boolean }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [url]);
   const source = photos[url || ''] || (!failed && safeExternalUrl(url) ? { uri: url! } : photos['/images/hero.webp']);
+  if (strict && (failed || !photos[url || ''] && !safeExternalUrl(url))) return <View style={[hero ? s.hero : s.photo, { alignItems: 'center', justifyContent: 'center' }]}><Text style={s.detail}>Bilden kunde inte visas.</Text></View>;
   return (
     <Image
       source={source}
-      style={hero ? s.hero : s.photo}
-      accessibilityLabel={label || 'Libanesisk catering från Cedar Mezze'}
+      style={contain ? { flex: 1, width: '100%' } : hero ? s.hero : s.photo}
+      resizeMode={contain ? 'contain' : 'cover'}
+      accessibilityLabel={label || 'Libanesisk catering från Yei Habibi'}
       onError={() => setFailed(true)}
     />
   );
@@ -435,7 +441,7 @@ export const s = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 20,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
   },

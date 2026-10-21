@@ -1,0 +1,42 @@
+{
+  "retrieved": "2026-10-21",
+  "status": "Bildexempel. Ägarens godkännande av bildrättigheter, exakt menyinnehåll och koppling till verklig lokal återstår.",
+  "sourcePages": [
+    "https://www.yehabibi.se/catering/",
+    "https://www.yehabibi.se/festlokal/"
+  ],
+  "images": [
+    {
+      "file": "meze.webp",
+      "source": "https://www.yehabibi.se/wp-content/uploads/2024/03/349222204_761125742161259_8033822285120266608_n.jpeg",
+      "width": 1080,
+      "height": 719,
+      "bytes": 41538,
+      "description": "Friterade mezerätter på serveringsfat"
+    },
+    {
+      "file": "grill.webp",
+      "source": "https://www.yehabibi.se/wp-content/uploads/2024/03/349049646_768566571315510_3465024970244784008_n.jpeg",
+      "width": 1080,
+      "height": 719,
+      "bytes": 49508,
+      "description": "Grillspett över kol"
+    },
+    {
+      "file": "catering.webp",
+      "source": "https://www.yehabibi.se/wp-content/uploads/2024/03/349131455_1304325646826859_6900463006639476160_n.jpeg",
+      "width": 1080,
+      "height": 719,
+      "bytes": 54478,
+      "description": "Upplagda matportioner"
+    },
+    {
+      "file": "dukning.webp",
+      "source": "https://www.yehabibi.se/wp-content/uploads/2024/03/349045271_561977819349420_3752417639161837522_n.jpeg",
+      "width": 1080,
+      "height": 719,
+      "bytes": 54718,
+      "description": "Närbild av dukat bord. Ingen verifierad helhetsvy av en särskild lokal."
+    }
+  ]
+}
