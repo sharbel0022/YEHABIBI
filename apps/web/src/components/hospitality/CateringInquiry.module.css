@@ -1,59 +1,58 @@
 .form { color: #f3f1ea; border: 1px solid #51432b; background: #101311; }
-.form h2 { margin: 0 0 14px; font-size: clamp(1.6rem, 3vw, 2.25rem); }
-.form h3 { margin: 0 0 14px; font-size: 1.3rem; color: #ebc67e; }
-.form .hint { color: #c5c5bc; font-size: .84rem; line-height: 1.7; margin: 0; }
-.selection, .contactFields { display: grid; gap: 22px; min-width: 0; }
-.selection { padding-bottom: 24px; border-bottom: 1px solid #443a28; }
-.contactFields { margin-block: 28px; }
-.selectedMenus, .selectedDishes, .includedGrid { list-style: none; padding: 0; margin: 0; }
-.selectedMenus { display: grid; gap: 10px; }
-.selectedMenus > li { display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 16px; background: #1a1d17; border: 1px solid #725c34; border-radius: 5px; }
-.selectedMenus > li > div { display: grid; gap: 5px; }
-.selectedMenus strong { font-size: .94rem; font-weight: 500; }
-.selectedMenus li span { font-size: .8rem; color: #e4bf77; }
+.intro { margin-bottom: 25px; }
+.form h2 { margin: 0 0 9px; font-size: clamp(1.7rem, 3vw, 2.25rem); }
+.form h3 { margin: 0 0 15px; font-size: 1.3rem; color: #ebc67e; }
+.intro p, .form .hint { color: #c5c5bc; font-size: .84rem; line-height: 1.7; margin: 0; }
+.selection, .contactFields { min-width: 0; }
+.selection { padding-bottom: 22px; border-bottom: 1px solid #443a28; }
+.selectionHeading { scroll-margin-block: 24px; }
+.contactFields { margin-block: 26px; }
+.selectedMenus, .selectedDishes, .includedGrid { list-style: none; padding: 0; margin: 0 0 12px; }
+.selectedMenus, .selectedDishes { display: grid; gap: 9px; }
+.selectedMenus > li, .selectedDishes > li { display: grid; grid-template-columns: 76px minmax(0, 1fr) 44px; align-items: center; gap: 12px; padding: 10px; border: 1px solid #55472e; background: #171b15; border-radius: 5px; }
+.selectedDishes > li { grid-template-columns: 76px minmax(0, 1fr) auto 44px; }
+.selectionName { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.selectionName strong { font-size: .86rem; font-weight: 500; }
+.selectionName small { color: #ddc18a; font-size: .74rem; }
+.form .thumbnail, .menuThumbnail { display: block; width: 76px; aspect-ratio: 4 / 3; height: auto; object-fit: contain; flex: none; border-radius: 4px; }
+.quantity { min-width: 0; }
+.form .selection .quantity input { width: 0; min-height: 44px; padding: 5px 0; border: 0; border-inline: 1px solid #51452e; border-radius: 0; background: transparent; }
 .remove { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 8px; border: 1px solid #6c5a37; background: transparent; border-radius: 50%; color: #edce92; cursor: pointer; }
 .remove:hover { background: #29281e; }
-.included, .editChoices { min-width: 0; }
-.form summary { cursor: pointer; color: #e7c484; font-size: .9rem; font-weight: 500; padding-block: 10px; min-height: 44px; }
+.disclosure { min-width: 0; border-top: 1px solid #34362b; margin-top: 13px; }
+.form summary { cursor: pointer; color: #e7c484; font-size: .86rem; font-weight: 500; padding-block: 13px; min-height: 44px; }
 .form summary:hover { color: #ffe1a8; }
-.includedGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; padding-top: 13px; }
-.includedGrid li { overflow: hidden; border: 1px solid #3d3c2e; background: #171a16; border-radius: 4px; }
-.includedName { display: block; padding: 10px; font-size: .78rem; line-height: 1.5; overflow-wrap: anywhere; }
-.selectedDishes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.selectedDishes li { display: flex; align-items: center; gap: 12px; padding: 8px; border: 1px solid #55472e; border-radius: 4px; }
-.selectedDishName { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .84rem; }
-.form .thumbnail { width: 76px; flex: none; border-radius: 3px; }
-.editChoices { border-top: 1px solid #34362b; }
-.choiceFieldset { margin: 10px 0 0; padding: 16px 0 0; border: 0; min-width: 0; }
-.choiceFieldset legend { color: #eeeadf; font-size: .85rem; }
-.menuGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.form .menuChoice { display: flex; flex-direction: row; align-items: flex-start; gap: 12px; margin: 0; padding: 14px; min-width: 0; background: #191c17; border: 1px solid #55503c; border-radius: 4px; cursor: pointer; }
-.menuChoice > span { display: grid; gap: 7px; }
-.menuChoice strong { font-weight: 500; font-size: .85rem; }
-.menuChoice small { font-size: .78rem; color: #dec38b; }
-.form .menuChoice input, .form .dishChoice input { width: 18px; height: 18px; min-height: 18px; padding: 0; flex: none; margin: 2px 0 0; accent-color: #d9b06b; }
-.form .menuChoice:has(:checked), .form .dishChoice:has(:checked) { border-color: #d6ae63; background: #24251a; }
-.category { margin-top: 23px; }
-.dishGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.form .dishChoice { display: block; margin: 0; padding: 0; overflow: hidden; min-width: 0; border: 1px solid #55503c; border-radius: 4px; background: #191c17; cursor: pointer; }
-.dishChoiceText { display: flex; align-items: flex-start; gap: 9px; padding: 12px 9px; font-size: .8rem; min-height: 58px; overflow-wrap: anywhere; }
-.dishChoiceLabel { display: grid; gap: 6px; min-width: 0; }
-.dishChoiceLabel small { color: #e4bf77; font-size: .7rem; font-weight: 400; }
-.form .dishChoice:has(:disabled) { cursor: default; border-color: #9e824d; }
+.includedGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding-top: 8px; }
+.includedGrid li { min-width: 0; overflow: hidden; border: 1px solid #3d3c2e; background: #171a16; border-radius: 4px; }
+.includedGrid li > span:last-child { display: block; padding: 9px; font-size: .76rem; line-height: 1.5; overflow-wrap: anywhere; }
+.choiceFieldset { margin: 7px 0 12px; padding: 10px 0 0; border: 0; min-width: 0; }
+.choiceFieldset legend { color: #eeeadf; font-size: .8rem; }
+.menuGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.form .menuChoice { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; margin: 0; padding: 12px; min-width: 0; background: #191c17; border: 1px solid #55503c; border-radius: 4px; cursor: pointer; font-size: .8rem; }
+.form .menuChoice input { width: 18px; height: 18px; min-height: 18px; padding: 0; flex: none; margin: 2px 0 0; accent-color: #d9b06b; }
+.form .menuChoice:has(:checked) { border-color: #d6ae63; background: #24251a; }
+.backToDishes { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; margin-block: 5px; color: #e7c484; font-size: .85rem; }
 .form input:not([type="checkbox"]), .form select, .form textarea { color: #f4f1e6; background: #191c17; border-color: #61583e; color-scheme: dark; }
 .form input::placeholder, .form textarea::placeholder { color: #a9aca3; }
 .form label { color: #e9e6db; }
+.form .optional { font-size: .75rem; font-weight: 400; color: #b9bbae; }
+.optionalFields { padding-top: 8px; }
 .form .submit { background: #dfbd79; border-color: #dfbd79; color: #151810; }
+.form > .submit { margin-top: 17px; }
 .form .submit:hover:not(:disabled) { background: #efd39d; border-color: #efd39d; }
 .form .copy { border: 1px solid #bca170; color: #edce92; background: transparent; }
 .form .copy:hover { background: #28291e; }
 .form :focus-visible { outline-color: #f5d89f; }
-.status { color: #e5ca92; border-left: 2px solid #cda762; padding-left: 14px; line-height: 1.7; }
-.prepared { border-top: 1px solid #5b4c31; padding-top: 25px; }
-.form .prepared textarea { width: 100%; }
+.status { color: #e5ca92; border-left: 2px solid #cda762; padding-left: 14px; line-height: 1.7; font-size: .84rem; }
+.prepared { border-top: 1px solid #5b4c31; margin-top: 24px; padding-top: 24px; }
+.prepared textarea { width: 100%; margin-block: 17px; }
+.emailActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 @media (max-width: 700px) {
-  .includedGrid, .dishGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
-  .selectedDishes, .menuGrid { grid-template-columns: 1fr; }
-  .form .thumbnail { width: 64px; }
-  .selectedMenus > li { padding: 12px; }
+  .includedGrid, .menuGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .selectedMenus > li, .selectedDishes > li { grid-template-columns: 64px minmax(0, 1fr) 44px; gap: 10px; }
+  .form .thumbnail, .menuThumbnail { width: 64px; }
+  .selectedDishes .quantity { grid-column: 2 / -1; grid-row: 2; justify-self: start; }
+  .selectedDishes .remove { grid-column: 3; grid-row: 1; }
+  .emailActions { flex-direction: column; }
 }
+@media (max-width: 400px) { .menuGrid { grid-template-columns: 1fr; } }

@@ -6,8 +6,11 @@ import {
   buildCateringEmail, cateringMailto, defaultHospitalityCatalog, hospitalityCatalogSchema,
   phoneHref, publicHospitalityCatalog, publicHospitalityCatalogSchema,
 } from '../packages/shared/index.ts';
+import { getDishPhoto, getPlockDish, plockCategories } from '../apps/web/src/components/catering/plock-data.ts';
 
 const clone = () => structuredClone(defaultHospitalityCatalog);
+const contentMigration = readFileSync(new URL('../supabase/migrations/20261021151657_hospitality_content_catalog.sql', import.meta.url), 'utf8');
+const plockMigration = readFileSync(new URL('../supabase/migrations/20261021180000_plock_dish_choices.sql', import.meta.url), 'utf8');
 test('catering keeps source prices, separate grill and exact meze without inventing a plock price', () => {
   assert.equal(hospitalityCatalogSchema.safeParse(defaultHospitalityCatalog).success, true);
   assert.deepEqual(defaultHospitalityCatalog.menus.map(menu => menu.pricePerPerson), [250, 300, 399, null]);
@@ -15,6 +18,22 @@ test('catering keeps source prices, separate grill and exact meze without invent
   assert.match(defaultHospitalityCatalog.menus[2].grill, /lammspett/);
   assert.ok(defaultHospitalityCatalog.menus.every(menu => !menu.approved));
   assert.ok(defaultHospitalityCatalog.menus.every(menu => !menu.allergensVerified && menu.allergens.length === 0));
+  assert.equal(defaultHospitalityCatalog.dishes.length, 20);
+  for (const id of ['meze-5', 'meze-10']) assert.equal(defaultHospitalityCatalog.dishes.find(dish => dish.id === id).category, 'Sallader');
+});
+
+test('plock dishes keep source photos and category fallbacks when the owner changes IDs or publishes new dishes', () => {
+  assert.deepEqual(plockCategories.map(category => category.id), ['cold', 'salads', 'warm', 'grill', 'sides', 'dessert']);
+  assert.equal(defaultHospitalityCatalog.dishes.filter(dish => getPlockDish(dish).image).length, 19);
+  assert.equal(getDishPhoto('  HUMMUS  '), '/images/plock/hummus.jpg');
+  assert.equal(getDishPhoto('Mixgrill Special (nöt-, kyckling- och lammspett)'), '/images/plock/mixgrill.jpg');
+  assert.equal(getPlockDish({ id: 'owner-hummus', name: 'Hummus', category: 'Kalla meze', approved: true, published: true }).image, '/images/plock/hummus.jpg');
+  assert.equal(getPlockDish({ id: 'owner-dish', name: 'Ägarens ris', category: 'Tillbehör', approved: true, published: true }).categoryId, 'sides');
+  for (const name of ['Ny publicerad rätt', '__proto__', 'constructor']) {
+    const presentation = getPlockDish({ id: 'custom', name, category: 'constructor', approved: true, published: true });
+    assert.equal(presentation.categoryId, 'other'); assert.equal(presentation.image, undefined);
+    assert.equal(typeof presentation.description, 'string');
+  }
 });
 
 test('public catalog hides venue drafts and unverified email even when preview is requested', () => {
@@ -92,9 +111,12 @@ test('additive content migration preserves history, denies public access and sup
   try {
     await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
       create table public.orders(id text primary key, stripe_checkout_session_id text); insert into public.orders values ('historic','cs_original');`);
-    await db.exec(readFileSync(new URL('../supabase/migrations/20261021151657_hospitality_content_catalog.sql', import.meta.url), 'utf8'));
+    await db.exec(contentMigration);
+    await db.exec(plockMigration);
     const { rows } = await db.query('select catalog,revision from public.hospitality_content where id=1');
     assert.deepEqual(rows[0].catalog, defaultHospitalityCatalog);
+    await db.exec(plockMigration);
+    assert.deepEqual((await db.query('select catalog,revision from public.hospitality_content where id=1')).rows, rows);
     assert.deepEqual((await db.query('select * from public.orders')).rows, [{ id: 'historic', stripe_checkout_session_id: 'cs_original' }]);
     for (const role of ['anon', 'authenticated']) {
       await db.exec(`set role ${role}`);
@@ -106,12 +128,55 @@ test('additive content migration preserves history, denies public access and sup
     }
     await db.exec('grant usage on schema public to service_role; set role service_role');
     const edited = clone(); edited.menus[0].pricePerPerson = 275; edited.menus[0].allergens = ['Sesam']; edited.menus[0].allergensVerified = true;
-    const first = await db.query('update public.hospitality_content set catalog=$1::jsonb, revision=revision+1 where id=1 and revision=1 returning revision', [JSON.stringify(edited)]);
-    const stale = await db.query('update public.hospitality_content set revision=revision+1 where id=1 and revision=1 returning revision');
-    assert.equal(first.rows[0].revision, 2); assert.equal(stale.rows.length, 0);
+    const first = await db.query('update public.hospitality_content set catalog=$1::jsonb, revision=revision+1 where id=1 and revision=$2 returning revision', [JSON.stringify(edited), rows[0].revision]);
+    const stale = await db.query('update public.hospitality_content set revision=revision+1 where id=1 and revision=$1 returning revision', [rows[0].revision]);
+    assert.equal(first.rows[0].revision, rows[0].revision + 1); assert.equal(stale.rows.length, 0);
     const saved = (await db.query('select catalog from public.hospitality_content where id=1')).rows[0].catalog;
     assert.equal(saved.menus[0].pricePerPerson, 275); assert.deepEqual(publicHospitalityCatalog(saved).menus[0].allergens, ['Sesam']);
     await assert.rejects(db.exec("update public.hospitality_content set catalog='{}'::jsonb"), /check constraint/);
     await assert.rejects(db.exec('delete from public.hospitality_content'), /permission denied/);
+  } finally { await db.close(); }
+});
+
+test('plock catalog migration is idempotent and preserves owner edits and publication outside preview', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec('create role anon; create role authenticated; create role service_role bypassrls;');
+    await db.exec(contentMigration);
+    const original = (await db.query('select catalog from public.hospitality_content where id=1')).rows[0].catalog;
+    original.preview = false;
+    original.contact.approved = true;
+    for (const menu of original.menus) Object.assign(menu, { approved: true, allergensVerified: true });
+    for (const dish of original.dishes) dish.approved = true;
+    original.dishes[4].category = 'Ägarens sallader';
+    const ownedFalafel = { id: 'meze-11', name: 'Ägarens falafel', category: 'Ägarens kategori', approved: true, published: false };
+    original.dishes.push(ownedFalafel);
+    assert.equal(hospitalityCatalogSchema.safeParse(original).success, true);
+    await db.query('update public.hospitality_content set catalog=$1::jsonb where id=1', [JSON.stringify(original)]);
+    await db.exec(plockMigration);
+    const first = (await db.query('select catalog,revision from public.hospitality_content where id=1')).rows[0];
+    assert.deepEqual(first.catalog.dishes.slice(0, original.dishes.length), original.dishes);
+    assert.deepEqual(first.catalog.dishes.find(dish => dish.id === 'meze-11'), ownedFalafel);
+    assert.equal(first.catalog.dishes.length, 20);
+    assert.equal(hospitalityCatalogSchema.safeParse(first.catalog).success, true);
+    for (const dish of first.catalog.dishes.slice(original.dishes.length)) {
+      assert.equal(dish.published, false); assert.equal(dish.approved, false);
+    }
+    await db.exec(plockMigration);
+    assert.deepEqual((await db.query('select catalog,revision from public.hospitality_content where id=1')).rows[0], first);
+  } finally { await db.close(); }
+});
+
+test('plock migration preserves a full owner catalog within the existing dish limit', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec('create role anon; create role authenticated; create role service_role bypassrls;');
+    await db.exec(contentMigration);
+    const catalog = clone();
+    catalog.dishes = Array.from({ length: 100 }, (_, index) => ({ id: `owner-${index}`, name: `Ägarens rätt ${index}`, category: 'Ägarens kategori', approved: false, published: false }));
+    await db.query('update public.hospitality_content set catalog=$1::jsonb where id=1', [JSON.stringify(catalog)]);
+    const before = (await db.query('select catalog,revision from public.hospitality_content where id=1')).rows[0];
+    await db.exec(plockMigration);
+    assert.deepEqual((await db.query('select catalog,revision from public.hospitality_content where id=1')).rows[0], before);
   } finally { await db.close(); }
 });

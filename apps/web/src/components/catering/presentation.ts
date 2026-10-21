@@ -13,25 +13,58 @@ export function menuDishNames(menu: CateringMenu): string[] {
 
 export type InquirySearch = Record<string, string | string[] | undefined>;
 
-export function inquiryHref(menuIds: string[], dishIds: string[]): string {
+export type DishQuantities = Record<string, number>;
+export type CateringSelection = { menuIds: string[]; dishIds: string[]; quantities: DishQuantities };
+export const CATERING_DRAFT_KEY = "yehabibi.catering.draft.v1";
+
+export function inquiryHref(menuIds: string[], dishIds: string[], quantities: DishQuantities = {}): string {
   const query = new URLSearchParams();
   for (const id of new Set(menuIds)) query.append("meny", id);
-  for (const id of new Set(dishIds)) query.append("ratt", id);
+  for (const id of new Set(dishIds)) {
+    query.append("ratt", id);
+    query.append("antal", String(validQuantity(quantities[id]) || 1));
+  }
   return `/catering/forfragan${query.size ? `?${query}` : ""}`;
 }
 
 /** Only IDs present in the current public catalog can become inquiry choices. */
-export function parseInquirySelection(catalog: HospitalityCatalog, search: InquirySearch) {
+export function validQuantity(value: unknown): number {
+  if (typeof value !== "number" && typeof value !== "string") return 0;
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 1 && number <= 999 ? number : 0;
+}
+
+export function normalizeSelection(catalog: HospitalityCatalog, raw: unknown): CateringSelection {
+  const source = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const menuIds = Array.isArray(source.menuIds) ? source.menuIds : [];
+  const requested = source.quantities && typeof source.quantities === "object" ? source.quantities as Record<string, unknown> : {};
+  const quantities: DishQuantities = {};
+  for (const dish of catalog.dishes) {
+    const quantity = Object.hasOwn(requested, dish.id) ? validQuantity(requested[dish.id]) : 0;
+    if (quantity) Object.defineProperty(quantities, dish.id, { value: quantity, enumerable: true, writable: true, configurable: true });
+  }
+  return {
+    menuIds: catalog.menus.filter(menu => menuIds.includes(menu.id)).map(menu => menu.id),
+    dishIds: Object.keys(quantities),
+    quantities,
+  };
+}
+
+export function parseInquirySelection(catalog: HospitalityCatalog, search: InquirySearch): CateringSelection {
   const values = (key: string) => {
     const value = search[key];
     return value === undefined ? [] : Array.isArray(value) ? value : [value];
   };
-  const menus = new Set(values("meny"));
-  const dishes = new Set(values("ratt"));
-  return {
-    menuIds: catalog.menus.filter((menu) => menus.has(menu.id)).map((menu) => menu.id),
-    dishIds: catalog.dishes.filter((dish) => dishes.has(dish.id)).map((dish) => dish.id),
-  };
+  const ids = values("ratt");
+  const counts = values("antal");
+  const quantities: DishQuantities = {};
+  for (const dish of catalog.dishes) {
+    const index = ids.indexOf(dish.id);
+    if (index < 0) continue;
+    const count = counts[index] === undefined ? 1 : validQuantity(counts[index]);
+    if (count) Object.defineProperty(quantities, dish.id, { value: count, enumerable: true, writable: true, configurable: true });
+  }
+  return normalizeSelection(catalog, { menuIds: values("meny"), quantities });
 }
 
 type DishPreview = { src: string; x: number; y: number; zoom: number };

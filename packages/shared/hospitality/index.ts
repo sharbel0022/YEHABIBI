@@ -341,7 +341,7 @@ export const defaultHospitalityCatalog: HospitalityCatalog = {
     .map((name, index) => ({
       id: `meze-${index + 1}`,
       name,
-      category: "Kalla meze",
+      category: name === "Fatoush" ? "Sallader" : "Kalla meze",
       approved: false,
       published: true,
     }))
@@ -377,7 +377,7 @@ export const defaultHospitalityCatalog: HospitalityCatalog = {
       {
         id: "meze-10",
         name: "Tabbouleh",
-        category: "Vegetariska alternativ",
+        category: "Sallader",
         approved: false,
         published: true,
       },
@@ -395,6 +395,14 @@ export const defaultHospitalityCatalog: HospitalityCatalog = {
         approved: false,
         published: true,
       },
+      { id: "meze-11", name: "Falafel", category: "Varma meze", approved: false, published: true },
+      { id: "grill-3", name: "Kycklingspett", category: "Grillrätter", approved: false, published: true },
+      { id: "grill-4", name: "Nötspett", category: "Grillrätter", approved: false, published: true },
+      { id: "grill-5", name: "Lammspett", category: "Grillrätter", approved: false, published: true },
+      { id: "side-1", name: "Libabröd", category: "Tillbehör", approved: false, published: true },
+      { id: "side-2", name: "Ris", category: "Tillbehör", approved: false, published: true },
+      { id: "side-3", name: "Såser", category: "Tillbehör", approved: false, published: true },
+      { id: "dessert-1", name: "Baklava", category: "Desserter", approved: false, published: true },
     ]),
   venues: Array.from({ length: 4 }, (_, index) => ({
     id: `lokal-${index + 1}`,

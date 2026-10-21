@@ -1,0 +1,24 @@
+{
+  "sourceDocument": "Yei_Habibi_Plockmeny_Bilder_och_Interaktion.docx",
+  "extraction": "Original embedded JPEG bytes copied from the supplied Word document without recompression or raster edits. Visual framing is handled in CSS.",
+  "files": [
+    { "file": "hummus.jpg", "sourceMedia": "word/media/image9.jpg", "sha256": "915ea13f4b6882a3278c3896e40eff781e45404f569f60f2a07bc937133359b7", "bytes": 109269 },
+    { "file": "muhammara.jpg", "sourceMedia": "word/media/image10.jpg", "sha256": "167d6fb6fb53ed4bffbcc9d5cc68ae10a30ea8af4cb9353fef3b2fa8780bcef7", "bytes": 108267 },
+    { "file": "baba-ganoush.jpg", "sourceMedia": "word/media/image11.jpg", "sha256": "b3f38f4a36e742d3e5c33ab5bcfc6f57e9b3a26e2d70870ec9e38ab504718c01", "bytes": 114399 },
+    { "file": "labne.jpg", "sourceMedia": "word/media/image12.jpg", "sha256": "e4528b6657baa3ab0c7413991a8f5adeecd2ad0449655094df4547f748c936be", "bytes": 106888 },
+    { "file": "fatoush.jpg", "sourceMedia": "word/media/image13.jpg", "sha256": "c09a37cac968cd3620fae0cd6265945cfaf1c0679dcb344b649ed1b3c46affa8", "bytes": 109307 },
+    { "file": "tabbouleh.jpg", "sourceMedia": "word/media/image14.jpg", "sha256": "862f3aea905c0c732fc9e6b1a4f61a24b48b17ea8475ebbb5843555bd1d444c1", "bytes": 120646 },
+    { "file": "ostrulle.jpg", "sourceMedia": "word/media/image15.jpg", "sha256": "ee0e08877b841862416bdd1199b4779f6c9e420a742b6c8cfb410ba944cdbc7d", "bytes": 98692 },
+    { "file": "sambosak.jpg", "sourceMedia": "word/media/image16.jpg", "sha256": "dff05047b4e89c2410a38fa87b7bf02077782647c3f9596788e0278307e74281", "bytes": 90840 },
+    { "file": "kubbe.jpg", "sourceMedia": "word/media/image17.jpg", "sha256": "2986382fa08709267ae51dc47a8a00ca582889155556f5e190c621172d36cdbc", "bytes": 92429 },
+    { "file": "falafel.jpg", "sourceMedia": "word/media/image18.jpg", "sha256": "83d45ef184547214aea12dc83f1aa85638232d3880439dbfcb130c891374da04", "bytes": 108376 },
+    { "file": "kycklingspett.jpg", "sourceMedia": "word/media/image19.jpg", "sha256": "4b7c323389213ca3bbf42a4e6b05a313ee6123256bddefdcd5140e7783ee9e67", "bytes": 109855 },
+    { "file": "notspett.jpg", "sourceMedia": "word/media/image20.jpg", "sha256": "fb9ca1391225a0e1c9f251062c3a7f28d0d4f06ed4fabdcacfd9827c53b2a65e", "bytes": 109980 },
+    { "file": "lammspett.jpg", "sourceMedia": "word/media/image21.jpg", "sha256": "3f36092ab70fd268d35b87f2493b701e0bb8427acc619ded53b116a3b7c2974f", "bytes": 106803 },
+    { "file": "mixgrill.jpg", "sourceMedia": "word/media/image22.jpg", "sha256": "7a3ab3802cd41e4b75f4da7fbb346ae542d1ecd64e2e5a2b50e3c5d99b1d666d", "bytes": 125317 },
+    { "file": "libabrod.jpg", "sourceMedia": "word/media/image23.jpg", "sha256": "9362a38699057c225ea9fbe63c5910353a111447145b44c21ba4c4582568a537", "bytes": 105555 },
+    { "file": "ris.jpg", "sourceMedia": "word/media/image24.jpg", "sha256": "06ef421901eff76fa27f7a0f908978d49d4cb42f4a55dad2de530d55db7d313b", "bytes": 136383 },
+    { "file": "saser.jpg", "sourceMedia": "word/media/image25.jpg", "sha256": "9b38db4e5c14e5eeb6d30a3e76ba2abf94188ce3d23b1ccefbdb1a20ed5b5ed4", "bytes": 77529 },
+    { "file": "baklava.jpg", "sourceMedia": "word/media/image26.jpg", "sha256": "587e83c4b9494379da7bc8f2234f03fa1deebb9189129cf55c04cd7a3a38ad1d", "bytes": 91313 }
+  ]
+}

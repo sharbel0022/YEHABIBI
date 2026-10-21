@@ -18,7 +18,7 @@ export default async function CateringPage({ searchParams }: { searchParams: Pro
         <h1>Våra cateringmenyer</h1>
         <p>Välj en meny eller plocka dina favoriter. Vi planerar maten tillsammans med dig.</p>
       </header>
-      <CateringMenuGallery catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} />
+      <CateringMenuGallery catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} initialQuantities={selection.quantities} restoreDraft={!Object.hasOwn(search, "meny") && !Object.hasOwn(search, "ratt") && !Object.hasOwn(search, "antal")} />
     </div>
   );
 }
