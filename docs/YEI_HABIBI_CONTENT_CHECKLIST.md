@@ -78,7 +78,7 @@ Nedanstående riktiga originalbilder hämtades direkt från företagets webbplat
 | Webbfil | Motiv | Originalkälla |
 | --- | --- | --- |
 | `meze.webp` | Friterade mezerätter på serveringsfat | [Originalbild](https://www.yehabibi.se/wp-content/uploads/2024/03/349222204_761125742161259_8033822285120266608_n.jpeg) |
-| `grill.webp` | Grillspett över kol | [Originalbild](https://www.yehabibi.se/wp-content/uploads/2024/03/349049646_768566571315510_3465024970244784008_n.jpeg) |
+| `grill.webp` | Grillspett över kol | [Originalbild](https://www.yehabibi.se/wp-content/uploads/2024/03/349049646_768566571315510_3465025270244784008_n.jpeg) |
 | `catering.webp` | Upplagda matportioner | [Originalbild](https://www.yehabibi.se/wp-content/uploads/2024/03/349131455_1304325646826859_6900463006639476160_n.jpeg) |
 | `dukning.webp` | Närbild av dukat bord | [Originalbild](https://www.yehabibi.se/wp-content/uploads/2024/03/349045271_561977819349420_3752417639161837522_n.jpeg) |
 
@@ -109,7 +109,7 @@ Följande slutresultat rapporterades av implementationsansvarig den 21 oktober 2
 
 | Kontroll | Resultat |
 | --- | --- |
-| Enhets- och databastester | 249 godkända |
+| Enhets- och databastester | 252 godkända |
 | Next.js-produktionsbygge | Godkänt |
 | Expo-export för samtliga plattformar | Godkänd |
 | Produktionsröktest via HTTP | 14 publika sidor godkända, inklusive kvarvarande produktions- och betalningsspärrar |

@@ -83,7 +83,7 @@ Webbens sidor renderas dynamiskt på servern. Katalog-API:t använder `no-store`
 | Kontroll | Resultat |
 | --- | --- |
 | Syntax och typkontroll | Godkända för webb, Expo och delad API-klient |
-| `npm test` | 249 tester godkända; historiska betalnings-, order-, kapacitets-, säkerhets- och migreringstester kvar |
+| `npm test` | 252 tester godkända; historiska betalnings-, order-, kapacitets-, säkerhets- och migreringstester kvar |
 | `npm run build` | Produktionsbygge godkänt |
 | `npm run export:mobile` | Android, iOS och webb godkända; 13 statiska webbvägar |
 | `npm run test:web` | 14 publika sidor; serverrenderade menyer, priser, länkar, dolda utkast, adminskydd och produktionsspärrar godkända |
@@ -100,6 +100,10 @@ Webbens sidor renderas dynamiskt på servern. Katalog-API:t använder `no-store`
 | `npm run test:background` | Schemaläggning, återhämtning, samtidighet och bevarad order godkända |
 
 Backendens behörigheter, innehållsprojektion och dataskydd samt Expo-gränssnittet har granskats separat. Identifierade fel i utkastmärkning, sidtitel, tom menykatalog, inaktuell lokalmodal, tangentbordsfokus och HTTP-status för dold detaljsida har åtgärdats och kontrollerats igen. Den nya HTTP-kontrollen är kopplad till GitHub Actions.
+
+Första CI-körningen stoppades av en för strikt jämförelse i den befintliga beroendegranskningen. npm rapporterade färre redan granskade advisory-kopplingar för vissa Expo-paket, men jämförelsen krävde identiska listor. Kontrollen tillåter nu endast sådana minskningar. Nya advisory-ID:n per paket, ändrad risknivå, paketplats eller låst version och utgångna riskundantag stoppar fortfarande körningen. Tre ytterligare regressionstester verifierar gränsen. Låsfil, beroendeversioner och riskpolicyns giltighetstider är oförändrade.
+
+Full och produktionsaudit passerar den befintliga daterade policyn med 19 high och 6 moderate paketposter. Detta är ingen sårbarhetsfri audit eller genomförd beroendepatch. De tidigare dokumenterade riskerna och villkoren för publik mobilrelease i `docs/SECURITY_REVIEW.md` gäller fortfarande.
 
 ## Återstående steg före lansering
 
