@@ -1,0 +1,10 @@
+{
+  "source": "Four menu posters supplied by the owner in this conversation on 2026-10-21",
+  "usage": "Original posters and CSS focal-point previews; source files unchanged",
+  "images": [
+    { "file": "meny-1.png", "sha256": "e84f8e11d1c0ea501fe5e05ee2f246d571ecb362fe7b687715b88bb4ce72e196" },
+    { "file": "meny-2.png", "sha256": "c57bafe5154ee64c61ded17dd30f39e1537195c8e804ed3ff41eae7ebe62a557" },
+    { "file": "meny-3.png", "sha256": "82f8991e9b6d5245a481f1ea7073bc23048cf1f86229528e567634ba0a99a402" },
+    { "file": "plockmeny.png", "sha256": "bc0db890d0f0ecf6a95714b8522cf31d9fd18e67d5dff0b193e7785adac5fd92" }
+  ]
+}

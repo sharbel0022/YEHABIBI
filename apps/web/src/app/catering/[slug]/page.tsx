@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getHospitalityCatalog } from "@/lib/hospitality";
 import { ContactActions } from "@/components/hospitality/ContactActions";
-import { DraftNotice } from "@/components/hospitality/Content";
+import { menuArtwork, parseInquirySelection, type InquirySearch } from "@/components/catering/presentation";
 import { CateringInquiry } from "@/components/hospitality/CateringInquiry";
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<InquirySearch> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const catalog = await getHospitalityCatalog();
@@ -20,33 +20,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       }
     : {};
 }
-export default async function MenuPage({ params }: Props) {
-  const [{ slug }, catalog] = await Promise.all([
+export default async function MenuPage({ params, searchParams }: Props) {
+  const [{ slug }, catalog, search] = await Promise.all([
     params,
     getHospitalityCatalog(),
+    searchParams,
   ]);
   const menu = catalog.menus.find((item) => item.slug === slug);
   if (!menu) notFound();
+  const selection = parseInquirySelection(catalog, search);
   return (
-    <div className="shell hospitality-page">
+    <div className="shell hospitality-page catering-experience">
       <nav className="breadcrumbs" aria-label="Brödsmulor">
         <Link href="/catering">Catering</Link>
         <span aria-hidden="true">/</span>
         <span>{menu.name}</span>
       </nav>
-      <DraftNotice
-        preview={catalog.preview || !menu.approved || !menu.allergensVerified}
-      />
       <section className="menu-detail">
         <figure className="detail-photo">
           <img
-            src={menu.image}
-            alt={menu.imageAlt}
-            width={900}
-            height={1000}
+            src={menuArtwork[menu.id] || menu.image}
+            alt={menuArtwork[menu.id] ? `Menybild: ${menu.name}` : menu.imageAlt}
+            width={1448}
+            height={1086}
             fetchPriority="high"
           />
-          {!menu.approved && (
+          {!menu.approved && !menuArtwork[menu.id] && (
             <figcaption className="image-label">
               Bildexempel – visar inte exakt menyinnehåll
             </figcaption>
@@ -113,7 +112,7 @@ export default async function MenuPage({ params }: Props) {
             Markera dina favoriter och berätta hur många ni blir. Pris enligt
             offert.
           </p>
-          <CateringInquiry catalog={catalog} selectedMenu={menu.id} />
+          <CateringInquiry catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} />
         </section>
       )}
       <p className="back-link">

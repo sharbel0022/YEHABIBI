@@ -17,7 +17,7 @@ export function Footer({ contact }: { contact: HospitalityContact }) {
   const path = usePathname();
   const isVenue = path.startsWith("/festlokal");
   const call = phoneHref(contact.phone);
-  if (path === "/") {
+  if (path === "/" || path === "/catering" || path.startsWith("/catering/")) {
     return (
       <footer className="home-footer">
         <div className="home-footer-inner">

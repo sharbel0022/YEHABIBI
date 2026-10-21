@@ -1,4 +1,4 @@
-/* Shell rules apply only on /. Inner pages keep their existing design. */
+/* Shared black shell for the homepage and catering experience. */
 body:has(.home-split-hero) {
   display: flex;
   flex-direction: column;

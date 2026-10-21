@@ -112,8 +112,11 @@ try {
     assert.ok(home.includes(`href="${href}"`), `${href}: startsidans huvudval ska kunna öppnas utan JavaScript.`);
   }
   const menuHtml = renderedHtml(pages.get('/catering'));
-  assert.equal((menuHtml.match(/<article\b[^>]*class="[^"]*\bcatering-card\b/g) || []).length,
+  assert.equal((menuHtml.match(/<article\b[^>]*\bdata-catering-menu=/g) || []).length,
     4, 'Cateringsidan ska serverrendera tre fasta menyer och en plockmeny.');
+  for (const poster of ['meny-1', 'meny-2', 'meny-3', 'plockmeny']) {
+    assert.ok(menuHtml.includes(`/images/catering/${poster}.png`), `${poster}: användarens menybild saknas.`);
+  }
   const menuExpectations = [
     ['/catering/meny-1', 'Lilla Meny 1', '250 kr/person', ['Hummus', 'Muhammara', 'Baba Ganoush', 'Labne', 'Fatoush', 'Mixgrill']],
     ['/catering/meny-2', 'Meny 2', '300 kr/person', ['Hummus', 'Ostrulle', 'Sambosak', 'Kubbe', 'Mixgrill']],

@@ -16,7 +16,7 @@ const links = [
 ];
 export function Header({ phone }: { phone: string }) {
   const path = usePathname();
-  const isHome = path === "/";
+  const isHome = path === "/" || path === "/catering" || path.startsWith("/catering/");
   const dialog = useRef<HTMLDialogElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const current = (href: string) =>
