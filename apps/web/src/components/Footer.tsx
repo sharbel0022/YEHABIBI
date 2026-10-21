@@ -3,10 +3,54 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { phoneHref, type HospitalityContact } from "@yehabibi/shared";
 import { Brand } from "@/components/Brand";
+import { Facebook, Instagram } from "lucide-react";
+
+const homeLinks = [
+  ["/", "Hem"],
+  ["/catering", "Catering"],
+  ["/festlokal", "Festlokaler"],
+  ["/om-oss", "Om oss"],
+  ["/kontakt", "Kontakt"],
+];
 
 export function Footer({ contact }: { contact: HospitalityContact }) {
-  const isVenue = usePathname().startsWith("/festlokal");
+  const path = usePathname();
+  const isVenue = path.startsWith("/festlokal");
   const call = phoneHref(contact.phone);
+  if (path === "/") {
+    return (
+      <footer className="home-footer">
+        <div className="home-footer-inner">
+          <Brand signature />
+          <nav aria-label="Sidfotsmeny">
+            {homeLinks.map(([href, label]) => (
+              <Link key={href} href={href}>{label}</Link>
+            ))}
+          </nav>
+          <div className="home-footer-meta">
+            {contact.socialLinks.length > 0 && (
+              <div className="home-footer-socials">
+                {contact.socialLinks.map((link) => {
+                  const host = new URL(link.url).hostname;
+                  const Icon = /(^|\.)instagram\.com$/.test(host)
+                    ? Instagram
+                    : /(^|\.)facebook\.com$/.test(host)
+                      ? Facebook
+                      : null;
+                  return (
+                    <a key={link.url} href={link.url} aria-label={link.label} target="_blank" rel="noopener noreferrer">
+                      {Icon ? <Icon size={18} aria-hidden="true" /> : link.label}
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+            <small>© {new Date().getFullYear()} Yehabibi – Catering &amp; Fest</small>
+          </div>
+        </div>
+      </footer>
+    );
+  }
   return (
     <footer className="footer">
       <div className="shell footer-layout">
