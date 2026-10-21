@@ -60,6 +60,7 @@
   .cardLink:hover { border-color: #e2bd70; }
   .cardLink:hover .arrowCircle { background: #d9b570; color: #10140d; }
   .phoneButton:hover { border-color: #f0d191; background: #edcc8b; }
+  .heroCopy .phoneButton:hover { background: #141b13; color: #f5d58d; }
   .backLink:hover { color: #f7d99e; }
 }
 @media (max-width: 900px) {
