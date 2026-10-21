@@ -1,0 +1,127 @@
+/* Shell rules apply only on /. Inner pages keep their existing design. */
+body:has(.home-split-hero) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: #0b0e0d;
+}
+body:has(.home-split-hero) > main { display: flex; flex: 1; }
+
+.header[data-home] {
+  flex: none;
+  position: relative;
+  background: #0b0e0d;
+  border-color: rgb(211 172 99 / 24%);
+  color: #f4f3ef;
+}
+.header[data-home] .header-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  width: calc(100% - clamp(64px, 13vw, 188px));
+  max-width: 1600px;
+  min-height: 80px;
+  height: auto;
+  padding-block: 8px;
+  gap: 28px;
+}
+.header[data-home] .brand-signature { justify-self: start; }
+.header[data-home] .brand-signature img { width: 180px; height: 63px; }
+.header[data-home] .primary-nav { gap: 32px; }
+.header[data-home] .primary-nav a {
+  position: relative;
+  padding-block: 12px;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+.header[data-home] .primary-nav a:hover,
+.header[data-home] .primary-nav a[aria-current="page"] { color: #e2bc73; }
+.header[data-home] .primary-nav a[aria-current="page"]::after {
+  position: absolute;
+  inset: auto 0 5px;
+  height: 1px;
+  background: #d8b36c;
+  content: "";
+}
+.header[data-home] .header-cta {
+  justify-self: end;
+  min-width: 113px;
+  min-height: 40px;
+  padding: 9px 18px;
+  border: 1px solid #bc9756;
+  border-radius: 7px;
+  background: transparent;
+  color: #e2bc73;
+  font-size: 0.75rem;
+}
+.header[data-home] .header-cta:hover { background: rgb(215 176 101 / 10%); }
+.header[data-home] :focus-visible,
+.home-footer :focus-visible { outline-color: #edcb88; }
+
+.home-footer {
+  flex: none;
+  padding: 12px 0;
+  border-top: 1px solid rgb(211 172 99 / 22%);
+  background: #0b0e0d;
+  color: #b9bab6;
+}
+.home-footer-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: calc(100% - clamp(48px, 10.5vw, 152px));
+  max-width: 1640px;
+  margin-inline: auto;
+  gap: 30px;
+}
+.home-footer .brand-signature img { width: 155px; height: 54px; }
+.home-footer nav { display: flex; align-items: center; justify-content: center; }
+.home-footer nav a { padding-inline: 16px; font-size: 0.66rem; line-height: 1.4; }
+.home-footer nav a + a { border-left: 1px solid rgb(255 255 255 / 13%); }
+.home-footer a:hover { color: #e2bc73; }
+.home-footer-meta,
+.home-footer-socials { display: flex; align-items: center; justify-content: flex-end; gap: 20px; }
+.home-footer-socials { padding-right: 20px; border-right: 1px solid rgb(255 255 255 / 15%); }
+.home-footer-socials a { display: grid; min-width: 24px; min-height: 32px; place-items: center; }
+.home-footer small { font-size: 0.56rem; white-space: nowrap; }
+
+.header[data-home] .mobile-navigation {
+  background: #0b0e0d;
+  color: #f4f3ef;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.header[data-home] .mobile-navigation nav a,
+.header[data-home] .mobile-navigation .icon-button { color: #f4f3ef; }
+.header[data-home] .mobile-navigation nav a[aria-current="page"] {
+  color: #e2bc73;
+  text-decoration-thickness: 1px;
+}
+.header[data-home] .mobile-navigation .icon-button { border-color: #bc9756; background: transparent; }
+.header[data-home] .mobile-navigation > .btn {
+  margin-top: 32px;
+  border-color: #bc9756;
+  background: transparent;
+  color: #e2bc73;
+}
+
+@media (max-width: 1100px) {
+  .header[data-home] .header-inner { width: calc(100% - 64px); }
+  .header[data-home] .primary-nav { gap: 23px; }
+  .home-footer-inner { grid-template-columns: auto 1fr; gap: 8px 24px; }
+  .home-footer-meta { grid-column: 1 / -1; justify-content: center; }
+}
+@media (max-width: 900px) {
+  .header[data-home] .header-inner { grid-template-columns: 1fr auto auto; gap: 16px; }
+  .header[data-home] .nav-toggle { border: 0; background: transparent; color: #e2bc73; }
+}
+@media (max-width: 700px) {
+  .header[data-home] .header-inner { width: calc(100% - 36px); min-height: 75px; gap: 12px; }
+  .header[data-home] .brand-signature img { width: 155px; height: 54px; }
+  .header[data-home] .header-cta { min-width: 0; min-height: 38px; padding: 8px 10px; gap: 7px; font-size: 0.7rem; }
+  .header[data-home] .mobile-navigation .brand-signature img { width: 170px; height: auto; }
+  .home-footer { padding: 20px 0; }
+  .home-footer-inner { display: flex; flex-direction: column; width: calc(100% - 32px); gap: 19px; }
+  .home-footer nav { flex-wrap: wrap; row-gap: 14px; }
+  .home-footer nav a { padding-inline: 12px; font-size: 0.64rem; }
+  .home-footer-meta { flex-wrap: wrap; gap: 12px; }
+}

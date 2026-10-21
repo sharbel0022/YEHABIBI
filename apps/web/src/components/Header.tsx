@@ -16,15 +16,16 @@ const links = [
 ];
 export function Header({ phone }: { phone: string }) {
   const path = usePathname();
+  const isHome = path === "/";
   const dialog = useRef<HTMLDialogElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const current = (href: string) =>
     href === "/" ? path === "/" : path.startsWith(href);
   const call = phoneHref(phone);
   return (
-    <header className="header">
+    <header className="header" data-home={isHome || undefined}>
       <div className="header-inner">
-        <Brand />
+        <Brand signature={isHome} />
         <nav className="primary-nav" aria-label="Huvudmeny">
           {links.map(([href, label]) => (
             <Link
@@ -66,7 +67,7 @@ export function Header({ phone }: { phone: string }) {
           onClose={() => toggle.current?.focus()}
         >
           <div className="mobile-navigation-top">
-            <Brand onNavigate={() => dialog.current?.close()} />
+            <Brand signature={isHome} onNavigate={() => dialog.current?.close()} />
             <button
               type="button"
               className="icon-button"

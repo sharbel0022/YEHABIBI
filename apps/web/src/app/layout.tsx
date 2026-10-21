@@ -11,6 +11,7 @@ import { paymentRuntimeInfo } from "@/lib/payments";
 import { isIndexable, siteUrl } from "@/lib/config";
 import "./globals.css";
 import "./hospitality.css";
+import "./home.css";
 
 // Även startsidans paket och sidfotens kontaktuppgifter ska följa adminändringar.
 export const dynamic = "force-dynamic";

@@ -1,0 +1,9 @@
+{
+  "created": "2026-10-21",
+  "asset": "ye-habibi-signature.svg",
+  "status": "Nytecknad logotyp baserad på användarens bildreferens; originalets logotypfil saknas.",
+  "font": "Sacramento Regular, Brian J. Bonislawsky / Astigmatic",
+  "source": "https://github.com/google/fonts/tree/main/ofl/sacramento",
+  "license": "SIL Open Font License 1.1; Sacramento-OFL.txt",
+  "delivery": "Handskriften är SVG-konturer; ingen extern font eller nätverksbegäran behövs. Samma skalbara fil används i mindre storlek på mobil och i sidfot."
+}
