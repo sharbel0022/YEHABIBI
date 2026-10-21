@@ -1,0 +1,7 @@
+.stepper { display: inline-flex; width: 136px; max-width: 100%; flex-shrink: 0; align-items: stretch; border: 1px solid #776139; border-radius: 5px; background: #0b0e0d; color: #f5f2e9; }
+.stepper button { display: grid; flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; place-items: center; border: 0; background: transparent; color: #e2bd70; cursor: pointer; }
+.stepper input { width: 0; min-width: 0; flex: 1; padding: 5px 0; border: 0; border-right: 1px solid #51452e; border-left: 1px solid #51452e; border-radius: 0; background: transparent; color: #f5f2e9; font: inherit; font-size: .9rem; text-align: center; appearance: textfield; }
+.stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
+.stepper button:disabled { color: #727365; cursor: default; }
+.stepper button:focus-visible, .stepper input:focus-visible { position: relative; z-index: 1; outline: 3px solid #f5d58d; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .stepper button:not(:disabled):hover { background: #2b2b1d; } }

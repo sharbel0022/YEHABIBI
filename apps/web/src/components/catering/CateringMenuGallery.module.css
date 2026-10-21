@@ -1,11 +1,11 @@
 .gallery { --gold: #e2bd70; --muted: #bcbcb4; color: #f4f2eb; }
-.menuGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px; }
+.menuGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
 .menuCard { min-width: 0; overflow: hidden; border: 1px solid #5c4a28; background: #101311; transition: border-color 180ms, box-shadow 180ms; }
 .menuCard[data-selected] { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
 .posterButton { position: relative; display: block; width: 100%; padding: 0; border: 0; color: #fff; background: #080a09; cursor: pointer; }
 .posterButton img { display: block; width: 100%; height: auto; }
 .posterHint { position: absolute; right: 18px; bottom: 18px; display: flex; gap: 8px; align-items: center; padding: 10px 14px; border: 1px solid #b99955; border-radius: 3px; background: rgb(6 8 7 / 88%); color: #f0d59b; font-size: .75rem; box-shadow: 0 3px 14px #0008; }
-.cardFooter { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 24px; }
+.cardFooter { display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 18px; }
 .cardFooter h2 { margin: 0 0 7px; font-size: 1.12rem; line-height: 1.4; }
 .cardFooter p { margin: 0; color: var(--gold); font-size: .85rem; }
 .selectButton, .continueButton, .dishButton, .closeButton, .removeButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #a88a4e; border-radius: 3px; background: transparent; color: var(--gold); font: inherit; cursor: pointer; text-decoration: none; }
@@ -62,7 +62,7 @@
   .posterButton:hover .posterHint { background: #d6b36b; color: #10120f; }
 }
 @media (max-width: 1050px) {
-  .menuGrid { gap: 20px; }
+  .menuGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
   .cardFooter { gap: 12px; padding: 17px; }
   .cardFooter h2 { font-size: .95rem; }
   .selectedDishGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

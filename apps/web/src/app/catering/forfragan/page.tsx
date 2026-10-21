@@ -36,7 +36,7 @@ export default async function InquiryPage({
           vi bekräftar sedan innehåll, pris och upplägg personligen.
         </p>
       </header>
-      <CateringInquiry catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} />
+      <CateringInquiry catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} initialQuantities={selection.quantities} restoreDraft={!Object.hasOwn(params, "meny") && !Object.hasOwn(params, "ratt") && !Object.hasOwn(params, "antal")} />
       <div className="inquiry-contact">
         <h2>Vill du prata med oss?</h2>
         <ContactActions contact={catalog.contact} />

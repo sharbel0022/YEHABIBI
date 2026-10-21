@@ -117,6 +117,16 @@ try {
   for (const poster of ['meny-1', 'meny-2', 'meny-3', 'plockmeny']) {
     assert.ok(menuHtml.includes(`/images/catering/${poster}.png`), `${poster}: användarens menybild saknas.`);
   }
+  assert.equal((menuHtml.match(/<article\b[^>]*\bdata-plock-dish=/g) || []).length, 20,
+    'Plockmenyn ska serverrendera alla publika rätter inklusive de nya Word-förslagen.');
+  for (const photo of ['hummus', 'muhammara', 'baklava', 'kycklingspett', 'ris']) {
+    assert.ok(menuHtml.includes(`/images/plock/${photo}.jpg`), `${photo}: separat rättbild saknas.`);
+  }
+  const selectedResponse = await request('/catering/forfragan?ratt=meze-1&antal=3&ratt=dessert-1&antal=2');
+  assert.equal(selectedResponse.status, 200);
+  const selectedInquiry = visibleText(await selectedResponse.text());
+  assert.match(selectedInquiry, /Hummus\s+3\s+× önskat antal/);
+  assert.match(selectedInquiry, /Baklava\s+2\s+× önskat antal/);
   const menuExpectations = [
     ['/catering/meny-1', 'Lilla Meny 1', '250 kr/person', ['Hummus', 'Muhammara', 'Baba Ganoush', 'Labne', 'Fatoush', 'Mixgrill']],
     ['/catering/meny-2', 'Meny 2', '300 kr/person', ['Hummus', 'Ostrulle', 'Sambosak', 'Kubbe', 'Mixgrill']],

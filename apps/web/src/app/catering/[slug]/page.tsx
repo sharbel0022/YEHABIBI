@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getHospitalityCatalog } from "@/lib/hospitality";
 import { ContactActions } from "@/components/hospitality/ContactActions";
 import { menuArtwork, parseInquirySelection, type InquirySearch } from "@/components/catering/presentation";
-import { CateringInquiry } from "@/components/hospitality/CateringInquiry";
+import { PlockMenuExperience } from "@/components/catering/PlockMenuExperience";
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<InquirySearch> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -98,7 +98,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
           </p>
           <Link
             className="btn btn-primary choose-menu"
-            href={`/catering/forfragan?meny=${encodeURIComponent(menu.id)}`}
+            href={menu.pricePerPerson === null ? "#plockmeny" : `/catering/forfragan?meny=${encodeURIComponent(menu.id)}`}
           >
             Välj denna meny
           </Link>
@@ -112,7 +112,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
             Markera dina favoriter och berätta hur många ni blir. Pris enligt
             offert.
           </p>
-          <CateringInquiry catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} />
+          <PlockMenuExperience catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} initialQuantities={selection.quantities} restoreDraft={!Object.hasOwn(search, "meny") && !Object.hasOwn(search, "ratt") && !Object.hasOwn(search, "antal")} />
         </section>
       )}
       <p className="back-link">
