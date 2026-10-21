@@ -100,9 +100,13 @@ try {
   catalog.contact.emailVerified = false;
   check((await save(catalog)).status === 200, 'An unverified recipient can be saved privately for review');
   check((await call('/api/hospitality')).data.contact.email === '', 'Unverified recipient never appears in the public API');
+  const unverifiedContact = await call('/kontakt');
+  check(unverifiedContact.status === 200 && !unverifiedContact.text.includes('new-owner@example.test') && !unverifiedContact.text.includes('href="mailto:'), 'Contact page never exposes an unverified recipient or email action');
   catalog = structuredClone(record.catalog); catalog.contact.email = 'approved-owner@example.test'; catalog.contact.emailVerified = true;
   check((await save(catalog, { emailVerificationConfirmed: true })).status === 200, 'Changed recipient can be explicitly confirmed');
   check((await call('/api/hospitality')).data.contact.email === 'approved-owner@example.test', 'Explicitly confirmed recipient reaches customers');
+  const verifiedContact = await call('/kontakt');
+  check(verifiedContact.status === 200 && verifiedContact.text.includes('href="mailto:approved-owner@example.test'), 'Contact page uses the newly confirmed recipient without a rebuild');
   const revision = record.revision;
   const left = structuredClone(record.catalog); left.menus[1].pricePerPerson = 301;
   const right = structuredClone(record.catalog); right.menus[1].pricePerPerson = 302;
