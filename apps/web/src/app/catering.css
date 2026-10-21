@@ -1,0 +1,47 @@
+body:has(.catering-experience) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: #0b0e0d;
+}
+body:has(.catering-experience) > main { flex: 1; }
+.catering-experience {
+  --line: rgb(216 179 108 / 24%);
+  color: #f4f1e9;
+}
+.catering-experience h1,
+.catering-experience h2,
+.catering-experience h3 { color: #f4f1e9; }
+.catering-overview { width: min(100% - 48px, 1600px); margin-inline: auto; padding: 34px 0 50px; }
+.catering-overview > .page-intro { margin: 0 auto 30px; text-align: center; }
+.catering-overview > .page-intro h1 { font-size: clamp(1.9rem, 3.3vw, 3rem); margin-block: 10px; }
+.catering-overview > .page-intro p { margin-inline: auto; font-size: 0.9rem; }
+.catering-experience .eyebrow { color: #d8b36c; }
+.catering-experience .page-intro p,
+.catering-experience .field-hint,
+.catering-experience .breadcrumbs,
+.catering-experience .menu-detail-copy > p:not(.detail-price) { color: #bdc1b9; }
+.catering-experience .breadcrumbs a,
+.catering-experience .text-link { color: #e2bc73; }
+.catering-experience .detail-price { color: #e2bc73; }
+.catering-experience .detail-photo { background: transparent; border: 1px solid var(--line); aspect-ratio: 4 / 3; }
+.catering-experience .detail-photo img { width: 100%; height: auto; min-height: 0; max-height: none; object-fit: contain; }
+.catering-experience .menu-detail { align-items: start; }
+.catering-experience .inquiry-form { background: #111612; border-color: var(--line); }
+.catering-experience .inquiry-form label { color: #f4f1e9; }
+.catering-experience .inquiry-form input,
+.catering-experience .inquiry-form select,
+.catering-experience .inquiry-form textarea { background: #0b0e0d; border-color: #697064; color: #f4f1e9; color-scheme: dark; }
+.catering-experience .inquiry-form input::placeholder,
+.catering-experience .inquiry-form textarea::placeholder { color: #9fa698; }
+.catering-experience .btn-primary { background: #d8b36c; border-color: #d8b36c; color: #11140f; }
+.catering-experience .btn-primary:hover { background: #e8c889; border-color: #e8c889; }
+.catering-experience .btn-outline-light { color: #e2bc73; background: transparent; border-color: #a88a50; }
+.catering-experience .prepared-email { background: #171d17; border-color: var(--line); }
+.catering-experience .draft-status { color: #f0dbb2; background: #242318; }
+.catering-experience :focus-visible { outline-color: #edcb88; }
+@media (max-width: 700px) {
+  .catering-overview { width: calc(100% - 24px); padding-top: 24px; }
+  .catering-overview > .page-intro { padding-inline: 8px; margin-bottom: 22px; }
+  .catering-experience.shell { width: calc(100% - 32px); }
+}

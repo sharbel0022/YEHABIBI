@@ -1,32 +1,24 @@
 import type { Metadata } from "next";
 import { getHospitalityCatalog } from "@/lib/hospitality";
-import {
-  CateringCard,
-  ContactBand,
-  DraftNotice,
-} from "@/components/hospitality/Content";
+import { CateringMenuGallery } from "@/components/catering/CateringMenuGallery";
+import { parseInquirySelection, type InquirySearch } from "@/components/catering/presentation";
 export const metadata: Metadata = {
   title: "Libanesisk catering i Västerås",
   description:
     "Jämför tre libanesiska cateringmenyer med meze och mixgrill, eller skapa en egen plockmeny. Catering för bröllop, företag, födelsedag och student i Västerås.",
   alternates: { canonical: "/catering" },
 };
-export default async function CateringPage() {
-  const catalog = await getHospitalityCatalog();
+export default async function CateringPage({ searchParams }: { searchParams: Promise<InquirySearch> }) {
+  const [catalog, search] = await Promise.all([getHospitalityCatalog(), searchParams]);
+  const selection = parseInquirySelection(catalog, search);
   return (
-    <div className="shell hospitality-page">
+    <div className="catering-experience catering-overview">
       <header className="page-intro">
-        <span className="eyebrow">LIBANESISK CATERING I VÄSTERÅS</span>
-        <h1>Catering som passar ditt tillfälle.</h1>
-        <p>Välj en av våra tre menyer – eller fråga om en egen plockmeny.</p>
+        <span className="eyebrow">CATERING &amp; MEZE</span>
+        <h1>Våra cateringmenyer</h1>
+        <p>Välj en meny eller plocka dina favoriter. Vi planerar maten tillsammans med dig.</p>
       </header>
-      <DraftNotice preview={catalog.preview} />
-      <div className="catering-grid">
-        {catalog.menus.map((menu) => (
-          <CateringCard menu={menu} key={menu.id} />
-        ))}
-      </div>
-      <ContactBand contact={catalog.contact} />
+      <CateringMenuGallery catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} />
     </div>
   );
 }

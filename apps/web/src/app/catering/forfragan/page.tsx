@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getHospitalityCatalog } from "@/lib/hospitality";
 import { CateringInquiry } from "@/components/hospitality/CateringInquiry";
 import { ContactActions } from "@/components/hospitality/ContactActions";
+import { parseInquirySelection, type InquirySearch } from "@/components/catering/presentation";
 export const metadata: Metadata = {
   title: "Cateringförfrågan",
   description:
@@ -13,17 +14,15 @@ export const metadata: Metadata = {
 export default async function InquiryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ meny?: string }>;
+  searchParams: Promise<InquirySearch>;
 }) {
   const [catalog, params] = await Promise.all([
     getHospitalityCatalog(),
     searchParams,
   ]);
-  const menuId =
-    catalog.menus.find((menu) => menu.id === params.meny)?.id ||
-    catalog.menus[0]?.id;
+  const selection = parseInquirySelection(catalog, params);
   return (
-    <div className="shell hospitality-page inquiry-page">
+    <div className="shell hospitality-page inquiry-page catering-experience">
       <nav className="breadcrumbs" aria-label="Brödsmulor">
         <Link href="/catering">Catering</Link>
         <span aria-hidden="true">/</span>
@@ -37,7 +36,7 @@ export default async function InquiryPage({
           vi bekräftar sedan innehåll, pris och upplägg personligen.
         </p>
       </header>
-      <CateringInquiry catalog={catalog} selectedMenu={menuId} />
+      <CateringInquiry catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} />
       <div className="inquiry-contact">
         <h2>Vill du prata med oss?</h2>
         <ContactActions contact={catalog.contact} />
