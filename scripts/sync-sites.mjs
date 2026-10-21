@@ -34,6 +34,7 @@ for (const file of files) {
   let content = execFileSync('git', ['show', `${sha}:${file}`], { cwd: root, maxBuffer: 20 * 1024 * 1024 });
   if (file.startsWith('tests/')) {
     content = Buffer.from(content.toString('utf8').replaceAll('../apps/web/src/', '../src/')
+      .replaceAll('../apps/web/public/', '../public/')
       .replaceAll("path.join(root,'apps/web')", 'root'));
   }
   fs.writeFileSync(target, content);
