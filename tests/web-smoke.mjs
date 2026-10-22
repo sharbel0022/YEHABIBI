@@ -28,7 +28,7 @@ const env = {
   ORDERS_ENABLED: 'false', PAYMENTS_ENABLED: 'false',
   PAYMENT_PROVIDER: 'local_test', ADYEN_ENVIRONMENT: 'test', ADYEN_CAPTURE_MODE: '',
   ADYEN_API_KEY: '', ADYEN_MERCHANT_ACCOUNT: '', ADYEN_HMAC_KEY: '', ADYEN_ENABLED_METHODS: '',
-  RESEND_API_KEY: '', EMAIL_FROM: '', OWNER_NOTIFICATION_EMAIL: '',
+  NOTIFICATIONS_ENABLED: 'false', RESEND_API_KEY: '', EMAIL_FROM: '', OWNER_NOTIFICATION_EMAIL: '',
   ORDER_LINK_SECRET: '', ORDER_RATE_LIMIT_SECRET: '',
   OWNER_PUSH_ENABLED: 'false', CUSTOMER_PUSH_ENABLED: 'false', EXPO_ACCESS_TOKEN: '',
   MOBILE_WEB_ORIGINS: '', YEHABIBI_TEST_BRIDGE: '',
@@ -137,21 +137,34 @@ try {
   for (const poster of ['meny-1', 'meny-2', 'meny-3', 'plockmeny']) {
     assert.ok(menuHtml.includes(`/images/catering/${poster}.png`), `${poster}: användarens menybild saknas.`);
   }
-  assert.equal((menuHtml.match(/<article\b[^>]*\bdata-plock-dish=/g) || []).length, 20,
-    'Plockmenyn ska serverrendera alla publika rätter inklusive de nya Word-förslagen.');
+  assert.doesNotMatch(menuHtml, /\bdata-plock-dish=|\bid="plockmeny"/,
+    'Menyöversikten får inte visa den separata plockmenyn innan kunden öppnar den.');
+  for (const id of ['meny-1', 'meny-2', 'meny-3']) {
+    assert.ok(menuHtml.includes(`href="/catering/forfragan?meny=${id}"`),
+      `${id}: Lägg till ska länka direkt till kassan med den valda menyn.`);
+  }
+  assert.match(menuHtml, /href="\/catering\/plockmeny"[^>]*>Välj rätter/,
+    'Plockmenyns knapp ska öppna den egna sidan.');
+  const plockHtml = renderedHtml(pages.get('/catering/plockmeny'));
+  assert.match(plockHtml, /<h1\b[^>]*>Plockmeny<\/h1>/, 'Plockmenyn ska ha en egen sida med huvudrubrik.');
+  assert.match(visibleText(plockHtml), /Pris enligt offert/);
+  assert.equal((plockHtml.match(/<article\b[^>]*\bdata-plock-dish=/g) || []).length, 20,
+    'Den egna plocksidan ska serverrendera alla publika rätter inklusive Word-förslagen.');
+  assert.match(plockHtml, /<input\b(?=[^>]*aria-label="Antal Hummus att lägga till")(?=[^>]*min="1")(?=[^>]*value="1")[^>]*>/,
+    'Rättantal ska börja på en och kunna anges före tillägg.');
   for (const photo of ['hummus', 'muhammara', 'baklava', 'kycklingspett', 'ris']) {
-    assert.ok(menuHtml.includes(`/images/plock/${photo}.jpg`), `${photo}: separat rättbild saknas.`);
+    assert.ok(plockHtml.includes(`/images/plock/${photo}.jpg`), `${photo}: separat rättbild saknas på plocksidan.`);
   }
   const selectedResponse = await request('/catering/forfragan?ratt=meze-1&antal=3&ratt=dessert-1&antal=2');
   assert.equal(selectedResponse.status, 200);
-  const selectedInquiry = visibleText(await selectedResponse.text());
+  const selectedInquiryHtml = renderedHtml(await selectedResponse.text());
+  const selectedInquiry = visibleText(selectedInquiryHtml);
   assert.match(selectedInquiry, /Hummus\s+3\s+× önskat antal/);
   assert.match(selectedInquiry, /Baklava\s+2\s+× önskat antal/);
   const menuExpectations = [
     ['/catering/meny-1', 'Lilla Meny 1', '250 kr/person', ['Hummus', 'Muhammara', 'Baba Ganoush', 'Labne', 'Fatoush', 'Mixgrill']],
     ['/catering/meny-2', 'Meny 2', '300 kr/person', ['Hummus', 'Ostrulle', 'Sambosak', 'Kubbe', 'Mixgrill']],
     ['/catering/meny-3', 'Meny 3', '399 kr/person', ['Tarator Djaj', 'Tabbouleh', 'Kubbe', 'Ostrulle', 'Sambosak', 'Mixgrill Special', 'lammspett']],
-    ['/catering/plockmeny', 'Plockmeny', 'Pris enligt offert', []],
   ];
   for (const [route, name, price, dishes] of menuExpectations) {
     const text = visibleText(pages.get(route));
@@ -163,13 +176,33 @@ try {
       `${route}: menyknappen ska öppna ett utkast till ägarens bekräftade cateringadress.`);
   }
   const inquiry = renderedHtml(pages.get('/catering/forfragan'));
-  for (const name of ['name', 'phone', 'email', 'people', 'date', 'time', 'fulfillment', 'menu', 'allergies', 'message']) {
+  for (const name of ['name', 'phone', 'email', 'people', 'date', 'time', 'fulfillment', 'allergies', 'message']) {
     assert.ok(new RegExp(`\\bname="${name}"`).test(inquiry), `Cateringförfrågan: fältet ${name} saknas.`);
   }
-  assert.match(visibleText(inquiry), /Du (?:behöver |skickar )?själv|Du behöver själv skicka mejlet/,
-    'Det ska framgå att kunden själv skickar mejlet från sitt e-postprogram.');
+  for (const name of ['name', 'phone', 'email', 'people', 'date', 'time']) {
+    assert.match(inquiry, new RegExp(`<input\\b(?=[^>]*\\bname="${name}")(?=[^>]*\\brequired(?:=""|[\\s>]))[^>]*>`),
+      `Kassan: ${name} ska vara obligatoriskt.`);
+  }
+  assert.doesNotMatch(inquiry, /\bname="(?:menu|address)"/,
+    'Kassan ska sammanfatta gjorda menyval och visa leveransadress först när leverans väljs.');
+  assert.match(visibleText(inquiry), /Betalning på plats/);
+  assert.match(selectedInquiryHtml, /<button\b(?=[^>]*type="submit")(?=[^>]*\bdisabled(?:=""|[\s>]))[^>]*>[\s\S]*?Skicka förfrågan/,
+    'Även en ifylld sammanställning ska ha stängt direktutskick när mejltjänsten inte är konfigurerad.');
+  assert.match(visibleText(inquiry), /Formuläret är tillfälligt stängt för utskick/);
+  const inquiryForm = inquiry.match(/<form\b[^>]*>[\s\S]*?<\/form>/)?.[0];
+  assert.ok(inquiryForm, 'Kassan ska innehålla ett formulär för direktutskick.');
+  const inquiryEndpoint = '/api/catering/inquiry';
+  assert.equal((await request(inquiryEndpoint, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).status,403,
+    'Direktmejl kräver uttryckligt ursprung.');
+  assert.equal((await request(inquiryEndpoint, {method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json'},body:'{}'})).status,403);
+  const validInquiry = {requestId:'11111111-1111-4111-8111-111111111111',startedAt:Date.now()-3000,website:'',name:'Synthetic test',email:'synthetic@example.test',phone:'0701234567',people:10,date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),time:'15:00',fulfillment:'pickup',address:'',message:'Synthetic request; no delivery expected',allergies:'',menuIds:['meny-1'],dishQuantities:{'meze-1':3}};
+  const noDelivery = await request(inquiryEndpoint, {method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(validInquiry)});
+  assert.equal(noDelivery.status,503,'Utan konfiguration får formuläret inte påstå att ett mejl har skickats.');
+  assert.equal((await noDelivery.json()).code,'not_configured');
+  assert.doesNotMatch(visibleText(inquiryForm), /Förbered mejlutkast|Du skickar själv mejlet|ditt e-postprogram/i,
+    'Kassan ska beskriva direktutskick, inte det tidigare mejlutkastflödet.');
   assert.doesNotMatch(visibleText(inquiry), /din (?:bokning|förfrågan) är (?:klar|skickad)/i,
-    'Ett oskickat mejlutkast får inte beskrivas som skickat eller bokat.');
+    'En oskickad förfrågan får inte beskrivas som skickad eller bokad.');
 
   const venuesHtml = renderedHtml(pages.get('/festlokal'));
   assert.ok(venuesHtml.includes('tel:+4621415711'), 'Festkontakt ska använda verifierat telefonnummer.');
