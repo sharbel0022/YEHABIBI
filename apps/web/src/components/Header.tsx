@@ -5,6 +5,8 @@ import { Menu, Phone, X } from "lucide-react";
 import { useRef } from "react";
 import { phoneHref } from "@yehabibi/shared";
 import { Brand } from "@/components/Brand";
+import { SocialLinks } from "@/components/SocialLinks";
+import socialStyles from "@/components/SocialLinks.module.css";
 import { keepDialogFocus } from "@/components/hospitality/dialog-focus";
 
 const links = [
@@ -37,16 +39,19 @@ export function Header({ phone }: { phone: string }) {
             </Link>
           ))}
         </nav>
-        {call && (
-          <a
-            href={call}
-            className="btn btn-primary header-cta"
-            aria-label={`Ring oss på ${phone}`}
-          >
-            <Phone size={16} aria-hidden="true" />
-            <span>Ring oss</span>
-          </a>
-        )}
+        <div className={socialStyles.headerActions}>
+          <SocialLinks className={socialStyles.headerLinks} />
+          {call && (
+            <a
+              href={call}
+              className="btn btn-primary header-cta"
+              aria-label={`Ring oss på ${phone}`}
+            >
+              <Phone size={16} aria-hidden="true" />
+              <span>Ring oss</span>
+            </a>
+          )}
+        </div>
         <button
           ref={toggle}
           type="button"
@@ -95,6 +100,7 @@ export function Header({ phone }: { phone: string }) {
               Ring {phone}
             </a>
           )}
+          <SocialLinks className={socialStyles.mobileLinks} />
         </dialog>
       </div>
     </header>
