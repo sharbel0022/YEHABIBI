@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check, ChevronRight, Phone, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Phone, Plus, ShoppingBag, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { phoneHref, type CateringDish, type HospitalityCatalog } from "@yehabibi/shared";
 import { keepDialogFocus } from "@/components/hospitality/dialog-focus";
@@ -52,13 +52,18 @@ export function PlockMenuBuilder({
   const call = phoneHref(catalog.contact.phone);
 
   function setCandidate(id: string, value: number) {
-    setCandidates((current) => ({ ...current, [id]: quantity(value) }));
+    setCandidates((current) => ({ ...current, [id]: Math.max(1, Math.min(999 - quantity(quantities[id]), quantity(value))) }));
+  }
+
+  function candidate(id: string) {
+    return Math.max(1, Math.min(999 - quantity(quantities[id]), candidates[id] ?? 1));
   }
 
   function addDish(dish: CateringDish) {
-    const next = Math.min(999, quantity(quantities[dish.id]) + Math.max(1, quantity(candidates[dish.id])));
+    if (quantity(quantities[dish.id]) >= 999) return;
+    const next = quantity(quantities[dish.id]) + candidate(dish.id);
     onQuantityChange(dish.id, next);
-    setCandidate(dish.id, 0);
+    setCandidates((current) => ({ ...current, [dish.id]: 1 }));
     setAnnouncement(`${dish.name} har lagts till. Antal i din plockmeny: ${next}.`);
   }
 
@@ -124,9 +129,9 @@ export function PlockMenuBuilder({
         )}
         {chosenDishes.length > 0 && <p className={styles.totalRow}><span>{chosenDishes.length} {chosenDishes.length === 1 ? "rätt" : "rätter"}</span><strong>{totalQuantity} totalt</strong></p>}
         <div className={styles.summaryActions}>
-          <p>Datum, antal gäster och kontaktuppgifter fyller du i nästa steg.</p>
+          <p>Granska dina val här. I kassan fyller du i datum, antal gäster och kontaktuppgifter.</p>
           {hasSelection ? (
-            <Link className={styles.primaryButton} href={inquiryHref(menuIds, chosenDishes.map((dish) => dish.id), quantities)}>Fortsätt med förfrågan <ArrowRight size={17} aria-hidden="true" /></Link>
+            <Link className={styles.primaryButton} href={inquiryHref(menuIds, chosenDishes.map((dish) => dish.id), quantities)}>Till kassan <ArrowRight size={17} aria-hidden="true" /></Link>
           ) : <p className={styles.emptyHint}>Välj minst en rätt eller meny för att fortsätta.</p>}
           {call && <a className={styles.phoneLink} href={call}><Phone size={15} aria-hidden="true" />Ring oss: {catalog.contact.phone}</a>}
         </div>
@@ -137,9 +142,11 @@ export function PlockMenuBuilder({
   return (
     <section className={styles.builder} id="plockmeny" tabIndex={-1} aria-labelledby={headingId}>
       <header className={styles.sectionHeader}>
+        <Link className={styles.backLink} href={inquiryHref(menuIds, chosenDishes.map((dish) => dish.id), quantities).replace("/catering/forfragan", "/catering")}><ArrowLeft size={16} aria-hidden="true" />Alla cateringmenyer</Link>
         <span className={styles.eyebrow}>VÄLJ FRITT. VI PLANERAR TILLSAMMANS.</span>
         <h2 id={headingId}>Bygg din egen plockmeny</h2>
-        <p>Utforska rätterna och lägg till dina favoriter. Välj antal direkt på kortet eller klicka på bilden för att se mer.</p>
+        <p>Välj en kategori, ange antal och lägg till dina favoriter. Dina val samlas under Din plockmeny och följer med till kassan.</p>
+        <ol className={styles.steps} aria-label="Beställningens steg"><li aria-current="step"><span>1</span>Välj rätter</li><li><span>2</span>Dina uppgifter</li><li><span>3</span>Skicka förfrågan</li></ol>
       </header>
 
       <div className={styles.layout}>
@@ -172,7 +179,7 @@ export function PlockMenuBuilder({
                   </button>
                   <div className={styles.cardControls}>
                     <span className={styles.quantityLabel}>Antal</span>
-                    <QuantityStepper value={quantity(candidates[dish.id])} onChange={(value) => setCandidate(dish.id, value)} label={`${dish.name} att lägga till`} />
+                    <QuantityStepper value={candidate(dish.id)} min={1} max={Math.max(1, 999 - selected)} onChange={(value) => setCandidate(dish.id, value)} label={`${dish.name} att lägga till`} />
                     <button className={styles.addButton} type="button" onClick={() => addDish(dish)} disabled={selected >= 999}>
                       <Plus size={15} aria-hidden="true" />Lägg till<span className={styles.srOnly}> {dish.name}</span>
                     </button>
@@ -186,7 +193,7 @@ export function PlockMenuBuilder({
         </div>
 
         <aside className={styles.desktopSummary} aria-labelledby={desktopSummaryHeadingId}>
-          <h3 ref={desktopSummaryHeading} id={desktopSummaryHeadingId} tabIndex={-1}>Din plockmeny</h3>
+          <h3 ref={desktopSummaryHeading} id={desktopSummaryHeadingId} tabIndex={-1}><ShoppingBag size={22} aria-hidden="true" />Din plockmeny</h3>
           {summaryContent()}
         </aside>
       </div>
@@ -213,7 +220,7 @@ export function PlockMenuBuilder({
               <p>{getPlockDish(activeDish).description}</p>
               <p className={styles.quoteLabel}>Pris enligt offert</p>
               <span className={styles.quantityLabel}>Antal att lägga till</span>
-              <QuantityStepper value={quantity(candidates[activeDish.id])} onChange={(value) => setCandidate(activeDish.id, value)} label={`${activeDish.name} att lägga till`} />
+              <QuantityStepper value={candidate(activeDish.id)} min={1} max={Math.max(1, 999 - quantity(quantities[activeDish.id]))} onChange={(value) => setCandidate(activeDish.id, value)} label={`${activeDish.name} att lägga till`} />
               <button className={styles.primaryButton} type="button" disabled={quantity(quantities[activeDish.id]) >= 999} onClick={() => addDish(activeDish)}><Plus size={18} aria-hidden="true" />Lägg till</button>
               <p className={styles.detailChosen}>{quantity(quantities[activeDish.id]) > 0 && <><Check size={16} aria-hidden="true" />{quantity(quantities[activeDish.id])} tillagda i din plockmeny</>}</p>
               <button className={styles.doneButton} type="button" onClick={() => detailDialog.current?.close()}>Fortsätt välja rätter <ArrowRight size={16} aria-hidden="true" /></button>

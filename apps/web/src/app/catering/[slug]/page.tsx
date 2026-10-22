@@ -29,6 +29,13 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const menu = catalog.menus.find((item) => item.slug === slug);
   if (!menu) notFound();
   const selection = parseInquirySelection(catalog, search);
+  if (menu.pricePerPerson === null) return (
+    <div className="shell hospitality-page catering-experience">
+      <nav className="breadcrumbs" aria-label="Brödsmulor"><Link href="/catering">Catering</Link><span aria-hidden="true">/</span><span>Plockmeny</span></nav>
+      <header className="page-intro"><span className="eyebrow">SKAPA DIN EGEN CATERING</span><h1>Plockmeny</h1><p>Välj rätter och antal. Skicka din förfrågan i nästa steg och betala på plats efter vår bekräftelse.</p></header>
+      <PlockMenuExperience catalog={catalog} initialMenuIds={selection.menuIds} initialDishIds={selection.dishIds} initialQuantities={selection.quantities} restoreDraft={!Object.hasOwn(search, "meny") && !Object.hasOwn(search, "ratt") && !Object.hasOwn(search, "antal")} />
+    </div>
+  );
   return (
     <div className="shell hospitality-page catering-experience">
       <nav className="breadcrumbs" aria-label="Brödsmulor">

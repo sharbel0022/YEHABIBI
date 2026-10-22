@@ -1,4 +1,10 @@
-.builder { --gold: #e2bd70; --muted: #bcbcb2; color: #f5f2e9; margin-top: 70px; scroll-margin-top: 24px; }
+.builder { --gold: #e2bd70; --muted: #bcbcb2; color: #f5f2e9; margin-top: 24px; scroll-margin-top: 24px; }
+.backLink { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; min-height: 44px; margin: 0 auto 18px; color: #dec58f; font-size: .8rem; text-decoration: none; }
+.steps { display: flex; justify-content: center; flex-wrap: wrap; gap: 15px 24px; padding: 0; margin: 27px 0 0; list-style: none; }
+.steps li { display: flex; align-items: center; gap: 8px; color: #b7b8a9; font-size: .74rem; }
+.steps li > span { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid #645334; border-radius: 50%; }
+.steps li[aria-current] { color: #efd295; }
+.steps li[aria-current] > span { background: #e2bd70; border-color: #e2bd70; color: #10140e; }
 .sectionHeader { max-width: 760px; margin: 0 auto 36px; text-align: center; }
 .eyebrow { color: var(--gold); font-size: .65rem; letter-spacing: .19em; line-height: 1.8; }
 .sectionHeader h2 { margin: 13px 0 17px; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.2; }
@@ -27,7 +33,7 @@
 .addButton { width: 100%; padding: 10px; }
 .addedStatus { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 20px; color: #e2bd70; font-size: .68rem; }
 .desktopSummary { position: sticky; top: 20px; min-width: 0; max-height: calc(100svh - 40px); padding: 24px 20px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #78613a; border-radius: 7px; background: #141813; box-shadow: 0 8px 38px #0003; scrollbar-color: #7b683d #141813; scrollbar-width: thin; }
-.desktopSummary > h3 { margin: 0 0 13px; font-size: 1.65rem; }
+.desktopSummary > h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 13px; font-size: 1.65rem; }
 .quoteLabel { margin: 10px 0 13px; color: var(--gold); font-size: .88rem; font-weight: 600; }
 .summaryIntro { margin: 0 0 18px; color: #b4b7aa; font-size: .74rem; line-height: 1.8; }
 .chosenMenuSection { margin-bottom: 20px; }
@@ -94,7 +100,7 @@
 }
 @media (max-width: 900px) { .dishGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
-  .builder { margin-top: 50px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .builder { margin-top: 18px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .sectionHeader { margin-bottom: 26px; }
   .sectionHeader h2 { font-size: 2rem; }
   .sectionHeader p { font-size: .82rem; }
