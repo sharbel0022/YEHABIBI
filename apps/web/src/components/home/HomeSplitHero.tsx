@@ -33,8 +33,9 @@ export function HomeSplitHero() {
           aria-labelledby={`home-panel-${index}`}
           aria-describedby={`home-description-${index}`}
         >
-          {/* These exact user-supplied PNGs include the visible text.
-              Align desktop crops to the bottom to keep that text in view. */}
+          {/* Keep the complete supplied artwork visible. A soft copy fills
+              the remaining space without cropping or stretching the original. */}
+          <img className={styles.backdrop} src={panel.image} alt="" aria-hidden="true" />
           <Image
             className={styles.artwork}
             src={panel.image}
