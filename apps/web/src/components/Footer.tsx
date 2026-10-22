@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { phoneHref, type HospitalityContact } from "@yehabibi/shared";
 import { Brand } from "@/components/Brand";
-import { Facebook, Instagram } from "lucide-react";
+import { SocialLinks } from "@/components/SocialLinks";
 
 const homeLinks = [
   ["/", "Hem"],
@@ -28,23 +28,7 @@ export function Footer({ contact }: { contact: HospitalityContact }) {
             ))}
           </nav>
           <div className="home-footer-meta">
-            {contact.socialLinks.length > 0 && (
-              <div className="home-footer-socials">
-                {contact.socialLinks.map((link) => {
-                  const host = new URL(link.url).hostname;
-                  const Icon = /(^|\.)instagram\.com$/.test(host)
-                    ? Instagram
-                    : /(^|\.)facebook\.com$/.test(host)
-                      ? Facebook
-                      : null;
-                  return (
-                    <a key={link.url} href={link.url} aria-label={link.label} target="_blank" rel="noopener noreferrer">
-                      {Icon ? <Icon size={18} aria-hidden="true" /> : link.label}
-                    </a>
-                  );
-                })}
-              </div>
-            )}
+            <SocialLinks className="home-footer-socials" />
             <small>© {new Date().getFullYear()} Yehabibi – Catering &amp; Fest</small>
           </div>
         </div>
@@ -86,16 +70,7 @@ export function Footer({ contact }: { contact: HospitalityContact }) {
               Visa på Google Maps ↗
             </a>
           )}
-          {contact.socialLinks.map((link) => (
-            <a
-              key={link.url}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {link.label} ↗
-            </a>
-          ))}
+          <SocialLinks />
         </div>
       </div>
       <div className="shell footer-bottom">

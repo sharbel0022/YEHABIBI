@@ -33,8 +33,8 @@ export function HomeSplitHero() {
           aria-labelledby={`home-panel-${index}`}
           aria-describedby={`home-description-${index}`}
         >
-          {/* These exact user-supplied artworks include the visible text.
-              Preserve the complete image and its original PNG bytes. */}
+          {/* These exact user-supplied PNGs include the visible text.
+              Align desktop crops to the bottom to keep that text in view. */}
           <Image
             className={styles.artwork}
             src={panel.image}
