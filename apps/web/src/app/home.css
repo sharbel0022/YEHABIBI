@@ -7,6 +7,10 @@ body:has(.brand-experience) {
   background: #0b0e0d;
 }
 body:has(.home-split-hero) > main { display: flex; flex: 1; }
+@media (min-width: 901px) {
+  body:has(.home-split-hero) { height: 100svh; }
+  body:has(.home-split-hero) > main { min-height: 0; }
+}
 body:has(.brand-experience) > main { display: flex; flex: 1; min-width: 0; }
 .brand-experience { flex: 1; width: 100%; min-width: 0; }
 
